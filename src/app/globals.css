@@ -114,13 +114,14 @@ body {
 }
 
 /* 히어로 배경 떠다니는 파티클 (AmbientParticles 컴포넌트) — 브랜드 코랄/앰버
-   톤만 쓰고, prefers-reduced-motion이면 정지 상태(투명)로 남는다. */
+   톤만 쓰고, prefers-reduced-motion이면 움직이지는 않되 정적으로는 보이게
+   둔다 (opacity:0으로 완전히 숨기면 그 사용자에게는 기능 자체가 사라짐). */
 .floating-particle {
   position: absolute;
   bottom: -12%;
   border-radius: 9999px;
   background: radial-gradient(circle at 30% 30%, var(--color-accent), var(--color-primary));
-  opacity: 0;
+  opacity: 0.35;
 }
 
 @keyframes float-up {
@@ -145,6 +146,7 @@ body {
 
 @media (prefers-reduced-motion: no-preference) {
   .floating-particle {
+    opacity: 0;
     animation-name: float-up;
     animation-timing-function: linear;
     animation-iteration-count: infinite;
