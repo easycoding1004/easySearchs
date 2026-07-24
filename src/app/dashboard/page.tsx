@@ -1,12 +1,14 @@
 import BlogScoreForm from "@/components/dashboard/BlogScoreForm";
 import PainPointPromo from "@/components/PainPointPromo";
+import AmbientParticles from "@/components/AmbientParticles";
 import Link from "next/link";
 
 export default function DashboardHomePage() {
   return (
     <main className="flex flex-1 flex-col items-center">
       {/* Hero + form */}
-      <section className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32">
+      <section className="relative flex w-full flex-col items-center gap-6 overflow-hidden px-4 py-24 text-center sm:px-6 sm:py-32">
+        <AmbientParticles />
         <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">
           무료 · 회원가입 불필요
         </span>

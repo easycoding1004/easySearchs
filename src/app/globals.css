@@ -112,3 +112,38 @@ body {
     transition: opacity 0.5s var(--ease-spring), transform 0.5s var(--ease-spring);
   }
 }
+
+/* 히어로 배경 떠다니는 파티클 (AmbientParticles 컴포넌트) — 브랜드 코랄/앰버
+   톤만 쓰고, prefers-reduced-motion이면 정지 상태(투명)로 남는다. */
+.floating-particle {
+  position: absolute;
+  bottom: -8%;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, var(--color-accent), var(--color-primary));
+  opacity: 0;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.3;
+  }
+  88% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-130vh) translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .floating-particle {
+    animation-name: float-up;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+}
