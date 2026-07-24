@@ -2,12 +2,14 @@ import { extractBlogId } from "./blogProfileScraper";
 import { createTtlCache } from "../utils/ttlCache";
 
 // UNOFFICIAL — same category of exception as blogProfileScraper.ts (see its
-// header comment): no Naver API exposes per-post comment counts. This reads
-// the blog's own public RSS feed to find its most recent post URLs, then
-// scrapes each post's public mobile page for its comment count. "공감"
-// (sympathy/likes) was investigated too but isn't present anywhere in the
-// logged-out HTML — only "isReactionEnable" (a feature flag), no actual
-// count — so it's not included here rather than being guessed at.
+// header comment): no Naver API exposes per-post comment counts or tags.
+// This reads the blog's own public RSS feed to find its most recent post
+// URLs, then scrapes each post's public mobile page for its comment count
+// (fetchRecentEngagement) or tags (fetchPostTags, used by
+// competitorKeywords.ts). "공감" (sympathy/likes) was investigated too but
+// isn't present anywhere in the logged-out HTML — only "isReactionEnable"
+// (a feature flag), no actual count — so it's not included here rather
+// than being guessed at.
 const RECENT_POST_SAMPLE = 5;
 const REQUEST_TIMEOUT_MS = 8000;
 const REQUEST_SPACING_MS = 400;
@@ -20,6 +22,7 @@ const USER_AGENT =
 // request volume.
 const ENGAGEMENT_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const engagementCache = createTtlCache<string, BlogEngagementStats>(ENGAGEMENT_CACHE_TTL_MS);
+const tagsCache = createTtlCache<string, string[]>(ENGAGEMENT_CACHE_TTL_MS);
 
 export interface BlogEngagementStats {
   postsScanned: number;
@@ -68,6 +71,45 @@ async function fetchRecentLogNos(blogId: string): Promise<string[]> {
 function extractCommentCount(html: string): number | null {
   const match = html.match(/\\"commentCount\\":(\d+)/);
   return match ? Number(match[1]) : null;
+}
+
+// Same embedded-JSON-string situation as commentCount — tagNames is a
+// single comma-joined string (Korean text as \uXXXX escapes, ASCII tags
+// like "SW코딩자격증" mixed in literally), not a JSON array.
+function extractTags(html: string): string[] {
+  const match = html.match(/\\"tagNames\\":\\"((?:\\u[0-9a-fA-F]{4}|[A-Za-z0-9]|,)*)/);
+  if (!match) return [];
+  try {
+    const decoded = JSON.parse(`"${match[1]}"`) as string;
+    return decoded.split(",").map((t) => t.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function extractPostId(link: string): { blogId: string; logNo: string } | null {
+  const match = link.match(/blog\.naver\.com\/([a-zA-Z0-9_-]+)\/(\d+)/);
+  return match ? { blogId: match[1], logNo: match[2] } : null;
+}
+
+// Used by competitorKeywords.ts to enrich "자주 쓰는 단어" beyond just
+// title words — blog search results don't include tags at all, so each
+// matched post has to be visited individually. Caller is responsible for
+// capping how many posts get visited and pacing the requests.
+export async function fetchPostTags(link: string): Promise<string[]> {
+  const post = extractPostId(link);
+  if (!post) return [];
+
+  const cacheKey = `${post.blogId}/${post.logNo}`;
+  const cached = tagsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const html = await fetchText(`https://m.blog.naver.com/${encodeURIComponent(post.blogId)}/${post.logNo}`);
+  if (!html) return [];
+
+  const tags = extractTags(html);
+  if (tags.length > 0) tagsCache.set(cacheKey, tags);
+  return tags;
 }
 
 export async function fetchRecentEngagement(domain: string): Promise<BlogEngagementStats | null> {

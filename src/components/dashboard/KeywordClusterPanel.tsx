@@ -227,7 +227,7 @@ export default function KeywordClusterPanel({
       {competitorProfiles.length > 0 && (
         <div className="mt-6">
           <h3 className="mb-2 text-sm font-semibold text-ink">
-            경쟁사가 자주 쓰는 단어 (블로그 글 제목 형태소 분석 — 명사 빈도)
+            경쟁사가 자주 쓰는 단어 (게시물 제목 형태소 분석 + 태그)
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {competitorProfiles.map((profile) => (
