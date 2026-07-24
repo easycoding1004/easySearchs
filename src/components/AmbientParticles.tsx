@@ -3,18 +3,18 @@
 // Math.random() (random values would differ between server and client
 // render and break hydration).
 const PARTICLES = [
-  { left: "4%", size: 10, delay: "0s", duration: "16s" },
-  { left: "12%", size: 6, delay: "3s", duration: "20s" },
-  { left: "20%", size: 14, delay: "6s", duration: "14s" },
-  { left: "30%", size: 8, delay: "1s", duration: "18s" },
-  { left: "40%", size: 12, delay: "8s", duration: "22s" },
-  { left: "50%", size: 7, delay: "4s", duration: "17s" },
-  { left: "58%", size: 16, delay: "10s", duration: "15s" },
-  { left: "67%", size: 9, delay: "2s", duration: "19s" },
-  { left: "76%", size: 11, delay: "7s", duration: "21s" },
-  { left: "85%", size: 13, delay: "5s", duration: "16s" },
-  { left: "92%", size: 6, delay: "9s", duration: "23s" },
-  { left: "97%", size: 9, delay: "11s", duration: "18s" },
+  { left: "4%", size: 16, delay: "0s", duration: "11s" },
+  { left: "12%", size: 10, delay: "2s", duration: "14s" },
+  { left: "20%", size: 22, delay: "4s", duration: "10s" },
+  { left: "30%", size: 13, delay: "1s", duration: "13s" },
+  { left: "40%", size: 19, delay: "6s", duration: "15s" },
+  { left: "50%", size: 11, delay: "3s", duration: "12s" },
+  { left: "58%", size: 24, delay: "7s", duration: "11s" },
+  { left: "67%", size: 14, delay: "1.5s", duration: "14s" },
+  { left: "76%", size: 17, delay: "5s", duration: "15s" },
+  { left: "85%", size: 20, delay: "3.5s", duration: "11s" },
+  { left: "92%", size: 10, delay: "6.5s", duration: "16s" },
+  { left: "97%", size: 14, delay: "8s", duration: "13s" },
 ] as const;
 
 export default function AmbientParticles() {

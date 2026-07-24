@@ -117,9 +117,10 @@ body {
    톤만 쓰고, prefers-reduced-motion이면 정지 상태(투명)로 남는다. */
 .floating-particle {
   position: absolute;
-  bottom: -8%;
+  bottom: -12%;
   border-radius: 9999px;
   background: radial-gradient(circle at 30% 30%, var(--color-accent), var(--color-primary));
+  box-shadow: 0 0 16px 2px color-mix(in srgb, var(--color-primary) 55%, transparent);
   opacity: 0;
 }
 
@@ -128,14 +129,17 @@ body {
     transform: translateY(0) translateX(0);
     opacity: 0;
   }
-  12% {
-    opacity: 0.3;
+  10% {
+    opacity: 0.65;
   }
-  88% {
-    opacity: 0.3;
+  85% {
+    opacity: 0.55;
   }
   100% {
-    transform: translateY(-130vh) translateX(24px);
+    /* translateY% resolves against the particle's own tiny size, not the
+       container — needs a viewport-relative unit to actually travel the
+       height of the hero section. */
+    transform: translateY(-120vh) translateX(30px);
     opacity: 0;
   }
 }
