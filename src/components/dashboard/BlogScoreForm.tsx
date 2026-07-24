@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_BLOG_SCORE_COMPETITORS, MAX_BLOG_SCORE_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
+import SearchProgressModal from "@/components/SearchProgressModal";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default function BlogScoreForm() {
   const router = useRouter();
@@ -12,6 +17,7 @@ export default function BlogScoreForm() {
   const [keywords, setKeywords] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,6 +27,7 @@ export default function BlogScoreForm() {
     setLoading(true);
     setError(null);
     setStatus("분석 준비 중...");
+    setProgress(0);
 
     try {
       const res = await fetch("/api/blog-score", {
@@ -38,18 +45,26 @@ export default function BlogScoreForm() {
       let sessionId: string | null = null;
       await readSseStream(res, (data) => {
         if (typeof data.status === "string") setStatus(data.status);
+        if (typeof data.progress === "number") setProgress(data.progress);
         if (data.done) {
           if (typeof data.error === "string") setError(data.error);
           else if (typeof data.sessionId === "string") sessionId = data.sessionId;
         }
       });
 
-      if (sessionId) router.push(`/dashboard/${sessionId}`);
+      if (sessionId) {
+        setProgress(100);
+        setStatus("완료!");
+        await sleep(300);
+        router.push(`/dashboard/${sessionId}`);
+        return;
+      }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
       setStatus(null);
+      setProgress(0);
     }
   }
 
@@ -92,13 +107,12 @@ export default function BlogScoreForm() {
           type="text"
           value={keywords}
           onChange={(e) => setKeywords(e.target.value)}
-          placeholder="예: 은평구코딩학원, 불광동코딩학원"
+          placeholder="예: 강남역맛집, 홍대카페"
           className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
           disabled={loading}
         />
       </label>
 
-      {loading && status && <p className="text-sm text-ink-muted">{status}</p>}
       {error && <p className="text-sm text-error">{error}</p>}
 
       <button
@@ -108,6 +122,8 @@ export default function BlogScoreForm() {
       >
         {loading ? "분석 중..." : "블로그지수 확인하기"}
       </button>
+
+      {loading && <SearchProgressModal status={status} progress={progress} />}
     </form>
   );
 }

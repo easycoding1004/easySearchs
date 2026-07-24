@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_SEED_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
+import SearchProgressModal from "@/components/SearchProgressModal";
 
 function parseKeywordCount(raw: string): number {
   return raw
@@ -12,11 +13,16 @@ function parseKeywordCount(raw: string): number {
     .filter(Boolean).length;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function SearchForm() {
   const router = useRouter();
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,6 +38,7 @@ export default function SearchForm() {
     setLoading(true);
     setError(null);
     setStatus("검색 준비 중...");
+    setProgress(0);
 
     try {
       const res = await fetch("/api/search", {
@@ -49,18 +56,26 @@ export default function SearchForm() {
       let sessionId: string | null = null;
       await readSseStream(res, (data) => {
         if (typeof data.status === "string") setStatus(data.status);
+        if (typeof data.progress === "number") setProgress(data.progress);
         if (data.done) {
           if (typeof data.error === "string") setError(data.error);
           else if (typeof data.sessionId === "string") sessionId = data.sessionId;
         }
       });
 
-      if (sessionId) router.push(`/result/${sessionId}`);
+      if (sessionId) {
+        setProgress(100);
+        setStatus("완료!");
+        await sleep(300);
+        router.push(`/result/${sessionId}`);
+        return;
+      }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
       setStatus(null);
+      setProgress(0);
     }
   }
 
@@ -83,8 +98,8 @@ export default function SearchForm() {
           {loading ? "검색 중..." : "검색"}
         </button>
       </div>
-      {loading && status && <p className="text-sm text-ink-muted">{status}</p>}
       {error && <p className="text-sm text-error">{error}</p>}
+      {loading && <SearchProgressModal status={status} progress={progress} />}
     </form>
   );
 }

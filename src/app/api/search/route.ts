@@ -112,7 +112,7 @@ export async function POST(request: Request) {
 
   (async () => {
     try {
-      send({ status: "네이버 키워드 검색량 조회 중..." });
+      send({ status: "네이버 키워드 검색량 조회 중...", progress: 5 });
 
       let rawRows: NormalizedKeywordRow[];
       try {
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       if (keywords.length === 1) {
         const relatedCount = tagged.filter((entry) => !entry.isSeed).length;
         if (relatedCount < 5) {
-          send({ status: "연관 키워드가 적어 추가 키워드를 찾는 중..." });
+          send({ status: "연관 키워드가 적어 추가 키워드를 찾는 중...", progress: 8 });
           const added = await expandSparseKeywords(
             keywords[0],
             tagged.map((entry) => entry.row)
@@ -165,8 +165,10 @@ export async function POST(request: Request) {
       // sequential so each one can report which keyword is currently being
       // checked, since Naver's shared rate limit already serializes these.
       const publishStats = new Map<string, BlogPublishStats>();
-      for (const entry of capped) {
-        send({ status: `"${entry.row.relKeyword}" 블로그 발행량 확인 중...` });
+      for (let i = 0; i < capped.length; i++) {
+        const entry = capped[i];
+        const progress = capped.length > 0 ? 10 + Math.round((80 * i) / capped.length) : 90;
+        send({ status: `"${entry.row.relKeyword}" 블로그 발행량 확인 중...`, progress });
         try {
           publishStats.set(entry.row.relKeyword, await getBlogPublishStats(entry.row.relKeyword));
         } catch (err) {
@@ -177,7 +179,7 @@ export async function POST(request: Request) {
       const today = new Date().toISOString().slice(0, 10);
       const keywordLabel = keywords.join(", ");
 
-      send({ status: "결과 저장 중..." });
+      send({ status: "결과 저장 중...", progress: 92 });
 
       let sessionId: string;
       try {
@@ -215,7 +217,7 @@ export async function POST(request: Request) {
 
       await waitForRecordsIndexed(sessionId, capped.length);
 
-      send({ done: true, sessionId });
+      send({ done: true, sessionId, progress: 100 });
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("[POST /api/search] unexpected failure:", message, err);

@@ -53,10 +53,10 @@ export async function POST(request: Request) {
 
   (async () => {
     try {
-      send({ status: "키워드 검색량 조회 중..." });
+      send({ status: "키워드 검색량 조회 중...", progress: 5 });
       const nodes = keywords.length > 0 ? await getKeywordVolumes(keywords) : [];
 
-      send({ status: "콘텐츠 진단 분석 중..." });
+      send({ status: "콘텐츠 진단 분석 중...", progress: 15 });
       const profiles = await getContentProfiles(nodes, myBlogDomain, competitors);
       const profileByDomainKey = new Map(profiles.map((p) => [p.domain, p]));
       const baseScores = computeRadarScores(profiles);
@@ -64,8 +64,12 @@ export async function POST(request: Request) {
       const domains = [myBlogDomain, ...competitors];
       const profileStatsByDomain = new Map<string, Awaited<ReturnType<typeof fetchBlogProfileStats>>>();
       const avgCommentsByDomain = new Map<string, number | null>();
-      for (const domain of domains) {
-        send({ status: `"${domain}" 블로그 프로필 확인 중...` });
+      for (let i = 0; i < domains.length; i++) {
+        const domain = domains[i];
+        const stepProgress = (offset: number) =>
+          20 + Math.round((70 * (i + offset)) / (domains.length * 2));
+
+        send({ status: `"${domain}" 블로그 프로필 확인 중...`, progress: stepProgress(0) });
         try {
           profileStatsByDomain.set(domain, await fetchBlogProfileStats(domain));
         } catch (err) {
@@ -73,7 +77,7 @@ export async function POST(request: Request) {
           profileStatsByDomain.set(domain, null);
         }
 
-        send({ status: `"${domain}" 최근 게시물 댓글 확인 중...` });
+        send({ status: `"${domain}" 최근 게시물 댓글 확인 중...`, progress: stepProgress(0.5) });
         try {
           const engagement = await fetchRecentEngagement(domain);
           avgCommentsByDomain.set(domain, engagement?.avgComments ?? null);
@@ -86,7 +90,7 @@ export async function POST(request: Request) {
       const scores = applyEngagementScores(baseScores, avgCommentsByDomain);
       const gaps = buildGapMessages(scores);
 
-      send({ status: "결과 저장 중..." });
+      send({ status: "결과 저장 중...", progress: 92 });
 
       const sessionId = await createBlogScoreSession({
         title: `${myBlogDomain} - ${new Date().toISOString().slice(0, 10)}`,
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
         });
       });
 
-      send({ done: true, sessionId });
+      send({ done: true, sessionId, progress: 100 });
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("[POST /api/blog-score] failed:", message, err);
