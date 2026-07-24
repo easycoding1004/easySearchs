@@ -2,7 +2,7 @@
 @import "pretendard/dist/web/variable/pretendardvariable.css";
 
 :root {
-  /* easySerch 디자인 시스템 (design-system.md) — 정해진 값 그대로 사용 */
+  /* ezzsearch 디자인 시스템 (design-system.md) — 정해진 값 그대로 사용 */
   --color-primary: #e06b3d;
   --color-primary-hover: #c15429;
   --color-accent: #f5a83c;

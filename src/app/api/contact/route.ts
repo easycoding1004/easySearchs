@@ -38,10 +38,10 @@ export async function POST(request: Request) {
   try {
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
-      from: "easySerch 문의 <onboarding@resend.dev>",
+      from: "ezzsearch 문의 <onboarding@resend.dev>",
       to,
       replyTo: email,
-      subject: `[easySerch 문의] ${senderLabel}`,
+      subject: `[ezzsearch 문의] ${senderLabel}`,
       text: message,
     });
     if (error) throw new Error(error.message);

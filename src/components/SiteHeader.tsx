@@ -5,11 +5,8 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface/85 backdrop-blur">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/easyserch_icon.svg" alt="easySerch" width={28} height={28} />
-          <span className="text-base font-bold tracking-tight text-primary">
-            easySerch
-          </span>
+        <Link href="/" className="flex items-center">
+          <Image src="/ezzsearch_logo.png" alt="ezzsearch" width={94} height={32} priority />
         </Link>
         <nav className="flex items-center gap-5 text-sm font-medium text-ink-muted">
           <Link href="/" className="transition-colors hover:text-primary">

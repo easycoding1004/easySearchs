@@ -1,4 +1,4 @@
-# CLAUDE.md — easySerch (네이버 키워드 검색량 조회 & 블로그지수)
+# CLAUDE.md — ezzsearch (네이버 키워드 검색량 조회 & 블로그지수)
 
 이 문서는 이 프로젝트에서 작업할 때 참고하는 지침서입니다.
 
@@ -170,7 +170,7 @@ API 응답으로 받은 키워드 1개당 1행.
 
 ### 10.6 스타일
 
-- `design-system.md` 기준 easySerch 브랜드(coral/amber, Pretendard, 라이트 모드 전용 — 다크모드 없음)를 `/`, `/dashboard` 양쪽에 동일 적용. 새 UI를 추가할 때 토큰을 새로 발명하지 말고 기존 `--chart-*`/브랜드 CSS 변수를 재사용할 것
+- `design-system.md` 기준 ezzsearch 브랜드(coral/amber, Pretendard, 라이트 모드 전용 — 다크모드 없음)를 `/`, `/dashboard` 양쪽에 동일 적용. 새 UI를 추가할 때 토큰을 새로 발명하지 말고 기존 `--chart-*`/브랜드 CSS 변수를 재사용할 것
 
 ## 11. 배포
 

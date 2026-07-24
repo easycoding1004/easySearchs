@@ -2,7 +2,7 @@ import SiteHeader from "@/components/SiteHeader";
 import ContactForm from "@/components/ContactForm";
 
 export const metadata = {
-  title: "문의하기 — easySerch",
+  title: "문의하기 — ezzsearch",
 };
 
 export default function ContactPage() {
