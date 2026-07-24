@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CategoryDef } from "@/lib/naver/categoryTrends";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 
-const ROTATE_INTERVAL_MS = 10000;
+const ROTATE_INTERVAL_MS = 6000;
 
 interface Slide {
   category: CategoryDef;
