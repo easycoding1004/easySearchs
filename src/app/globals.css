@@ -1,26 +1,114 @@
 @import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* easySerch 디자인 시스템 (design-system.md) — 정해진 값 그대로 사용 */
+  --color-primary: #e06b3d;
+  --color-primary-hover: #c15429;
+  --color-accent: #f5a83c;
+  --color-on-brand: #7a3418;
+  --color-ink: #3d2e1f;
+  --color-ink-muted: #8a7b6c;
+  --color-bg: #fffbf7;
+  --color-surface: #ffffff;
+  --color-hairline: #ede6dd;
+  --color-success: #4b8b5f;
+  --color-error: #c94f4f;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Apple 스타일 인터랙션 원칙(design-system.md §8)의 공통 이징 —
+     스크롤 진입/버튼 프레스 등 모든 움직임에 이 커브를 쓴다. */
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 차트 색상은 dataviz 스킬로 별도 검증된 팔레트 — 브랜드 컬러와 무관하게 유지 */
+  --chart-series-pc: #2a78d6;
+  --chart-series-mobile: #eb6834;
+  --chart-series-tertiary: #1baf7a;
+  --chart-series-quaternary: #eda100;
+  --chart-series-quinary: #e87ba4;
+  --chart-surface: #fcfcfb;
+  --chart-text-primary: #0b0b0b;
+  --chart-text-secondary: #52514e;
+  --chart-text-muted: #898781;
+  --chart-gridline: #e1e0d9;
+  --chart-baseline: #c3c2b7;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-accent: var(--color-accent);
+  --color-on-brand: var(--color-on-brand);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-hairline: var(--color-hairline);
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --ease-spring: var(--ease-spring);
+
+  --font-sans: "Pretendard Variable", -apple-system, "Noto Sans KR", sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* 페이지 뷰 전환 애니메이션 — src/app/template.tsx가 내비게이션마다
+   새로 마운트해서 이 애니메이션을 재생시킴. prefers-reduced-motion이면
+   생략. */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-transition {
+    animation: page-fade-in 0.3s var(--ease-spring) both;
+  }
+
+  .panel-transition {
+    animation: panel-fade-in 0.2s var(--ease-spring) both;
+  }
+}
+
+/* 스크롤 진입 애니메이션 (Reveal 컴포넌트가 붙였다 뗌) — 기본은 항상
+   보이는 상태라 JS가 늦게 붙거나 없어도 콘텐츠가 사라지지 않는다. */
+.reveal-hidden {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-init {
+    transition: opacity 0.5s var(--ease-spring), transform 0.5s var(--ease-spring);
+  }
 }

@@ -1,0 +1,411 @@
+import { RADAR_AXES, compositeScore, type GapMessage, type RadarScore } from "@/lib/contentDiagnostics";
+import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
+
+type AxisKey = (typeof RADAR_AXES)[number]["key"];
+
+const AXIS_ICONS: Record<AxisKey, React.ReactNode> = {
+  postVolume: <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v6h6" />,
+  keywordCoverage: (
+    <>
+      <path d="M20 12l-8 8-9-9V4h7l10 8z" />
+      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  highVolumeCoverage: <path d="M3 17l6-6 4 4 8-8M15 6h6v6" />,
+  lowCompetitionCoverage: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" stroke="none" />
+    </>
+  ),
+  exposureRank: <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 3M17 6h3a3 3 0 01-3 3" />,
+  freshness: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </>
+  ),
+  engagement: (
+    <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+  ),
+};
+
+type ProfileField =
+  | "category"
+  | "todayVisitor"
+  | "totalVisitor"
+  | "subscriber"
+  | "postCount"
+  | "recentComments";
+
+const PROFILE_ICONS: Record<ProfileField, React.ReactNode> = {
+  category: (
+    <>
+      <path d="M20 12l-8 8-9-9V4h7l10 8z" />
+      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  todayVisitor: <path d="M3 17l4-6 4 3 4-7 6 10M3 20h18" />,
+  totalVisitor: (
+    <>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  subscriber: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6M16 4.5a3 3 0 010 5.8M22 20c0-2.8-2.3-5.1-5.3-5.8" />
+    </>
+  ),
+  postCount: <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v6h6M8 13h8M8 17h5" />,
+  recentComments: (
+    <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+  ),
+};
+
+interface Band {
+  max: number;
+  label: string;
+  color: string;
+}
+
+const BANDS: Band[] = [
+  { max: 39, label: "일반", color: "var(--chart-series-mobile)" },
+  { max: 69, label: "준최적화", color: "var(--chart-series-quaternary)" },
+  { max: 100, label: "최적화", color: "var(--chart-series-tertiary)" },
+];
+
+function bandFor(score: number): Band {
+  return BANDS.find((b) => score <= b.max) ?? BANDS[BANDS.length - 1];
+}
+
+// 0-100 내부 점수를 10점 만점 소수 한 자리로 변환 (예: 49 → "4.9") —
+// 흔히 보는 블로그 지수 도구들의 10점 게이지 표기를 참고한 표시 방식일 뿐,
+// 내부 산정 로직(RADAR_AXES 콘텐츠 진단 지표 평균)은 그대로다.
+function toTenScale(score: number): string {
+  return (score / 10).toFixed(1);
+}
+
+const GAUGE_TICKS = [1, 3, 5, 7, 9];
+
+function ScoreGauge({ score }: { score: number }) {
+  const band = bandFor(score);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex text-xs font-medium text-ink-muted">
+        {BANDS.map((b, i) => {
+          const prevMax = i === 0 ? 0 : BANDS[i - 1].max;
+          return (
+            <span
+              key={b.label}
+              className="text-center first:text-left last:text-right"
+              style={{ width: `${b.max - prevMax}%` }}
+            >
+              {b.label}
+            </span>
+          );
+        })}
+      </div>
+      <div className="relative h-2.5 w-full overflow-hidden rounded-full">
+        <div className="flex h-full w-full">
+          {BANDS.map((b, i) => {
+            const prevMax = i === 0 ? 0 : BANDS[i - 1].max;
+            return (
+              <div
+                key={b.label}
+                className="h-full"
+                style={{ width: `${b.max - prevMax}%`, background: b.color, opacity: 0.35 }}
+              />
+            );
+          })}
+        </div>
+        <div
+          className="absolute top-1/2 h-4 w-4 -translate-y-1/2 -translate-x-1/2 rounded-full border-2 border-surface transition-all ease-spring"
+          style={{ left: `${score}%`, background: band.color }}
+        />
+      </div>
+      <div className="relative h-3 w-full text-[10px] text-ink-muted">
+        {GAUGE_TICKS.map((tick) => (
+          <span
+            key={tick}
+            className="absolute -translate-x-1/2"
+            style={{ left: `${tick * 10}%` }}
+          >
+            {tick}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfileStatCard({
+  field,
+  value,
+  label,
+}: {
+  field: ProfileField;
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="rounded-md bg-bg p-2.5 text-center sm:p-3">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mx-auto mb-1 h-4 w-4 text-ink-muted"
+      >
+        {PROFILE_ICONS[field]}
+      </svg>
+      <div className="text-sm font-bold text-ink sm:text-base">{value}</div>
+      <div className="text-[11px] text-ink-muted">{label}</div>
+    </div>
+  );
+}
+
+function formatCount(value: number | null): string {
+  if (value == null) return "비공개";
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}만`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return value.toLocaleString();
+}
+
+function formatDecimalCount(value: number | null): string {
+  if (value == null) return "확인 불가";
+  return value.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+}
+
+function BlogScoreCard({
+  score,
+  profile,
+  avgRecentComments,
+  terms,
+  rank,
+}: {
+  score: RadarScore;
+  profile: BlogProfileStats | null | undefined;
+  avgRecentComments: number | null | undefined;
+  terms: { term: string; count: number }[] | undefined;
+  rank: { position: number; total: number } | null;
+}) {
+  const composite = compositeScore(score);
+  const band = bandFor(composite);
+
+  return (
+    <div className="panel-transition rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {score.isMine && (
+          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+            내 블로그
+          </span>
+        )}
+        <span className="break-all text-sm font-semibold text-ink">{score.label}</span>
+        {rank && (
+          <span className="rounded-full bg-bg px-2 py-0.5 text-[10px] font-medium text-ink-muted">
+            등록 업체 중 {rank.position}/{rank.total}위
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <ScoreGauge score={composite} />
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-3xl font-extrabold leading-none" style={{ color: band.color }}>
+            {toTenScale(composite)}
+          </div>
+          <div className="mt-1 text-xs font-medium" style={{ color: band.color }}>
+            {band.label}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+          블로그 프로필 (네이버 공식 API 아님 — 공개 페이지 기준)
+        </p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <ProfileStatCard field="category" value={profile?.category ?? "비공개"} label="카테고리" />
+          <ProfileStatCard
+            field="todayVisitor"
+            value={formatCount(profile?.todayVisitorCount ?? null)}
+            label="최근 방문자"
+          />
+          <ProfileStatCard
+            field="totalVisitor"
+            value={formatCount(profile?.totalVisitorCount ?? null)}
+            label="총 방문자"
+          />
+          <ProfileStatCard
+            field="subscriber"
+            value={formatCount(profile?.subscriberCount ?? null)}
+            label="이웃 수"
+          />
+          <ProfileStatCard
+            field="postCount"
+            value={formatCount(profile?.postCount ?? null)}
+            label="총 포스팅"
+          />
+          <ProfileStatCard
+            field="recentComments"
+            value={formatDecimalCount(avgRecentComments ?? null)}
+            label="최근 게시물 평균 댓글"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+          콘텐츠 진단 지표 (자체 산정)
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {RADAR_AXES.map(({ key, label }) => (
+            <div key={key} className="rounded-md bg-bg p-2.5 text-center sm:p-3">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mx-auto mb-1 h-4 w-4 text-ink-muted"
+              >
+                {AXIS_ICONS[key]}
+              </svg>
+              <div className="text-base font-bold text-ink sm:text-lg">{score[key]}</div>
+              <div className="text-[11px] text-ink-muted">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {terms && terms.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+            자주 쓰는 단어 (게시물 제목 형태소 분석)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {terms.map((t) => (
+              <span
+                key={t.term}
+                className="rounded-full bg-bg px-2.5 py-1 text-xs text-ink-muted"
+              >
+                {t.term} <span className="text-ink">{t.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function BlogScorePanel({
+  scores,
+  gaps,
+  fetchedAt,
+  profileStats,
+  avgRecentComments,
+  topTerms,
+}: {
+  scores: RadarScore[];
+  gaps: GapMessage[];
+  fetchedAt: string;
+  profileStats: Record<string, BlogProfileStats | null>;
+  avgRecentComments: Record<string, number | null>;
+  topTerms: Record<string, { term: string; count: number }[]>;
+}) {
+  const mine = scores.find((s) => s.isMine);
+  const competitors = scores.filter((s) => !s.isMine);
+
+  if (!mine && competitors.length === 0) {
+    return (
+      <section className="rounded-lg border border-dashed border-hairline bg-surface p-5 text-sm text-ink-muted">
+        내 블로그 도메인과 경쟁업체가 등록되어 있지 않습니다. 설정에서 추가해 주세요.
+      </section>
+    );
+  }
+
+  const ranked = [...scores].sort((a, b) => compositeScore(b) - compositeScore(a));
+  const showRank = scores.length > 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-ink">블로그 지수</h2>
+          <p className="text-sm text-ink-muted">
+            검색 키워드 기반 콘텐츠 진단 {RADAR_AXES.length}개 지표를 종합해 10점 만점으로 환산한 자체 점수예요 (네이버
+            공식 지표나 다른 블로그 지수 서비스의 점수와는 산정 방식이 다릅니다). 순위도 등록된 업체끼리
+            비교한 것으로, 네이버 전체 블로그 대비 순위가 아니에요.
+          </p>
+        </div>
+        <span className="text-xs text-ink-muted">
+          {new Date(fetchedAt).toLocaleString("ko-KR")} 기준
+        </span>
+      </div>
+
+      {!mine && (
+        <p className="text-sm text-ink-muted">
+          내 블로그 도메인이 등록되어 있지 않아 경쟁업체 점수만 보여드려요. 설정에서 추가하면 비교할 수 있어요.
+        </p>
+      )}
+      {mine && competitors.length === 0 && (
+        <p className="text-sm text-ink-muted">
+          경쟁업체가 등록되어 있지 않아 내 블로그 점수만 보여드려요. 설정에서 추가하면 비교할 수 있어요.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-4">
+        {mine && (
+          <BlogScoreCard
+            score={mine}
+            profile={profileStats[mine.domain]}
+            avgRecentComments={avgRecentComments[mine.domain]}
+            terms={topTerms[mine.domain]}
+            rank={
+              showRank
+                ? { position: ranked.findIndex((s) => s.domain === mine.domain) + 1, total: ranked.length }
+                : null
+            }
+          />
+        )}
+        {competitors.map((c) => (
+          <BlogScoreCard
+            key={c.domain}
+            score={c}
+            profile={profileStats[c.domain]}
+            avgRecentComments={avgRecentComments[c.domain]}
+            terms={topTerms[c.domain]}
+            rank={
+              showRank
+                ? { position: ranked.findIndex((s) => s.domain === c.domain) + 1, total: ranked.length }
+                : null
+            }
+          />
+        ))}
+      </div>
+
+      {gaps.length > 0 && (
+        <div className="rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+          <h3 className="mb-2 text-sm font-semibold text-ink">무엇이 부족한가</h3>
+          <ul className="flex flex-col gap-2">
+            {gaps.map((gap) => (
+              <li key={gap.axis} className="rounded-md border border-hairline bg-bg p-3 text-sm">
+                <span className="font-medium text-ink">{gap.axis}</span>
+                <p className="mt-0.5 text-ink-muted">{gap.message}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
