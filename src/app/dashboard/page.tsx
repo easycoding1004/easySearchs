@@ -8,7 +8,7 @@ export default function DashboardHomePage() {
     <main className="flex flex-1 flex-col items-center">
       {/* Hero + form */}
       <section className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32">
-        <div className="relative isolate flex w-full flex-col items-center gap-6 overflow-hidden py-4">
+        <div className="relative isolate mx-auto flex w-full max-w-2xl flex-col items-center gap-6 overflow-hidden py-4">
           <AmbientParticles />
           <div className="relative z-10 flex flex-col items-center gap-6">
             <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">

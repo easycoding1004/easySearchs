@@ -120,7 +120,6 @@ body {
   bottom: -12%;
   border-radius: 9999px;
   background: radial-gradient(circle at 30% 30%, var(--color-accent), var(--color-primary));
-  box-shadow: 0 0 16px 2px color-mix(in srgb, var(--color-primary) 55%, transparent);
   opacity: 0;
 }
 
