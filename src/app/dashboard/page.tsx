@@ -1,6 +1,9 @@
 import BlogScoreForm from "@/components/dashboard/BlogScoreForm";
+import SampleResultPreview from "@/components/dashboard/SampleResultPreview";
 import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
+import Reveal from "@/components/Reveal";
+import { RADAR_AXES } from "@/lib/contentDiagnostics";
 import Link from "next/link";
 
 export default function DashboardHomePage() {
@@ -29,6 +32,12 @@ export default function DashboardHomePage() {
         <BlogScoreForm />
       </section>
 
+      <section className="w-full border-t border-hairline bg-surface px-4 py-16 sm:px-6 sm:py-20">
+        <Reveal className="mx-auto max-w-4xl">
+          <SampleResultPreview />
+        </Reveal>
+      </section>
+
       <PainPointPromo
         heading="이런 고민, 블로그지수가 해결해드려요"
         points={[
@@ -36,7 +45,7 @@ export default function DashboardHomePage() {
             question: "내 블로그가 경쟁사보다 잘 하고 있는지 모르겠어요.",
             title: "블로그지수로 한눈에 비교",
             points: [
-              "콘텐츠량·키워드 커버리지 등 6개 지표를 자동으로 진단",
+              `콘텐츠량·키워드 커버리지 등 ${RADAR_AXES.length}개 지표를 자동으로 진단`,
               "점수로 환산해서 한눈에 비교",
               "경쟁 블로그 여러 곳과 동시에 비교 가능",
             ],
