@@ -352,6 +352,9 @@ export default async function Home({
             <Link href="/dashboard" className="hover:text-primary">
               블로그지수
             </Link>
+            <Link href="/guide" className="hover:text-primary">
+              가이드
+            </Link>
             <Link href="/contact" className="hover:text-primary">
               문의하기
             </Link>
