@@ -1,12 +1,14 @@
 import Link from "next/link";
 import SearchForm from "@/components/SearchForm";
 import SiteHeader from "@/components/SiteHeader";
-import CategorySelect from "@/components/CategorySelect";
 import CategoryTopKeywordsPanel from "@/components/CategoryTopKeywordsPanel";
 import Reveal from "@/components/Reveal";
 import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
+import StatCounters from "@/components/StatCounters";
+import TrendTicker from "@/components/TrendTicker";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
+import { getSiteStats } from "@/lib/notion/stats";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +53,39 @@ const FACTS = [
   { value: "CSV", label: "다운로드 지원" },
 ];
 
+const USE_CASES = [
+  {
+    title: "블로그 운영자",
+    desc: "다음 글감을 감이 아니라 실제 검색량 기준으로 정하세요.",
+    icon: (
+      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    ),
+  },
+  {
+    title: "소상공인 사장님",
+    desc: "우리 가게 관련 검색어를 확인하고, 블로그지수로 경쟁사와 비교해보세요.",
+    icon: (
+      <path d="M3 21h18M4 21V9l8-6 8 6v12M9 21v-6h6v6" />
+    ),
+  },
+  {
+    title: "마케터",
+    desc: "캠페인을 시작하기 전에 키워드 검색량으로 수요를 미리 가늠하세요.",
+    icon: (
+      <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />
+    ),
+  },
+  {
+    title: "예비 창업자",
+    desc: "관심 있는 아이템의 실제 검색 관심도를 데이터로 확인하세요.",
+    icon: (
+      <>
+        <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
+      </>
+    ),
+  },
+];
+
 const STEPS = [
   {
     title: "키워드 입력",
@@ -76,6 +111,7 @@ export default async function Home({
 
   const categoryTrend = await getCategoryTopKeywords(category.id).catch(() => null);
   const categoryRows: NormalizedKeywordRow[] = categoryTrend?.rows ?? [];
+  const siteStats = await getSiteStats().catch(() => null);
 
   return (
     <div className="flex flex-1 flex-col font-sans">
@@ -103,13 +139,8 @@ export default async function Home({
           </div>
 
           <div id="hero-search" className="flex w-full flex-col items-center gap-6">
-            <div className="flex w-full max-w-xl flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-center">
-              <div className="min-w-0 flex-1">
-                <SearchForm />
-              </div>
-              <div className="w-full sm:w-auto sm:shrink-0">
-                <CategorySelect categories={CATEGORIES} value={category.id} />
-              </div>
+            <div className="w-full max-w-xl">
+              <SearchForm />
             </div>
 
             <div className="w-full max-w-xl">
@@ -123,6 +154,20 @@ export default async function Home({
             </div>
           </div>
         </section>
+
+        {siteStats && (
+          <section className="w-full border-t border-hairline bg-surface px-4 py-10 sm:px-6">
+            <Reveal className="mx-auto flex max-w-2xl flex-col items-center gap-4">
+              <StatCounters
+                stats={[
+                  { value: siteStats.searchSessions, label: "누적 검색 세션" },
+                  { value: siteStats.keywordsChecked, label: "조회된 키워드" },
+                  { value: siteStats.blogScoreSessions, label: "블로그지수 조회" },
+                ]}
+              />
+            </Reveal>
+          </section>
+        )}
 
         <PainPointPromo
           heading="이런 고민, 키워드 검색량 조회가 해결해드려요"
@@ -186,6 +231,8 @@ export default async function Home({
           </Reveal>
         </section>
 
+        <TrendTicker />
+
         {/* Facts band (no fabricated usage stats — only true, factual claims) */}
         <section className="w-full bg-primary px-4 py-14 sm:px-6">
           <Reveal className="mx-auto grid max-w-4xl grid-cols-1 gap-8 text-center sm:grid-cols-3">
@@ -197,6 +244,46 @@ export default async function Home({
                 <div className="mt-1 text-sm text-white/80">{f.label}</div>
               </div>
             ))}
+          </Reveal>
+        </section>
+
+        {/* Use cases */}
+        <section className="w-full border-t border-hairline px-4 py-16 sm:px-6 sm:py-20">
+          <Reveal className="mx-auto flex max-w-4xl flex-col items-center gap-10">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                Use Cases
+              </span>
+              <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+                이런 분들이 쓰고 있어요
+              </h2>
+            </div>
+            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+              {USE_CASES.map((u) => (
+                <div
+                  key={u.title}
+                  className="flex items-start gap-4 rounded-lg border border-hairline bg-surface p-5"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-white">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                    >
+                      {u.icon}
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-ink">{u.title}</h3>
+                    <p className="mt-1 text-sm text-ink-muted">{u.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </Reveal>
         </section>
 

@@ -171,3 +171,27 @@ body {
     animation: category-slide-in 0.4s var(--ease-spring) both;
   }
 }
+
+/* 카테고리 전체 티커 (TrendTicker) — 콘텐츠를 두 번 이어붙이고 정확히
+   -50% 이동시키는 표준 무한 마퀴 기법. reduced-motion이면 정지된 채로
+   그냥 스크롤 가능한 한 줄로 남는다(내용은 계속 보임). */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .trend-ticker-track {
+    animation: ticker-scroll 40s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend-ticker-track {
+    overflow-x: auto;
+  }
+}

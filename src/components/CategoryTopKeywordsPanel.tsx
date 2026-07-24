@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryDef } from "@/lib/naver/categoryTrends";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 
@@ -18,12 +18,15 @@ interface CachedCategory {
   fetchedAt: number;
 }
 
-// Auto-rotating carousel through every category's BEST10 — starts from
-// whatever category the page server-rendered (avoids a flash of empty
-// content), then cycles through the rest client-side, fetching each one
-// on demand via /api/category-trends (which shares the same server-side
-// TTL cache as the initial SSR fetch) and caching it locally so a full
-// loop never re-fetches the same category twice.
+// Auto-rotating carousel through every category's BEST10, with a select +
+// dot indicators + arrows all driving the same client-side state (rather
+// than the select triggering a full page nav while the carousel rotates
+// independently, which used to visibly disagree with each other). Starts
+// from whatever category the page server-rendered (avoids a flash of empty
+// content), fetches the rest on demand via /api/category-trends (shares
+// the server-side TTL cache) and caches them locally so a full loop never
+// re-fetches the same category twice. Manual navigation resets the
+// auto-rotate timer so it doesn't immediately jump again right after.
 export default function CategoryTopKeywordsPanel({
   categories,
   initialCategory,
@@ -52,20 +55,16 @@ export default function CategoryTopKeywordsPanel({
         : []
     )
   );
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    if (categories.length <= 1) return;
-    let cancelled = false;
-
-    const timer = setInterval(async () => {
-      indexRef.current = (indexRef.current + 1) % categories.length;
-      const next = categories[indexRef.current];
+  const goTo = useCallback(
+    async (index: number) => {
+      indexRef.current = index;
+      const next = categories[index];
       const cached = cacheRef.current.get(next.id);
 
       if (cached) {
-        if (!cancelled) {
-          setSlide({ category: next, rows: cached.rows, fetchedAt: cached.fetchedAt, error: false });
-        }
+        setSlide({ category: next, rows: cached.rows, fetchedAt: cached.fetchedAt, error: false });
         return;
       }
 
@@ -74,37 +73,62 @@ export default function CategoryTopKeywordsPanel({
         if (!res.ok) throw new Error("request failed");
         const data = await res.json();
         cacheRef.current.set(next.id, { rows: data.rows, fetchedAt: data.fetchedAt });
-        if (!cancelled) {
-          setSlide({ category: next, rows: data.rows, fetchedAt: data.fetchedAt, error: false });
-        }
+        setSlide({ category: next, rows: data.rows, fetchedAt: data.fetchedAt, error: false });
       } catch {
-        if (!cancelled) {
-          setSlide({ category: next, rows: [], fetchedAt: null, error: true });
-        }
+        setSlide({ category: next, rows: [], fetchedAt: null, error: true });
       }
-    }, ROTATE_INTERVAL_MS);
+    },
+    [categories]
+  );
 
+  const restartTimer = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (categories.length <= 1) return;
+    intervalRef.current = setInterval(() => {
+      goTo((indexRef.current + 1) % categories.length);
+    }, ROTATE_INTERVAL_MS);
+  }, [categories, goTo]);
+
+  useEffect(() => {
+    restartTimer();
     return () => {
-      cancelled = true;
-      clearInterval(timer);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [categories]);
+  }, [restartTimer]);
+
+  function handleManualNavigate(index: number) {
+    goTo(index);
+    restartTimer();
+  }
 
   return (
     <div
       id="category-trends"
-      className="flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-hairline bg-surface p-4"
+      className="relative flex w-full flex-col gap-3 overflow-hidden rounded-lg border border-hairline bg-surface p-4"
     >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-ink">카테고리 검색어 BEST 10</h3>
+        <select
+          value={slide.category.id}
+          onChange={(e) => {
+            const idx = categories.findIndex((c) => c.id === e.target.value);
+            if (idx >= 0) handleManualNavigate(idx);
+          }}
+          className="h-9 shrink-0 rounded-sm border border-hairline bg-surface px-2 text-xs text-ink transition-colors focus:border-primary focus:outline-none"
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div key={slide.category.id} className="category-slide-in flex flex-col gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">
-            {slide.category.label} 관련 검색어 BEST 10
-          </h3>
-          <p className="text-xs text-ink-muted">
-            네이버 공식 인기 검색어 순위가 아니라, &quot;{slide.category.seedKeyword}&quot;
-            연관검색어 중 검색량이 높은 순이에요.
-          </p>
-        </div>
+        <p className="text-xs text-ink-muted">
+          네이버 공식 인기 검색어 순위가 아니라, &quot;{slide.category.seedKeyword}&quot;
+          연관검색어 중 검색량이 높은 순이에요.
+        </p>
 
         {slide.error ? (
           <p className="text-sm text-error">불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
@@ -131,6 +155,44 @@ export default function CategoryTopKeywordsPanel({
             {new Date(slide.fetchedAt).toLocaleString("ko-KR")} 기준
           </p>
         )}
+      </div>
+
+      <div className="flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => handleManualNavigate((indexRef.current - 1 + categories.length) % categories.length)}
+          aria-label="이전 카테고리"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline text-ink-muted transition-colors hover:border-primary hover:text-primary"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+
+        <div className="flex gap-1.5">
+          {categories.map((c, i) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => handleManualNavigate(i)}
+              aria-label={c.label}
+              className={`h-1.5 rounded-full transition-all ease-spring ${
+                slide.category.id === c.id ? "w-4 bg-primary" : "w-1.5 bg-hairline"
+              }`}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleManualNavigate((indexRef.current + 1) % categories.length)}
+          aria-label="다음 카테고리"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline text-ink-muted transition-colors hover:border-primary hover:text-primary"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
       </div>
     </div>
   );
