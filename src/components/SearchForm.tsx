@@ -81,13 +81,13 @@ export default function SearchForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col gap-2">
-      <div className="flex gap-2 rounded-lg border-2 border-hairline bg-surface p-2 shadow-sm transition-colors focus-within:border-primary">
+      <div className="flex min-w-0 gap-2 rounded-lg border-2 border-hairline bg-surface p-2 shadow-sm transition-colors focus-within:border-primary">
         <input
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="예: 크리스마스 케이크 주문 (콤마로 최대 5개)"
-          className="h-12 flex-1 border-none bg-transparent px-3 text-base text-ink placeholder:text-ink-muted focus:outline-none"
+          className="h-12 min-w-0 flex-1 border-none bg-transparent px-3 text-base text-ink placeholder:text-ink-muted focus:outline-none"
           disabled={loading}
         />
         <button
