@@ -8,19 +8,21 @@ export default function DashboardHomePage() {
     <main className="flex flex-1 flex-col items-center">
       {/* Hero + form */}
       <section className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32">
-        <div className="relative flex w-full flex-col items-center gap-6 overflow-hidden py-4">
+        <div className="relative isolate flex w-full flex-col items-center gap-6 overflow-hidden py-4">
           <AmbientParticles />
-          <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">
-            무료 · 회원가입 불필요
-          </span>
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-4xl font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-6xl">
-              <span className="text-primary">블로그지수</span>로 확인하세요
-            </h1>
-            <p className="max-w-md text-sm text-ink-muted sm:text-base">
-              내 블로그와 경쟁 블로그 주소, 키워드만 입력하면 블로그지수와 경쟁사 노출을 바로
-              확인할 수 있어요.
-            </p>
+          <div className="relative z-10 flex flex-col items-center gap-6">
+            <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">
+              무료 · 회원가입 불필요
+            </span>
+            <div className="flex flex-col items-center gap-3">
+              <h1 className="text-4xl font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-6xl">
+                <span className="text-primary">블로그지수</span>로 확인하세요
+              </h1>
+              <p className="max-w-md text-sm text-ink-muted sm:text-base">
+                내 블로그와 경쟁 블로그 주소, 키워드만 입력하면 블로그지수와 경쟁사 노출을 바로
+                확인할 수 있어요.
+              </p>
+            </div>
           </div>
         </div>
 
