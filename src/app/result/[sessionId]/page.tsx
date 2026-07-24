@@ -8,6 +8,12 @@ import { getSessionById } from "@/lib/notion/sessions";
 
 export const dynamic = "force-dynamic";
 
+// Ephemeral, one-off per search — shouldn't compete for search-result
+// placement against the evergreen landing pages.
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 export default async function ResultPage({
   params,
 }: {

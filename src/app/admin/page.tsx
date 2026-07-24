@@ -4,6 +4,10 @@ import { getRecentSessions } from "@/lib/notion/sessions";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 const HISTORY_LIMIT = 50;
 
 export default async function AdminPage() {

@@ -268,9 +268,6 @@ export default async function Home({
             <Link href="/contact" className="hover:text-primary">
               문의하기
             </Link>
-            <Link href="/admin" className="hover:text-primary">
-              관리자
-            </Link>
           </div>
         </div>
       </footer>

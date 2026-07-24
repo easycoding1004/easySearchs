@@ -23,6 +23,12 @@ import DashboardTabs from "@/components/dashboard/DashboardTabs";
 
 export const dynamic = "force-dynamic";
 
+// Ephemeral, one-off per search — shouldn't compete for search-result
+// placement against the evergreen landing pages.
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 async function settle<T>(fetcher: () => Promise<T>) {
   try {
     return { ok: true as const, value: await fetcher() };
