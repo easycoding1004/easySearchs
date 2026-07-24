@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   try {
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
-      from: "ezzsearch 문의 <onboarding@resend.dev>",
+      from: "ezzsearch 문의 <contact@ezzsearch.com>",
       to,
       replyTo: email,
       subject: `[ezzsearch 문의] ${senderLabel}`,
