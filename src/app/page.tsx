@@ -83,19 +83,21 @@ export default async function Home({
 
       <main className="flex flex-1 flex-col items-center">
         {/* Hero */}
-        <section className="relative flex w-full flex-col items-center gap-6 overflow-hidden px-4 py-24 text-center sm:px-6 sm:py-32">
-          <AmbientParticles />
-          <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">
-            무료 · 회원가입 불필요
-          </span>
-          <div className="flex flex-col items-center gap-3">
-            <h1 className="text-4xl font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-6xl">
-              <span className="text-primary">네이버 키워드</span> 검색량 조회
-            </h1>
-            <p className="max-w-md text-sm text-ink-muted sm:text-base">
-              키워드를 입력하면 검색량(한 달 동안 이 단어를 검색한 횟수)과
-              연관 키워드를 무료로 조회합니다.
-            </p>
+        <section className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32">
+          <div className="relative flex w-full flex-col items-center gap-6 overflow-hidden py-4">
+            <AmbientParticles />
+            <span className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white">
+              무료 · 회원가입 불필요
+            </span>
+            <div className="flex flex-col items-center gap-3">
+              <h1 className="text-4xl font-extrabold leading-tight tracking-[-0.02em] text-ink sm:text-6xl">
+                <span className="text-primary">네이버 키워드</span> 검색량 조회
+              </h1>
+              <p className="max-w-md text-sm text-ink-muted sm:text-base">
+                키워드를 입력하면 검색량(한 달 동안 이 단어를 검색한 횟수)과
+                연관 키워드를 무료로 조회합니다.
+              </p>
+            </div>
           </div>
 
           <div id="hero-search" className="flex w-full flex-col items-center gap-6">
