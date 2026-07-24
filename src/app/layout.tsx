@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/easyserch_icon.svg",
   },
+  other: {
+    "naver-site-verification": "7b6573f18ff8e86489146eb4ac6d99e7a5425ef5",
+  },
 };
 
 export default function RootLayout({
