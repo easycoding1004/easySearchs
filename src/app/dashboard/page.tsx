@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import BlogScoreForm from "@/components/dashboard/BlogScoreForm";
 import SampleResultPreview from "@/components/dashboard/SampleResultPreview";
 import PainPointPromo from "@/components/PainPointPromo";
@@ -5,6 +6,11 @@ import AmbientParticles from "@/components/AmbientParticles";
 import Reveal from "@/components/Reveal";
 import { RADAR_AXES } from "@/lib/contentDiagnostics";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "블로그지수",
+  description: "내 블로그와 경쟁 블로그 주소, 키워드만 입력하면 블로그지수와 경쟁사 노출을 무료로 비교해드려요.",
+};
 
 export default function DashboardHomePage() {
   return (

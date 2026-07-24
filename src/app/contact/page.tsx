@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import ContactForm from "@/components/ContactForm";
 
-export const metadata = {
-  title: "문의하기 — ezzsearch",
+export const metadata: Metadata = {
+  title: "문의하기",
+  description: "ezzsearch 이용 중 궁금한 점이나 제안하고 싶은 내용을 남겨주세요.",
 };
 
 export default function ContactPage() {
