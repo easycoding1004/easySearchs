@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getBlogScoreSessionById } from "@/lib/notion/blogScoreSessions";
 import { getRecordsForBlogScoreSession } from "@/lib/notion/blogScoreRecords";
@@ -19,6 +20,7 @@ import CompetitorExposurePanel from "@/components/dashboard/CompetitorExposurePa
 import KeywordClusterPanel from "@/components/dashboard/KeywordClusterPanel";
 import BlogScorePanel from "@/components/dashboard/BlogScorePanel";
 import PanelError from "@/components/dashboard/PanelError";
+import PanelSkeleton from "@/components/dashboard/PanelSkeleton";
 import DashboardTabs from "@/components/dashboard/DashboardTabs";
 import ExportableImage from "@/components/dashboard/ExportableImage";
 
@@ -37,6 +39,109 @@ async function settle<T>(fetcher: () => Promise<T>) {
     console.error("[BlogScoreResultPage] panel fetch failed:", err);
     return { ok: false as const };
   }
+}
+
+// "키워드 노출·빈도" tab is live-fetched on every view rather than stored in
+// Notion like the 블로그지수 tab (below) — secondary/lower-priority data,
+// and storing it would need several more Notion databases. Each panel below
+// is its own async component wrapped in <Suspense> so a session with many
+// keywords/competitors doesn't block the whole page (including the already-
+// computed 메인 tab, which only needs two Notion reads) behind the slowest
+// one — they stream in independently as each finishes instead of holding up
+// loading.tsx until every Naver call across all four panels is done.
+
+async function KeywordVolumeSection({
+  keywords,
+  fetchedAt,
+}: {
+  keywords: string[];
+  fetchedAt: string;
+}) {
+  const [volumeResult, publishStatsResult] = await Promise.all([
+    settle(() => getKeywordVolumes(keywords)),
+    settle(() => getBlogPublishStatsForKeywords(keywords)),
+  ]);
+  if (!volumeResult.ok) return <PanelError title="키워드 검색량" />;
+  return (
+    <KeywordVolumePanel
+      rows={volumeResult.value}
+      publishStats={publishStatsResult.ok ? publishStatsResult.value : {}}
+      fetchedAt={fetchedAt}
+    />
+  );
+}
+
+async function MentionVolumeSection({
+  keywords,
+  fetchedAt,
+}: {
+  keywords: string[];
+  fetchedAt: string;
+}) {
+  const result = await settle(() =>
+    mapWithConcurrency(keywords, NAVER_OPENAPI_CONCURRENCY, getMentionVolume)
+  );
+  if (!result.ok) return <PanelError title="블로그·카페 언급량" />;
+  return <MentionVolumePanel rows={result.value} fetchedAt={fetchedAt} />;
+}
+
+async function CompetitorExposureSection({
+  keywords,
+  competitorDomains,
+  fetchedAt,
+}: {
+  keywords: string[];
+  competitorDomains: string[];
+  fetchedAt: string;
+}) {
+  const result = await settle(() => getDashboardExposure(keywords, competitorDomains));
+  if (!result.ok) return <PanelError title="경쟁업체 블로그 노출 순위" />;
+  return (
+    <CompetitorExposurePanel
+      results={result.value}
+      competitors={competitorDomains}
+      fetchedAt={fetchedAt}
+    />
+  );
+}
+
+async function KeywordClusterSection({
+  keywords,
+  competitorDomains,
+  seed,
+  fetchedAt,
+}: {
+  keywords: string[];
+  competitorDomains: string[];
+  seed: string;
+  fetchedAt: string;
+}) {
+  const result = await settle(async () => {
+    // getKeywordVolumes is cache()'d, so calling it again here (in parallel
+    // with KeywordVolumeSection's own call, same keywords array) reuses that
+    // panel's batched keywordstool calls instead of redoing them.
+    const volumeResult = await settle(() => getKeywordVolumes(keywords));
+    const nodes = volumeResult.ok
+      ? sortByVolumeDesc(volumeResult.value).slice(0, MAX_CLUSTER_NODES)
+      : [];
+    const recommendation = recommendTitleAndTags(nodes);
+    const competitorProfiles = await getCompetitorKeywordProfiles(
+      nodes.map((n) => n.relKeyword),
+      competitorDomains
+    );
+    return { nodes, recommendation, competitorProfiles };
+  });
+  if (!result.ok) return <PanelError title="키워드 클러스터 & 콘텐츠 전략" />;
+  return (
+    <KeywordClusterPanel
+      seed={seed}
+      nodes={result.value.nodes}
+      inferredKeywords={[]}
+      recommendation={result.value.recommendation}
+      competitorProfiles={result.value.competitorProfiles}
+      fetchedAt={fetchedAt}
+    />
+  );
 }
 
 export default async function BlogScoreResultPage({
@@ -80,30 +185,6 @@ export default async function BlogScoreResultPage({
     topTerms[r.domain] = r.topTerms;
   }
 
-  // "키워드 노출·빈도" tab is live-fetched on every view rather than stored
-  // in Notion like the 블로그지수 tab — secondary/lower-priority data, and
-  // storing it would need several more Notion databases. Trade-off: revisits
-  // re-run these Naver calls instead of showing a fixed snapshot.
-  const volumeResult = await settle(() => getKeywordVolumes(session.keywords));
-  const publishStatsResult = await settle(() => getBlogPublishStatsForKeywords(session.keywords));
-  const mentionResult = await settle(() =>
-    mapWithConcurrency(session.keywords, NAVER_OPENAPI_CONCURRENCY, getMentionVolume)
-  );
-  const exposureResult = await settle(() =>
-    getDashboardExposure(session.keywords, session.competitorDomains)
-  );
-  const clusterResult = await settle(async () => {
-    const nodes = volumeResult.ok
-      ? sortByVolumeDesc(volumeResult.value).slice(0, MAX_CLUSTER_NODES)
-      : [];
-    const recommendation = recommendTitleAndTags(nodes);
-    const competitorProfiles = await getCompetitorKeywordProfiles(
-      nodes.map((n) => n.relKeyword),
-      session.competitorDomains
-    );
-    return { nodes, recommendation, competitorProfiles };
-  });
-
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
       <div className="flex flex-col gap-1">
@@ -139,41 +220,27 @@ export default async function BlogScoreResultPage({
             label: "키워드 노출·빈도",
             content: (
               <>
-                {volumeResult.ok ? (
-                  <KeywordVolumePanel
-                    rows={volumeResult.value}
-                    publishStats={publishStatsResult.ok ? publishStatsResult.value : {}}
+                <Suspense fallback={<PanelSkeleton title="키워드 검색량" />}>
+                  <KeywordVolumeSection keywords={session.keywords} fetchedAt={session.searchedAt} />
+                </Suspense>
+                <Suspense fallback={<PanelSkeleton title="블로그·카페 언급량" />}>
+                  <MentionVolumeSection keywords={session.keywords} fetchedAt={session.searchedAt} />
+                </Suspense>
+                <Suspense fallback={<PanelSkeleton title="경쟁업체 블로그 노출 순위" />}>
+                  <CompetitorExposureSection
+                    keywords={session.keywords}
+                    competitorDomains={session.competitorDomains}
                     fetchedAt={session.searchedAt}
                   />
-                ) : (
-                  <PanelError title="키워드 검색량" />
-                )}
-                {mentionResult.ok ? (
-                  <MentionVolumePanel rows={mentionResult.value} fetchedAt={session.searchedAt} />
-                ) : (
-                  <PanelError title="블로그·카페 언급량" />
-                )}
-                {exposureResult.ok ? (
-                  <CompetitorExposurePanel
-                    results={exposureResult.value}
-                    competitors={session.competitorDomains}
-                    fetchedAt={session.searchedAt}
-                  />
-                ) : (
-                  <PanelError title="경쟁업체 블로그 노출 순위" />
-                )}
-                {clusterResult.ok ? (
-                  <KeywordClusterPanel
+                </Suspense>
+                <Suspense fallback={<PanelSkeleton title="키워드 클러스터 & 콘텐츠 전략" />}>
+                  <KeywordClusterSection
+                    keywords={session.keywords}
+                    competitorDomains={session.competitorDomains}
                     seed={session.keywords[0]}
-                    nodes={clusterResult.value.nodes}
-                    inferredKeywords={[]}
-                    recommendation={clusterResult.value.recommendation}
-                    competitorProfiles={clusterResult.value.competitorProfiles}
                     fetchedAt={session.searchedAt}
                   />
-                ) : (
-                  <PanelError title="키워드 클러스터 & 콘텐츠 전략" />
-                )}
+                </Suspense>
               </>
             ),
           },

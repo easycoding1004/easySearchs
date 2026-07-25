@@ -37,6 +37,7 @@ interface NaverSearchResponse<T> {
   items: T[];
 }
 
+import { cache } from "react";
 import { throttle } from "./throttle";
 
 const MAX_DISPLAY = 100;
@@ -69,12 +70,12 @@ function requireOpenApiHeaders() {
 // own valid `sort` values (blog/cafe: sim/date, local: random/comment), so
 // callers pass the relevance-equivalent value explicitly rather than this
 // function guessing one.
-async function naverSearch<T>(
+async function naverSearchImpl<T>(
   endpoint: string,
   query: string,
-  options: { display?: number; sort?: string } = {}
+  display: number,
+  sort: string
 ): Promise<NaverSearchResult<T>> {
-  const { display = MAX_DISPLAY, sort = "sim" } = options;
   const url = new URL(`https://openapi.naver.com/v1/search/${endpoint}`);
   url.searchParams.set("query", query);
   url.searchParams.set("display", String(display));
@@ -104,6 +105,31 @@ async function naverSearch<T>(
   }
 
   throw new Error(`Naver ${endpoint} search API: rate limited after ${RATE_LIMIT_MAX_ATTEMPTS} attempts`);
+}
+
+// Different dashboard panels legitimately want the exact same search (same
+// endpoint/query/display/sort) for overlapping keywords within one page
+// render — e.g. mentions, competitor exposure, and the cluster panel's
+// competitor scan all call searchBlog(keyword) with default params for the
+// same tracked keywords. Without this, each of those panels burns its own
+// throttled request re-asking Naver something another panel already asked
+// in the same render. cache() (React's per-request memoization) is scoped
+// to a single render/request, so it can't go stale across separate
+// dashboard visits — it only dedupes work happening *right now*.
+const cachedNaverSearch = cache(naverSearchImpl) as <T>(
+  endpoint: string,
+  query: string,
+  display: number,
+  sort: string
+) => Promise<NaverSearchResult<T>>;
+
+async function naverSearch<T>(
+  endpoint: string,
+  query: string,
+  options: { display?: number; sort?: string } = {}
+): Promise<NaverSearchResult<T>> {
+  const { display = MAX_DISPLAY, sort = "sim" } = options;
+  return cachedNaverSearch<T>(endpoint, query, display, sort);
 }
 
 export async function searchBlog(

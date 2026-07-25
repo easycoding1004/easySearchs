@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { fetchKeywordStats } from "@/lib/naver/client";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 import { MAX_SEED_KEYWORDS } from "@/lib/constants";
@@ -22,7 +23,11 @@ function chunk<T>(items: T[], size: number): T[][] {
 // extra suggested keywords beyond what was asked for — filter those out
 // since this panel only shows the business's own tracked keywords, not
 // Naver's suggestions.
-export async function getKeywordVolumes(
+// Wrapped in cache() because the dashboard page's volume panel and cluster
+// panel both need this for the same session.keywords array within one
+// render — without it, the cluster panel would silently redo the same
+// batched keywordstool calls the volume panel already made.
+export const getKeywordVolumes = cache(async function getKeywordVolumes(
   keywords: string[]
 ): Promise<NormalizedKeywordRow[]> {
   const batches = chunk(keywords, MAX_SEED_KEYWORDS);
@@ -40,4 +45,4 @@ export async function getKeywordVolumes(
   return results
     .flat()
     .filter((row) => targets.has(normalizeForMatch(row.relKeyword)));
-}
+});
