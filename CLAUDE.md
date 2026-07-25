@@ -16,6 +16,8 @@
 
 두 제품 사이의 유일한 연결점: `/`에는 블로그지수로 유도하는 CTA, `/dashboard` 헤더에는 `/`로 가는 "키워드 빠른 조회" 링크. 기능이 겹치는 화면(예전에 `/`에 있던 경쟁업체 노출순위 비교 폼)은 블로그지수 쪽 패널로 통합하고 개인 도구에서는 제거했으므로, 새 기능을 추가할 때 "이미 다른 쪽에 있는 기능은 아닌지" 먼저 확인할 것.
 
+이 두 제품과 별개로 **어느 한쪽에도 속하지 않는 사이트 공통 기능**도 있음: `/trending`(섹션 6.3), `/guide`·`/admin`·`/contact`(섹션 12). `SiteHeader.tsx` 내비게이션에 전부 노출되는 최상위 기능들이고, 새 공통 기능을 추가할 때도 여기 나열할 것.
+
 ## 1. 프로젝트 목적 (개인 도구)
 
 - 네이버에서 검색하는 검색키워드를 이용하여 키워드의 노출 빈도 또는 검색량, 연관검색어 검색량을 한눈에 보기 쉽게 그래프 형태로 보여주는 웹사이트를 구축
@@ -25,7 +27,7 @@
 ## 2. 범위 및 제약사항
 
 - **키워드 검색량 / 연관검색어**: 네이버 검색광고 API(공식, 무료)로 구현 가능
-- **블로그 지수**: 네이버가 공식적으로 제공한 적 없는 비공식 지표이며, 2025년 12월 네이버가 API 변경으로 외부 조회 경로를 차단해 현재는 공식 수치를 가져올 수 없음 → 대신 실제 검색 키워드 기반 콘텐츠 진단(콘텐츠량/키워드 커버리지/노출순위/최신성/사용자 반응 등, `contentDiagnostics.ts`의 `RADAR_AXES`)을 자체 종합해 10점 만점으로 환산한 **자체 점수**를 "블로그 지수"로 제공함 — 네이버 공식 지표도, 제3자 블로그 지수 서비스의 산정 방식도 아님을 화면에 항상 명시할 것. 대체 지표인 **블로그 노출 순위**(특정 키워드에서 글이 몇 위에 뜨는지)는 블로그지수 쪽 경쟁사 노출 패널로 구현 완료 (섹션 10 참고)
+- **블로그 지수**: 네이버가 공식적으로 제공한 적 없는 비공식 지표이며, 2025년 12월 네이버가 API 변경으로 외부 조회 경로를 차단해 현재는 공식 수치를 가져올 수 없음 → 대신 실제 검색 키워드 기반 콘텐츠 진단(콘텐츠량/키워드 커버리지/노출순위/최신성/사용자 반응 등, `src/lib/dashboard/contentDiagnostics.ts`의 `RADAR_AXES`)을 자체 종합해 10점 만점으로 환산한 **자체 점수**를 "블로그 지수"로 제공함 — 네이버 공식 지표도, 제3자 블로그 지수 서비스의 산정 방식도 아님을 화면에 항상 명시할 것. 대체 지표인 **블로그 노출 순위**(특정 키워드에서 글이 몇 위에 뜨는지)는 블로그지수 쪽 경쟁사 노출 패널로 구현 완료 (섹션 10 참고)
 
 ## 3. 시스템 아키텍처
 
@@ -119,6 +121,9 @@ API 응답으로 받은 키워드 1개당 1행.
 - **그래프**: recharts
 - **형태소 분석**: garu-ko (WASM 기반, 명사 빈도 추출 — 제목 키워드 백필/자주 쓰는 단어 분석에 사용)
 - **데이터 저장**: Notion API (`@notionhq/client`)
+- **XML 파싱**: fast-xml-parser (구글 트렌드 RSS, 섹션 6.3)
+- **이미지 내보내기**: html-to-image (블로그지수 결과 PNG 저장, 섹션 10.3)
+- **이메일**: Resend (문의하기, 섹션 12.3)
 - **배포**: 상주형 서버(VPS/Railway/Render/Fly.io) — 섹션 11 참고. Vercel 같은 서버리스는 이 앱의 인메모리 공유 상태(오픈API 스로틀, 스크래핑 캐시)와 맞지 않아 부적합
 
 ## 8. UI/UX
@@ -150,15 +155,16 @@ API 응답으로 받은 키워드 1개당 1행.
 
 | 패널 | 데이터 소스 | 비고 |
 |---|---|---|
-| 블로그 지수 (메인 탭) | 아래 콘텐츠 진단 지표 종합 | 10점 만점, `RADAR_AXES` 지표 평균 (`contentDiagnostics.ts`) |
-| 키워드 검색량 | 네이버 검색광고 API | + 총·월간 블로그 발행량/포화도 (`blogPublishStats.ts`) |
+| 블로그 지수 (메인 탭) | 아래 콘텐츠 진단 지표 종합 | 10점 만점, `RADAR_AXES` 지표 평균 (`src/lib/dashboard/contentDiagnostics.ts`) |
+| 키워드 검색량 | 네이버 검색광고 API | + 총·월간 블로그 발행량/포화도 (`src/lib/naver/blogPublishStats.ts`, 키워드당 3시간 TTL 캐시 — 같은 키워드가 여러 검색에 겹칠 때 네이버를 재호출하지 않도록) |
 | 블로그·카페 언급량 | 네이버 오픈API 검색 | |
-| 경쟁업체 블로그 노출 순위 | 네이버 오픈API 블로그검색 + `findExposureRank` | |
+| 경쟁업체 블로그 노출 순위 | 네이버 오픈API 블로그검색 + `findExposureRank`(`src/lib/dashboard/exposure.ts`) | |
 | 키워드 클러스터 & 콘텐츠 전략 | 네이버 검색광고 API (마인드맵) | 규칙 기반 제목/태그 추천 (AI 아님). 연관 키워드가 3개 이하면 시드+수식어 조합으로 추가 조회해 보강 |
 | 데이터랩 트렌드 | 네이버 데이터랩 쇼핑인사이트 | 네이버 승인 대기 중 — 승인 전까지 "심사 대기 중" 플레이스홀더만 표시, 절대 필드 구조를 추측해 구현하지 말고 승인 후 실제 응답으로 확정할 것 |
 
-**콘텐츠 진단 지표(`contentDiagnostics.ts`의 `RADAR_AXES`)**: 콘텐츠량 / 키워드 커버리지 / 고검색량 공략도 / 저경쟁 공략도 / 평균 노출순위 / 콘텐츠 최신성 / **사용자 반응**(최근 게시물 댓글수 기반, `blogEngagementScraper.ts`) — 배열 하나로 관리되므로 축을 추가/삭제할 때 이 배열만 건드리면 컴포짓 점수·갭 메시지·화면 그리드가 자동으로 따라감. 로컬(지역검색) 노출 패널은 2026-07 재설계 시 입력 폼에서 업체명/로컬 경쟁사 필드가 빠지면서 함께 제외됨 — 필요해지면 입력 폼부터 다시 설계할 것.
+**콘텐츠 진단 지표(`src/lib/dashboard/contentDiagnostics.ts`의 `RADAR_AXES`)**: 콘텐츠량 / 키워드 커버리지 / 고검색량 공략도 / 저경쟁 공략도 / 평균 노출순위 / 콘텐츠 최신성 / **사용자 반응**(최근 게시물 댓글수 기반, `src/lib/naver/blogEngagementScraper.ts`) — 배열 하나로 관리되므로 축을 추가/삭제할 때 이 배열만 건드리면 컴포짓 점수·갭 메시지·화면 그리드가 자동으로 따라감. 로컬(지역검색) 노출 패널은 2026-07 재설계 시 입력 폼에서 업체명/로컬 경쟁사 필드가 빠지면서 함께 제외됨 — 필요해지면 입력 폼부터 다시 설계할 것.
 
+- **결과 이미지 저장**: "메인 (블로그지수)" 탭에 "이미지로 저장" 버튼(`src/components/dashboard/ExportableImage.tsx`) — `html-to-image`로 PNG 다운로드. `html2canvas`가 아니라 이걸 쓴 이유는 CSS를 직접 재구현하는 대신 실제 브라우저 렌더링을 그대로 캡처해서 이 프로젝트의 Tailwind v4 스타일(oklch 등)에 더 안전하기 때문. 카카오톡 공유 용도.
 - 조회수/방문자수는 네이버 검색 API에 필드 자체가 없고, 블로그 통계(체류시간 등)는 소유자 로그인 전용 비공개 데이터라 API로도 스크래핑으로도 가져올 수 없음 — **요청받아도 만들어내지 말 것** (섹션 10.4 참고)
 - `src/lib/naver/openApiClient.ts`의 `naverSearch()`가 모든 오픈API 호출을 공유 throttle(최소 1초 간격)로 감싸고 있음 — 새 오픈API 호출을 추가할 때 이 헬퍼를 거치지 않으면 429 레이트리밋에 바로 걸림. 이 스로틀은 인메모리 변수라 **상주형 서버 전제** (섹션 11 참고)
 - 패널 하나가 실패해도 나머지가 죽지 않도록 `src/app/dashboard/[sessionId]/page.tsx`의 `settle()` 헬퍼로 각 패널을 개별 격리해서 fetch
@@ -167,8 +173,8 @@ API 응답으로 받은 키워드 1개당 1행.
 
 네이버 공식 API가 없는 데이터를 다룰 때 이 프로젝트의 기본 원칙은 "공식 API만 사용"이지만, 아래 두 가지는 사용자와 트레이드오프를 논의한 뒤 명시적으로 승인받은 예외임 — 다른 데이터에 함부로 이 예외를 확장하지 말 것.
 
-- `blogProfileScraper.ts`: m.blog.naver.com의 `window.__INITIAL_STATE__`에서 카테고리/이웃수/방문자수/포스팅수 추출.
-- `blogEngagementScraper.ts`: rss.blog.naver.com에서 최근 게시물 5개 링크를 얻고, 각 게시물 페이지에 escape되어 박혀 있는 `commentCount`를 정규식으로 추출해 평균 냄. **공감(좋아요) 수는 로그아웃 상태에서 접근 가능한 어떤 페이지에도 실제 값이 없어서(기능 켜짐 여부만 있고 숫자가 없음) 구현하지 않았음** — 만들면 가짜 수치가 됨.
+- `src/lib/naver/blogProfileScraper.ts`: m.blog.naver.com의 `window.__INITIAL_STATE__`에서 카테고리/이웃수/방문자수/포스팅수 추출.
+- `src/lib/naver/blogEngagementScraper.ts`: rss.blog.naver.com에서 최근 게시물 5개 링크를 얻고, 각 게시물 페이지에 escape되어 박혀 있는 `commentCount`를 정규식으로 추출해 평균 냄. 태그(`fetchPostTags`)도 같은 파일에서 게시물 페이지 본문에 박혀 있는 `tagNames` 필드를 정규식으로 추출. **공감(좋아요) 수는 로그아웃 상태에서 접근 가능한 어떤 페이지에도 실제 값이 없어서(기능 켜짐 여부만 있고 숫자가 없음) 구현하지 않았음** — 만들면 가짜 수치가 됨.
 - 방문자 체류시간·제3자 서비스의 "블로거랭킹"은 네이버 소유자 로그인 전용 비공개 데이터이거나 제3자가 자체 계산한 값이라 어떤 방식(크롤링 포함)으로도 얻을 수 없음 — 규칙을 우회해도 존재하지 않는 데이터라 지어낼 수밖에 없음. 요청받아도 구현하지 말 것.
 - 둘 다 도메인 기준 **6시간 TTL 인메모리 캐시**(`src/lib/utils/ttlCache.ts`)를 적용 — 동일 도메인 반복 조회 시 네이버로 나가는 실제 요청을 줄여 지연시간과 IP 차단 리스크를 함께 낮춤. 실패(null)는 캐싱하지 않음(일시적 오류가 TTL 내내 "비공개"로 얼어붙지 않도록). **이 캐시는 인메모리라 상주형 서버 전제** — 서버리스로 옮기면 Redis 등 외부 저장소로 바꿔야 함 (섹션 11 참고).
 
@@ -184,6 +190,55 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 검색량 급상승 정기 스냅샷 잡**(섹션 6.3)도 서버가 계속 떠 있어야 12시간 주기가 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 5개(`NOTION_KEYWORD_SNAPSHOTS_DB_ID` 포함, `scripts/setup-notion-snapshots.ts`로 별도 생성). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion.ts`/`setup-notion-snapshots.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 6개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion.ts`/`setup-notion-snapshots.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
+
+## 12. 공통 페이지 (`/guide`, `/admin`, `/contact`)
+
+개인 도구/블로그지수 어느 한쪽에도 속하지 않는 사이트 전역 페이지들.
+
+### 12.1 가이드 (`/guide`, `/guide/[slug]`)
+
+- 콘텐츠 마케팅 목적의 정적 글 목록. `src/lib/guide/articles.ts`의 `GUIDE_ARTICLES` 배열(현재 5편)에 슬러그·제목·설명·발행일·본문(`sections[]`)을 하드코딩 — 별도 CMS나 Notion DB 없음, 글을 추가/수정하려면 이 배열을 직접 편집.
+- `/guide/[slug]`는 `generateStaticParams()`로 빌드 타임에 전부 SSG되고, 각 글은 `Article` JSON-LD(제목/설명/발행일/작성자)를 방출함.
+- 글 하단에 "관련 가이드" 섹션이 있는데, `getRelatedGuideArticles(slug)`가 **현재 글을 제외한 나머지 전부**를 반환하는 방식이라 글을 추가할수록 관련 링크도 자동으로 늘어남 — 수동으로 링크를 관리할 필요 없음.
+- `sitemap.ts`가 `GUIDE_ARTICLES`를 순회해 각 글의 sitemap 항목을 자동 생성하므로, 배열에 새 글을 추가하면 sitemap도 별도 수정 없이 따라감.
+
+### 12.2 관리자 (`/admin`)
+
+- 로그인 없음 — `metadata.robots = { index: false, follow: false }`로 검색엔진에서만 숨김, URL을 아는 사람은 누구나 접근 가능(공개성 원칙은 섹션 10.2와 동일). 인증이 생기기 전까지 민감 정보를 노출하는 용도로 확장하지 말 것.
+- `getRecentSessions()`(`src/lib/notion/sessions.ts`)로 개인 도구의 최근 검색 세션 50건을 시간 역순으로 보여줌 — 블로그지수 세션은 여기 안 뜸(별도 관리 화면 없음).
+
+### 12.3 문의하기 (`/contact`)
+
+- `ContactForm.tsx` → `POST /api/contact` → Resend로 이메일 발송(운영자 수신) + Notion `문의` DB에도 백업 저장. 이메일 발송이 우선이라 **Notion 저장이 실패해도 요청은 성공 처리**함(이메일은 이미 갔으므로) — 반대로 `RESEND_API_KEY`/`CONTACT_EMAIL_TO`가 없으면 아예 502로 막음.
+
+## 13. SEO
+
+- **메타데이터**: 루트 `layout.tsx`가 `title.template`("%s — ezzsearch")과 기본 OG/Twitter 카드를 설정하고, 각 페이지는 `export const metadata`로 제목/설명만 오버라이드 — 새 페이지 만들 때 이 패턴을 따를 것(OG 태그를 페이지마다 새로 정의할 필요 없음).
+- **JSON-LD**: 루트 레이아웃에 `WebApplication` 스키마, `/guide/[slug]`마다 `Article` 스키마(섹션 12.1). 둘 다 `<script type="application/ld+json" dangerouslySetInnerHTML>`로 직접 주입 — 별도 라이브러리 없음.
+- **사이트맵/robots**: `src/app/sitemap.ts`(evergreen 페이지만: `/`, `/dashboard`, `/trending`, `/guide`+개별 글, `/contact`), `src/app/robots.ts`(`/result/*`, `/dashboard/*`, `/api/`, `/admin` 크롤링 차단 — 1회성 세션 페이지는 thin/duplicate content라 의도적으로 제외). `priority`/`changeFrequency` 값은 구글이 사실상 무시하는 필드라 여기 시간 쓰지 말 것.
+- **네이버 서치어드바이저**: `naver-site-verification` 메타 태그는 `layout.tsx`에 있지만, 사이트 등록·소유확인·사이트맵 제출·웹페이지 수집요청은 서치어드바이저에 로그인해야 하는 작업이라 **사용자가 직접** 해야 함 — 대신 해줄 수 없음. 사이트맵을 재배포해도 서치어드바이저가 자동으로 다시 가져가지 않으므로, 구조가 크게 바뀌면 사용자에게 재제출을 안내할 것.
+
+## 14. 파일 구조 (기능별 폴더 컨벤션)
+
+`src/lib/`, `src/components/`는 **기능 영역별 하위 폴더**로 분류돼 있음 (2026-07 재구성). 새 파일을 추가할 때 아래 기준을 따를 것:
+
+| 폴더 | 소속 | 기준 |
+|---|---|---|
+| `lib/dashboard/`, `components/dashboard/` | 블로그지수 | `src/app/dashboard/**` 또는 다른 dashboard 파일에서만 import됨 |
+| `lib/search/`, `components/search/` | 개인 도구 | `src/app/page.tsx`/`src/app/result/**`에서만 import됨 |
+| `components/trending/` | 검색량 급상승 | `src/app/trending/**`에서만 import됨 (lib 쪽은 `lib/googleTrends/`·`lib/notion/keywordSnapshots.ts`·`lib/scheduler/`로 기술적 계층별 분리 — 아래 참고) |
+| `components/admin/` | 관리자 | `/admin`에서만 import됨 |
+| `lib/naver/`, `lib/notion/`, `lib/utils/` | 공유 | 네이버 API 클라이언트 / Notion 클라이언트+스키마 / 범용 유틸 — 두 제품 이상이 함께 쓰는 것 확인 후에만 여기 둘 것 |
+| `components/` 최상위, `lib/constants.ts` | 공유 | `SiteHeader`/`Reveal`/`PainPointPromo`/`AmbientParticles`/`SearchProgressModal`/`ContactForm`/`MobileStickyCta`/`MobileNavMenu`/`ScrollProgressBar`처럼 두 제품 이상에서 쓰는 것 |
+| `src/app/**` | 라우팅 | **절대 이 컨벤션으로 옮기지 않음** — 파일 위치 자체가 Next.js 라우팅 규칙 |
+
+새 파일이 특정 기능에서만 쓰이는지 애매하면 `grep`으로 실제 importer를 확인한 뒤 폴더를 정하고(감으로 정하지 말 것), 파일 1개짜리 폴더(`lib/googleTrends/`, `lib/guide/`, `lib/scheduler/`, `lib/search/`)라도 나중에 같은 영역 파일이 늘어날 걸 감안해 미리 분리해두는 쪽을 기본값으로 삼음.
+
+## 15. 알아둘 것 (자주 재발하는 실수)
+
+- **날짜 표시는 항상 `formatKstDateTime()`(`src/lib/utils/formatDate.ts`) 사용, `new Date(x).toLocaleString("ko-KR")` 직접 쓰지 말 것.** locale은 표기 형식만 정하고 타임존은 안 정하기 때문에, 서버가 UTC로 도는 배포 환경(Railway 기본값)에서는 실제 한국 시간보다 9시간 어긋나게 표시됨 — 실제로 이 버그가 있었고(`/admin` 최근 검색 시간이 안 맞는다는 리포트) 사이트 전체 8곳에서 같은 실수가 반복되고 있었음.
+- **네이버 검색광고 `hintKeywords` 파라미터는 공백이 섞이면 400 에러**(실측 확인, 섹션 6.3). 여러 단어로 된 후보 키워드를 조회할 땐 공백을 제거하고 보낼 것.
+- **`src/lib/naver/openApiClient.ts`의 공유 스로틀(최소 1초 간격)은 병렬화로 못 줄임** — 새로 느린 검색 기능을 만들 때 이 제약을 우회하려 하지 말고, 대신 반복 조회되는 키워드에 TTL 캐시를 씌우는 쪽으로 최적화할 것(`blogPublishStats.ts`의 3시간 캐시가 그 예).
