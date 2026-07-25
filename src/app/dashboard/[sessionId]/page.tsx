@@ -20,6 +20,7 @@ import BlogScorePanel from "@/components/dashboard/BlogScorePanel";
 import DatalabTrendPanel from "@/components/dashboard/DatalabTrendPanel";
 import PanelError from "@/components/dashboard/PanelError";
 import DashboardTabs from "@/components/dashboard/DashboardTabs";
+import ExportableImage from "@/components/dashboard/ExportableImage";
 
 export const dynamic = "force-dynamic";
 
@@ -119,14 +120,18 @@ export default async function BlogScoreResultPage({
             id: "main",
             label: "메인 (블로그지수)",
             content: (
-              <BlogScorePanel
-                scores={scores}
-                gaps={session.gaps}
-                fetchedAt={session.searchedAt}
-                profileStats={profileStats}
-                avgRecentComments={avgRecentComments}
-                topTerms={topTerms}
-              />
+              <ExportableImage
+                fileName={`블로그지수-${session.myBlogDomain.replace(/[^a-zA-Z0-9가-힣.-]/g, "_")}`}
+              >
+                <BlogScorePanel
+                  scores={scores}
+                  gaps={session.gaps}
+                  fetchedAt={session.searchedAt}
+                  profileStats={profileStats}
+                  avgRecentComments={avgRecentComments}
+                  topTerms={topTerms}
+                />
+              </ExportableImage>
             ),
           },
           {

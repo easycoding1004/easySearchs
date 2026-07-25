@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_SEED_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
+import { addRecentKeywords } from "@/lib/utils/recentKeywords";
 import SearchProgressModal from "@/components/SearchProgressModal";
+import RecentKeywordsChips from "@/components/RecentKeywordsChips";
 
 function parseKeywordCount(raw: string): number {
   return raw
@@ -64,6 +66,7 @@ export default function SearchForm() {
       });
 
       if (sessionId) {
+        addRecentKeywords(keyword);
         setProgress(100);
         setStatus("완료!");
         await sleep(300);
@@ -99,6 +102,7 @@ export default function SearchForm() {
         </button>
       </div>
       {error && <p className="text-sm text-error">{error}</p>}
+      {!loading && <RecentKeywordsChips onSelect={setKeyword} />}
       {loading && <SearchProgressModal status={status} progress={progress} />}
     </form>
   );

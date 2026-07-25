@@ -4,6 +4,8 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { GUIDE_ARTICLES, getGuideArticle, getRelatedGuideArticles } from "@/lib/guideArticles";
 
+const SITE_URL = "https://ezzsearch.com";
+
 export function generateStaticParams() {
   return GUIDE_ARTICLES.map((article) => ({ slug: article.slug }));
 }
@@ -32,8 +34,24 @@ export default async function GuideArticlePage({
   if (!article) notFound();
   const relatedArticles = getRelatedGuideArticles(slug);
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.description,
+    datePublished: article.publishedAt,
+    url: `${SITE_URL}/guide/${article.slug}`,
+    author: { "@type": "Organization", name: "ezzsearch" },
+    publisher: { "@type": "Organization", name: "ezzsearch" },
+    mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/guide/${article.slug}` },
+  };
+
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <SiteHeader />
       <main className="flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-16 sm:px-6 sm:py-20">
         <div>
