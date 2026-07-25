@@ -8,9 +8,13 @@ import AmbientParticles from "@/components/AmbientParticles";
 import StatCounters from "@/components/StatCounters";
 import TrendTicker from "@/components/TrendTicker";
 import MobileStickyCta from "@/components/MobileStickyCta";
+import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
 import { getSiteStats } from "@/lib/notion/stats";
+import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
+
+const TRENDING_PREVIEW_COUNT = 4;
 
 export const dynamic = "force-dynamic";
 
@@ -110,9 +114,12 @@ export default async function Home({
   const { category: categoryParam } = await searchParams;
   const category = CATEGORIES.find((c) => c.id === categoryParam) ?? CATEGORIES[0];
 
-  const categoryTrend = await getCategoryTopKeywords(category.id).catch(() => null);
+  const [categoryTrend, siteStats, trending] = await Promise.all([
+    getCategoryTopKeywords(category.id).catch(() => null),
+    getSiteStats().catch(() => null),
+    fetchTrendingKeywordsWithNaverVolume().catch(() => null),
+  ]);
   const categoryRows: NormalizedKeywordRow[] = categoryTrend?.rows ?? [];
-  const siteStats = await getSiteStats().catch(() => null);
 
   return (
     <div className="flex flex-1 flex-col font-sans">
@@ -155,6 +162,22 @@ export default async function Home({
             </div>
           </div>
         </section>
+
+        {trending && trending.length > 0 && (
+          <section className="w-full border-t border-hairline px-4 py-12 sm:px-6 sm:py-16">
+            <Reveal className="mx-auto flex max-w-4xl flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">
+                  요즘 뜨는 검색어
+                </h2>
+                <Link href="/trending" className="text-sm font-medium text-primary hover:underline">
+                  더보기 →
+                </Link>
+              </div>
+              <TrendingKeywordsCards items={trending.slice(0, TRENDING_PREVIEW_COUNT)} />
+            </Reveal>
+          </section>
+        )}
 
         {siteStats && (
           <section className="w-full border-t border-hairline bg-surface px-4 py-10 sm:px-6">
