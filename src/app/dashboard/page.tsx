@@ -4,6 +4,7 @@ import SampleResultPreview from "@/components/dashboard/SampleResultPreview";
 import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
 import Reveal from "@/components/Reveal";
+import MobileStickyCta from "@/components/MobileStickyCta";
 import { RADAR_AXES } from "@/lib/contentDiagnostics";
 import Link from "next/link";
 
@@ -16,7 +17,10 @@ export default function DashboardHomePage() {
   return (
     <main className="flex flex-1 flex-col items-center">
       {/* Hero + form */}
-      <section className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32">
+      <section
+        id="hero-form"
+        className="flex w-full flex-col items-center gap-6 px-4 py-24 text-center sm:px-6 sm:py-32"
+      >
         <div className="relative isolate mx-auto flex w-full max-w-2xl flex-col items-center gap-6 overflow-hidden py-4">
           <AmbientParticles />
           <div className="relative z-10 flex flex-col items-center gap-6">
@@ -68,7 +72,7 @@ export default function DashboardHomePage() {
         ]}
       />
 
-      <footer className="w-full border-t border-hairline bg-bg px-4 py-8 sm:px-6">
+      <footer className="w-full border-t border-hairline bg-bg px-4 py-8 pb-24 sm:px-6 sm:pb-8">
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 text-xs text-ink-muted sm:flex-row">
           <span>© 2026 ezzsearch. All rights reserved.</span>
           <div className="flex gap-4">
@@ -84,6 +88,8 @@ export default function DashboardHomePage() {
           </div>
         </div>
       </footer>
+
+      <MobileStickyCta href="#hero-form" label="무료로 비교하기" />
     </main>
   );
 }

@@ -7,6 +7,7 @@ import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
 import StatCounters from "@/components/StatCounters";
 import TrendTicker from "@/components/TrendTicker";
+import MobileStickyCta from "@/components/MobileStickyCta";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
 import { getSiteStats } from "@/lib/notion/stats";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
@@ -342,7 +343,7 @@ export default async function Home({
         </section>
       </main>
 
-      <footer className="w-full border-t border-hairline bg-bg px-4 py-8 sm:px-6">
+      <footer className="w-full border-t border-hairline bg-bg px-4 py-8 pb-24 sm:px-6 sm:pb-8">
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 text-xs text-ink-muted sm:flex-row">
           <span>© 2026 ezzsearch. All rights reserved.</span>
           <div className="flex gap-4">
@@ -361,6 +362,8 @@ export default async function Home({
           </div>
         </div>
       </footer>
+
+      <MobileStickyCta href="#hero-search" label="키워드 검색하기" />
     </div>
   );
 }

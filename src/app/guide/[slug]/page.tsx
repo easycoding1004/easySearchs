@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
-import { GUIDE_ARTICLES, getGuideArticle } from "@/lib/guideArticles";
+import { GUIDE_ARTICLES, getGuideArticle, getRelatedGuideArticles } from "@/lib/guideArticles";
 
 export function generateStaticParams() {
   return GUIDE_ARTICLES.map((article) => ({ slug: article.slug }));
@@ -30,6 +30,7 @@ export default async function GuideArticlePage({
   const { slug } = await params;
   const article = getGuideArticle(slug);
   if (!article) notFound();
+  const relatedArticles = getRelatedGuideArticles(slug);
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -59,6 +60,24 @@ export default async function GuideArticlePage({
             </div>
           ))}
         </article>
+
+        {relatedArticles.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-hairline pt-6">
+            <h2 className="text-sm font-semibold text-ink">관련 가이드</h2>
+            <ul className="flex flex-col gap-2">
+              {relatedArticles.map((related) => (
+                <li key={related.slug}>
+                  <Link
+                    href={`/guide/${related.slug}`}
+                    className="text-sm text-ink-muted transition-colors hover:text-primary"
+                  >
+                    {related.title} →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <p className="text-sm text-ink-muted">직접 키워드를 조회해보세요.</p>

@@ -1,9 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
+import ScrollProgressBar from "./ScrollProgressBar";
 
 export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface/85 backdrop-blur">
+      <ScrollProgressBar />
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center">
           <Image src="/ezzsearch_logo.png" alt="ezzsearch" width={94} height={32} priority />

@@ -110,3 +110,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
 export function getGuideArticle(slug: string): GuideArticle | undefined {
   return GUIDE_ARTICLES.find((a) => a.slug === slug);
 }
+
+// Other articles to link at the end of each guide, in display order.
+export function getRelatedGuideArticles(slug: string): GuideArticle[] {
+  return GUIDE_ARTICLES.filter((a) => a.slug !== slug);
+}
