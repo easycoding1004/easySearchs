@@ -14,7 +14,7 @@ function getGaru() {
 
 const MIN_NOUN_LENGTH = 2;
 
-export function stripHtml(text: string): string {
+function stripHtml(text: string): string {
   return text.replace(/<[^>]*>/g, "");
 }
 

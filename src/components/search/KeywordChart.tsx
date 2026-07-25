@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -12,7 +11,6 @@ import {
   YAxis,
 } from "recharts";
 import type { KeywordRecord } from "@/lib/notion/types";
-import KeywordBlogModal from "./KeywordBlogModal";
 
 const BAR_SIZE = 24;
 const MIN_WIDTH_PER_BAR = 72;
@@ -92,8 +90,6 @@ function CustomTooltip({
 }
 
 export default function KeywordChart({ records }: { records: KeywordRecord[] }) {
-  const [activeKeyword, setActiveKeyword] = useState<string | null>(null);
-
   const data: ChartDatum[] = records.map((record) => ({
     keyword: record.keyword,
     isSeed: record.kind === "시드 키워드",
@@ -104,77 +100,59 @@ export default function KeywordChart({ records }: { records: KeywordRecord[] }) 
 
   const width = Math.max(data.length * MIN_WIDTH_PER_BAR, 480);
 
-  // recharts passes the rendered rectangle item, not our datum directly —
-  // the original ChartDatum row lives at `.payload`. No onMouseLeave: the
-  // modal should stay put once opened (hovering a *different* bar still
-  // updates it) so moving the mouse toward the modal to click a link
-  // doesn't clear it mid-transit.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleBarActivate = (item: { payload?: any }) => {
-    const keyword = item.payload?.keyword;
-    if (typeof keyword === "string") setActiveKeyword(keyword);
-  };
-
   return (
-    <div className="w-full rounded-lg border border-hairline bg-surface p-4">
-      <div className="overflow-x-auto">
-        <div style={{ width, height: 360 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
-              <CartesianGrid
-                vertical={false}
-                stroke="var(--chart-gridline)"
-                strokeDasharray="0"
-              />
-              <XAxis
-                dataKey="keyword"
-                axisLine={{ stroke: "var(--chart-baseline)" }}
-                tickLine={false}
-                interval={0}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                tick={(props: any) => <CustomTick {...props} data={data} />}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: "var(--chart-text-muted)" }}
-                tickFormatter={(value: number) => value.toLocaleString()}
-                width={56}
-              />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--chart-gridline)" }} />
-              <Legend
-                formatter={(value: string) =>
-                  value === "pcCount" ? "PC" : "모바일"
-                }
-                wrapperStyle={{ fontSize: 12, color: "var(--chart-text-secondary)" }}
-              />
-              <Bar
-                dataKey="pcCount"
-                stackId="volume"
-                fill="var(--chart-series-pc)"
-                stroke="var(--chart-surface)"
-                strokeWidth={2}
-                barSize={BAR_SIZE}
-                radius={[0, 0, 0, 0]}
-                onMouseEnter={handleBarActivate}
-                onClick={handleBarActivate}
-              />
-              <Bar
-                dataKey="mobileCount"
-                stackId="volume"
-                fill="var(--chart-series-mobile)"
-                stroke="var(--chart-surface)"
-                strokeWidth={2}
-                barSize={BAR_SIZE}
-                radius={[4, 4, 0, 0]}
-                onMouseEnter={handleBarActivate}
-                onClick={handleBarActivate}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+    <div className="w-full overflow-x-auto rounded-lg border border-hairline bg-surface p-4">
+      <div style={{ width, height: 360 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
+            <CartesianGrid
+              vertical={false}
+              stroke="var(--chart-gridline)"
+              strokeDasharray="0"
+            />
+            <XAxis
+              dataKey="keyword"
+              axisLine={{ stroke: "var(--chart-baseline)" }}
+              tickLine={false}
+              interval={0}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              tick={(props: any) => <CustomTick {...props} data={data} />}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 12, fill: "var(--chart-text-muted)" }}
+              tickFormatter={(value: number) => value.toLocaleString()}
+              width={56}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--chart-gridline)" }} />
+            <Legend
+              formatter={(value: string) =>
+                value === "pcCount" ? "PC" : "모바일"
+              }
+              wrapperStyle={{ fontSize: 12, color: "var(--chart-text-secondary)" }}
+            />
+            <Bar
+              dataKey="pcCount"
+              stackId="volume"
+              fill="var(--chart-series-pc)"
+              stroke="var(--chart-surface)"
+              strokeWidth={2}
+              barSize={BAR_SIZE}
+              radius={[0, 0, 0, 0]}
+            />
+            <Bar
+              dataKey="mobileCount"
+              stackId="volume"
+              fill="var(--chart-series-mobile)"
+              stroke="var(--chart-surface)"
+              strokeWidth={2}
+              barSize={BAR_SIZE}
+              radius={[4, 4, 0, 0]}
+            />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-      <KeywordBlogModal keyword={activeKeyword} onClose={() => setActiveKeyword(null)} />
     </div>
   );
 }
