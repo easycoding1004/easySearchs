@@ -1,12 +1,12 @@
 import Link from "next/link";
-import SearchForm from "@/components/SearchForm";
+import SearchForm from "@/components/search/SearchForm";
 import SiteHeader from "@/components/SiteHeader";
-import CategoryTopKeywordsPanel from "@/components/CategoryTopKeywordsPanel";
+import CategoryTopKeywordsPanel from "@/components/search/CategoryTopKeywordsPanel";
 import Reveal from "@/components/Reveal";
 import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
-import StatCounters from "@/components/StatCounters";
-import TrendTicker from "@/components/TrendTicker";
+import StatCounters from "@/components/search/StatCounters";
+import TrendTicker from "@/components/search/TrendTicker";
 import MobileStickyCta from "@/components/MobileStickyCta";
 import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";

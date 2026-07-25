@@ -1,4 +1,4 @@
-import type { DashboardExposureResult } from "@/lib/dashboardExposure";
+import type { DashboardExposureResult } from "@/lib/dashboard/dashboardExposure";
 
 export default function CompetitorExposurePanel({
   results,

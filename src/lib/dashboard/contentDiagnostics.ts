@@ -1,8 +1,8 @@
-import { searchBlog, type BlogSearchItem } from "./naver/openApiClient";
+import { searchBlog, type BlogSearchItem } from "../naver/openApiClient";
 import { normalizeDomain } from "./exposure";
-import { countTermFrequency, type TermFrequency } from "./utils/tokenize";
-import { parseNaverPostDate } from "./utils/naverDate";
-import type { NormalizedKeywordRow, CompetitionLevel } from "./naver/types";
+import { countTermFrequency, type TermFrequency } from "../utils/tokenize";
+import { parseNaverPostDate } from "../utils/naverDate";
+import type { NormalizedKeywordRow, CompetitionLevel } from "../naver/types";
 
 const MAX_SCAN_KEYWORDS = 8;
 const FRESHNESS_WINDOW_DAYS = 90;

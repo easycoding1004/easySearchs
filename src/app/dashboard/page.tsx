@@ -5,7 +5,7 @@ import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
 import Reveal from "@/components/Reveal";
 import MobileStickyCta from "@/components/MobileStickyCta";
-import { RADAR_AXES } from "@/lib/contentDiagnostics";
+import { RADAR_AXES } from "@/lib/dashboard/contentDiagnostics";
 import Link from "next/link";
 
 export const metadata: Metadata = {

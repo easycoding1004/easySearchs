@@ -1,6 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import ScrollProgressBar from "./ScrollProgressBar";
+import MobileNavMenu from "./MobileNavMenu";
+
+const NAV_LINKS = [
+  { href: "/", label: "키워드 검색량" },
+  { href: "/dashboard", label: "블로그지수" },
+  { href: "/trending", label: "급상승" },
+  { href: "/guide", label: "가이드" },
+  { href: "/contact", label: "문의하기" },
+];
 
 export default function SiteHeader() {
   return (
@@ -10,23 +19,14 @@ export default function SiteHeader() {
         <Link href="/" className="flex items-center">
           <Image src="/ezzsearch_logo.png" alt="ezzsearch" width={94} height={32} priority />
         </Link>
-        <nav className="flex items-center gap-5 text-sm font-medium text-ink-muted">
-          <Link href="/" className="transition-colors hover:text-primary">
-            키워드 검색량
-          </Link>
-          <Link href="/dashboard" className="transition-colors hover:text-primary">
-            블로그지수
-          </Link>
-          <Link href="/trending" className="transition-colors hover:text-primary">
-            급상승
-          </Link>
-          <Link href="/guide" className="transition-colors hover:text-primary">
-            가이드
-          </Link>
-          <Link href="/contact" className="transition-colors hover:text-primary">
-            문의하기
-          </Link>
+        <nav className="hidden items-center gap-5 text-sm font-medium text-ink-muted sm:flex">
+          {NAV_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="transition-colors hover:text-primary">
+              {link.label}
+            </Link>
+          ))}
         </nav>
+        <MobileNavMenu links={NAV_LINKS} />
       </div>
     </header>
   );

@@ -1,6 +1,6 @@
 import type { RadarScore, GapMessage } from "./contentDiagnostics";
-import type { BlogProfileStats } from "./naver/blogProfileScraper";
-import type { NormalizedKeywordRow } from "./naver/types";
+import type { BlogProfileStats } from "../naver/blogProfileScraper";
+import type { NormalizedKeywordRow } from "../naver/types";
 import type { TitleTagRecommendation } from "./keywordCluster";
 import type { CompetitorKeywordProfile } from "./competitorKeywords";
 

@@ -6,7 +6,7 @@ import {
   applyEngagementScores,
   buildGapMessages,
   compositeScore,
-} from "@/lib/contentDiagnostics";
+} from "@/lib/dashboard/contentDiagnostics";
 import { fetchBlogProfileStats } from "@/lib/naver/blogProfileScraper";
 import { fetchRecentEngagement } from "@/lib/naver/blogEngagementScraper";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";

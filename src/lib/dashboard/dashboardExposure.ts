@@ -1,7 +1,7 @@
-import { searchBlog } from "./naver/openApiClient";
+import { searchBlog } from "../naver/openApiClient";
 import { findExposureRank } from "./exposure";
-import { mapWithConcurrency } from "./utils/concurrency";
-import { NAVER_OPENAPI_CONCURRENCY } from "./constants";
+import { mapWithConcurrency } from "../utils/concurrency";
+import { NAVER_OPENAPI_CONCURRENCY } from "../constants";
 
 export interface DashboardExposureResult {
   keyword: string;

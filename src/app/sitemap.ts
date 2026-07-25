@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { GUIDE_ARTICLES } from "@/lib/guideArticles";
+import { GUIDE_ARTICLES } from "@/lib/guide/articles";
 
 const BASE_URL = "https://ezzsearch.com";
 

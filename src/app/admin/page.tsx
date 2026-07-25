@@ -1,5 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
-import RecentSessionsList from "@/components/RecentSessionsList";
+import RecentSessionsList from "@/components/admin/RecentSessionsList";
 import { getRecentSessions } from "@/lib/notion/sessions";
 
 export const dynamic = "force-dynamic";

@@ -1,4 +1,4 @@
-import { RADAR_AXES, compositeScore, type GapMessage, type RadarScore } from "@/lib/contentDiagnostics";
+import { RADAR_AXES, compositeScore, type GapMessage, type RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 
 type AxisKey = (typeof RADAR_AXES)[number]["key"];

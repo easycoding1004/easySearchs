@@ -1,6 +1,6 @@
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
-import type { TitleTagRecommendation } from "@/lib/keywordCluster";
-import type { CompetitorKeywordProfile } from "@/lib/competitorKeywords";
+import type { TitleTagRecommendation } from "@/lib/dashboard/keywordCluster";
+import type { CompetitorKeywordProfile } from "@/lib/dashboard/competitorKeywords";
 
 const COMP_COLOR: Record<string, string> = {
   낮음: "var(--chart-series-pc)", // slot 1 blue

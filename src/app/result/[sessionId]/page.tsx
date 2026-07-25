@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import KeywordChart from "@/components/KeywordChart";
-import KeywordTable from "@/components/KeywordTable";
-import SearchTrendPanel from "@/components/SearchTrendPanel";
+import KeywordChart from "@/components/search/KeywordChart";
+import KeywordTable from "@/components/search/KeywordTable";
+import SearchTrendPanel from "@/components/search/SearchTrendPanel";
 import SiteHeader from "@/components/SiteHeader";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";

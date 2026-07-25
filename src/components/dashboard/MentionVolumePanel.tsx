@@ -1,4 +1,4 @@
-import type { MentionVolume } from "@/lib/mentions";
+import type { MentionVolume } from "@/lib/dashboard/mentions";
 
 export default function MentionVolumePanel({
   rows,

@@ -1,4 +1,4 @@
-import { normalizeDomain } from "../exposure";
+import { normalizeDomain } from "../dashboard/exposure";
 import { createTtlCache } from "../utils/ttlCache";
 
 // UNOFFICIAL — scrapes m.blog.naver.com's embedded React state (not a

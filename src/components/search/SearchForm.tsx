@@ -6,7 +6,7 @@ import { MAX_SEED_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
 import { addRecentKeywords } from "@/lib/utils/recentKeywords";
 import SearchProgressModal from "@/components/SearchProgressModal";
-import RecentKeywordsChips from "@/components/RecentKeywordsChips";
+import RecentKeywordsChips from "@/components/search/RecentKeywordsChips";
 
 function parseKeywordCount(raw: string): number {
   return raw

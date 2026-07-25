@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { toCsv } from "@/lib/csv";
+import { toCsv } from "@/lib/search/csv";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";
 

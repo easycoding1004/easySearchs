@@ -1,4 +1,4 @@
-import type { KeywordRecord } from "./notion/types";
+import type { KeywordRecord } from "../notion/types";
 
 const CSV_HEADERS = [
   "키워드",

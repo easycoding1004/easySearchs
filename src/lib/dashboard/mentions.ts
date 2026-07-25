@@ -1,4 +1,4 @@
-import { searchBlog, searchCafe } from "./naver/openApiClient";
+import { searchBlog, searchCafe } from "../naver/openApiClient";
 
 export interface MentionVolume {
   keyword: string;

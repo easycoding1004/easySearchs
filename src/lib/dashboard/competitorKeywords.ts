@@ -1,9 +1,9 @@
-import { searchBlog } from "./naver/openApiClient";
+import { searchBlog } from "../naver/openApiClient";
 import { normalizeDomain } from "./exposure";
-import { countTermFrequency, type TermFrequency } from "./utils/tokenize";
-import { fetchPostTags } from "./naver/blogEngagementScraper";
-import { mapWithConcurrency } from "./utils/concurrency";
-import { NAVER_OPENAPI_CONCURRENCY } from "./constants";
+import { countTermFrequency, type TermFrequency } from "../utils/tokenize";
+import { fetchPostTags } from "../naver/blogEngagementScraper";
+import { mapWithConcurrency } from "../utils/concurrency";
+import { NAVER_OPENAPI_CONCURRENCY } from "../constants";
 
 const MAX_CLUSTER_KEYWORDS_FOR_COMPETITOR_SCAN = 8;
 const TOP_TERMS_PER_COMPETITOR = 12;

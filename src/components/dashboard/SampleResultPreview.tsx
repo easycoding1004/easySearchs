@@ -11,7 +11,7 @@ import {
   SAMPLE_NODES,
   SAMPLE_RECOMMENDATION,
   SAMPLE_COMPETITOR_PROFILES,
-} from "@/lib/sampleBlogScoreData";
+} from "@/lib/dashboard/sampleBlogScoreData";
 
 // 실제 BlogScorePanel/KeywordClusterPanel 컴포넌트를 고정 예시 데이터로 그대로
 // 렌더링 — 디자인이 바뀌면 이 예시도 자동으로 같이 바뀐다. 실제 조회 결과와

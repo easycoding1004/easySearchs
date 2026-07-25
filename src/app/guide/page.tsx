@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
-import { GUIDE_ARTICLES } from "@/lib/guideArticles";
+import { GUIDE_ARTICLES } from "@/lib/guide/articles";
 
 export const metadata: Metadata = {
   title: "가이드",

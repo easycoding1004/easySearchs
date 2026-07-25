@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
-import { GUIDE_ARTICLES, getGuideArticle, getRelatedGuideArticles } from "@/lib/guideArticles";
+import { GUIDE_ARTICLES, getGuideArticle, getRelatedGuideArticles } from "@/lib/guide/articles";
 
 const SITE_URL = "https://ezzsearch.com";
 

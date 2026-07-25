@@ -1,4 +1,4 @@
-import type { BlogSearchItem } from "./naver/openApiClient";
+import type { BlogSearchItem } from "../naver/openApiClient";
 
 export function normalizeDomain(input: string): string {
   return input

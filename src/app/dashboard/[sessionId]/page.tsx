@@ -3,13 +3,13 @@ import { getBlogScoreSessionById } from "@/lib/notion/blogScoreSessions";
 import { getRecordsForBlogScoreSession } from "@/lib/notion/blogScoreRecords";
 import { getKeywordVolumes } from "@/lib/dashboard/keywordVolume";
 import { getBlogPublishStatsForKeywords } from "@/lib/naver/blogPublishStats";
-import { getMentionVolume } from "@/lib/mentions";
-import { getDashboardExposure } from "@/lib/dashboardExposure";
-import { getCompetitorKeywordProfiles } from "@/lib/competitorKeywords";
-import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/lib/keywordCluster";
+import { getMentionVolume } from "@/lib/dashboard/mentions";
+import { getDashboardExposure } from "@/lib/dashboard/dashboardExposure";
+import { getCompetitorKeywordProfiles } from "@/lib/dashboard/competitorKeywords";
+import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/lib/dashboard/keywordCluster";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
 import { NAVER_OPENAPI_CONCURRENCY } from "@/lib/constants";
-import type { RadarScore } from "@/lib/contentDiagnostics";
+import type { RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 
 import KeywordVolumePanel from "@/components/dashboard/KeywordVolumePanel";
