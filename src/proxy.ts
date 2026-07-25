@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
+import { categorizeLandingPage, categorizeReferrer } from "./lib/utils/visitTracking";
 
 const ADMIN_COOKIE = "admin_auth";
 const VISITOR_COOKIE = "ez_v";
@@ -42,6 +43,12 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
       path: "/",
     });
 
+    // 오늘의 첫 방문에서만 리퍼러/진입 페이지를 캡처 — 카테고리화는 여기서
+    // 미리 해서(고정된 소수의 값으로) Notion select 옵션이 URL마다 하나씩
+    // 늘어나지 않게 함.
+    const referrer = categorizeReferrer(request.headers.get("referer"), origin);
+    const landingPage = categorizeLandingPage(pathname);
+
     // fire-and-forget이지만 waitUntil로 감싸서, 응답이 먼저 나가도 이 fetch가
     // 중간에 끊기지 않고 끝까지 실행되게 함(Vercel Edge Function과 동일한
     // 배경 작업 패턴).
@@ -49,7 +56,7 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
       fetch(new URL("/api/visit", origin), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorId }),
+        body: JSON.stringify({ visitorId, referrer, landingPage }),
       }).catch((err) => {
         console.error("[middleware] visit fetch failed:", err);
       })

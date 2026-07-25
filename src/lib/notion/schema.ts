@@ -97,4 +97,6 @@ export const INQUIRY_PROPS = {
 export const VISIT_PROPS = {
   title: "방문자ID",
   visitedAt: "방문일",
+  referrer: "유입경로",
+  landingPage: "진입 페이지",
 } as const;

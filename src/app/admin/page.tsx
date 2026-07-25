@@ -2,10 +2,11 @@ import SiteHeader from "@/components/SiteHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import WeeklySearchLogCards from "@/components/admin/WeeklySearchLogCards";
+import VisitBreakdownCard from "@/components/admin/VisitBreakdownCard";
 import { countSessionsToday, getSessionsInRange } from "@/lib/notion/sessions";
 import { countBlogScoreSessionsToday } from "@/lib/notion/blogScoreSessions";
 import { countInquiriesToday } from "@/lib/notion/inquiries";
-import { countVisitsToday } from "@/lib/notion/visits";
+import { countVisitsToday, getVisitBreakdownToday, type VisitBreakdown } from "@/lib/notion/visits";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ const WEEKLY_LOG_DAYS = 7;
 
 // 패널 하나가 실패해도 나머지 통계는 뜨게 격리 (dashboard/[sessionId]의
 // settle() 패턴과 동일).
-async function settle(fetcher: () => Promise<number>): Promise<number | null> {
+async function settle<T>(fetcher: () => Promise<T>): Promise<T | null> {
   try {
     return await fetcher();
   } catch (err) {
@@ -22,14 +23,17 @@ async function settle(fetcher: () => Promise<number>): Promise<number | null> {
   }
 }
 
+const EMPTY_VISIT_BREAKDOWN: VisitBreakdown = { total: 0, byReferrer: [], byLandingPage: [] };
+
 export default async function AdminPage() {
-  const [searchCount, visitCount, inquiryCount, blogScoreCount, weeklySessions] =
+  const [searchCount, visitCount, inquiryCount, blogScoreCount, weeklySessions, visitBreakdown] =
     await Promise.all([
       settle(countSessionsToday),
       settle(countVisitsToday),
       settle(countInquiriesToday),
       settle(countBlogScoreSessionsToday),
       getSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
+      settle(getVisitBreakdownToday),
     ]);
 
   return (
@@ -53,6 +57,14 @@ export default async function AdminPage() {
             footnote="Notion 기록 기준"
           />
           <AdminStatCard label="오늘 블로그지수 확인" value={blogScoreCount ?? 0} />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="text-base font-semibold text-ink">방문자 유입 분석</h2>
+          <VisitBreakdownCard
+            byReferrer={(visitBreakdown ?? EMPTY_VISIT_BREAKDOWN).byReferrer}
+            byLandingPage={(visitBreakdown ?? EMPTY_VISIT_BREAKDOWN).byLandingPage}
+          />
         </div>
 
         <div className="flex flex-col gap-3">
