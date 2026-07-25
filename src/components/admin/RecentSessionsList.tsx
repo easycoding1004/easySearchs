@@ -1,10 +1,6 @@
 import Link from "next/link";
 import type { SearchSession } from "@/lib/notion/types";
-
-function formatDate(iso: string): string {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString("ko-KR");
-}
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 export default function RecentSessionsList({
   sessions,
@@ -25,7 +21,7 @@ export default function RecentSessionsList({
           >
             <span className="font-medium text-ink">{session.title}</span>
             <span className="shrink-0 text-ink-muted">
-              {formatDate(session.searchedAt)} · {session.resultCount}건
+              {formatKstDateTime(session.searchedAt)} · {session.resultCount}건
             </span>
           </Link>
         </li>

@@ -8,6 +8,7 @@ import { getDashboardExposure } from "@/lib/dashboard/dashboardExposure";
 import { getCompetitorKeywordProfiles } from "@/lib/dashboard/competitorKeywords";
 import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/lib/dashboard/keywordCluster";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 import { NAVER_OPENAPI_CONCURRENCY } from "@/lib/constants";
 import type { RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
@@ -110,7 +111,7 @@ export default async function BlogScoreResultPage({
         <h1 className="text-xl font-semibold tracking-tight text-ink">{session.myBlogDomain}</h1>
         <p className="text-sm text-ink-muted">
           키워드 {session.keywords.length}개 · 비교 블로그 {session.competitorDomains.length}곳 ·{" "}
-          {new Date(session.searchedAt).toLocaleString("ko-KR")} 조회
+          {formatKstDateTime(session.searchedAt)} 조회
         </p>
       </div>
 

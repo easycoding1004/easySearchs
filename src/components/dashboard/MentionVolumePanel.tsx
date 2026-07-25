@@ -1,4 +1,5 @@
 import type { MentionVolume } from "@/lib/dashboard/mentions";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 export default function MentionVolumePanel({
   rows,
@@ -17,7 +18,7 @@ export default function MentionVolumePanel({
           </p>
         </div>
         <span className="text-xs text-ink-muted">
-          {new Date(fetchedAt).toLocaleString("ko-KR")} 기준
+          {formatKstDateTime(fetchedAt)} 기준
         </span>
       </div>
 

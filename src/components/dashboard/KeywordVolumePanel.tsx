@@ -1,5 +1,6 @@
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 import type { BlogPublishStats } from "@/lib/naver/blogPublishStats";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 function formatBlogStat(value: number | undefined): string {
   return value == null ? "-" : value.toLocaleString();
@@ -23,7 +24,7 @@ export default function KeywordVolumePanel({
       <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-ink">키워드 검색량</h2>
         <span className="text-xs text-ink-muted">
-          {new Date(fetchedAt).toLocaleString("ko-KR")} 기준
+          {formatKstDateTime(fetchedAt)} 기준
         </span>
       </div>
 

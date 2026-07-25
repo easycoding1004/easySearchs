@@ -1,6 +1,7 @@
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 import type { TitleTagRecommendation } from "@/lib/dashboard/keywordCluster";
 import type { CompetitorKeywordProfile } from "@/lib/dashboard/competitorKeywords";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const COMP_COLOR: Record<string, string> = {
   낮음: "var(--chart-series-pc)", // slot 1 blue
@@ -205,7 +206,7 @@ export default function KeywordClusterPanel({
           </p>
         </div>
         <span className="text-xs text-ink-muted">
-          {new Date(fetchedAt).toLocaleString("ko-KR")} 기준
+          {formatKstDateTime(fetchedAt)} 기준
         </span>
       </div>
 

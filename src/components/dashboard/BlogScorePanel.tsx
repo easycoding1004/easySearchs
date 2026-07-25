@@ -1,5 +1,6 @@
 import { RADAR_AXES, compositeScore, type GapMessage, type RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 type AxisKey = (typeof RADAR_AXES)[number]["key"];
 
@@ -348,7 +349,7 @@ export default function BlogScorePanel({
           </p>
         </div>
         <span className="text-xs text-ink-muted">
-          {new Date(fetchedAt).toLocaleString("ko-KR")} 기준
+          {formatKstDateTime(fetchedAt)} 기준
         </span>
       </div>
 

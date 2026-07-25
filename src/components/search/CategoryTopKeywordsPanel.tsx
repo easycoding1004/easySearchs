@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryDef } from "@/lib/naver/categoryTrends";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const ROTATE_INTERVAL_MS = 6000;
 
@@ -152,7 +153,7 @@ export default function CategoryTopKeywordsPanel({
 
         {slide.fetchedAt && (
           <p className="text-xs text-ink-muted">
-            {new Date(slide.fetchedAt).toLocaleString("ko-KR")} 기준
+            {formatKstDateTime(slide.fetchedAt)} 기준
           </p>
         )}
       </div>
