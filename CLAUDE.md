@@ -190,7 +190,7 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 검색량 급상승 정기 스냅샷 잡**(섹션 6.3)도 서버가 계속 떠 있어야 12시간 주기가 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 6개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion.ts`/`setup-notion-snapshots.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 7개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
 
@@ -207,8 +207,11 @@ API 응답으로 받은 키워드 1개당 1행.
 
 ### 12.2 관리자 (`/admin`)
 
-- 로그인 없음 — `metadata.robots = { index: false, follow: false }`로 검색엔진에서만 숨김, URL을 아는 사람은 누구나 접근 가능(공개성 원칙은 섹션 10.2와 동일). 인증이 생기기 전까지 민감 정보를 노출하는 용도로 확장하지 말 것.
-- `getRecentSessions()`(`src/lib/notion/sessions.ts`)로 개인 도구의 최근 검색 세션 50건을 시간 역순으로 보여줌 — 블로그지수 세션은 여기 안 뜸(별도 관리 화면 없음).
+- **2026-07부터 비밀번호로 보호됨 — 사이트에서 로그인이 있는 유일한 페이지.** 나머지 사이트 전체(개인 도구/블로그지수/급상승/가이드/문의)는 섹션 10.2 원칙 그대로 로그인 없음. `src/proxy.ts`가 `/admin/**`(단 `/admin/login` 제외)을 가로채 `admin_auth` 쿠키를 `ADMIN_PASSWORD` 환경변수와 비교하고, 불일치하면 `/admin/login`으로 리다이렉트. 로그인 성공 시 쿠키 값 = `ADMIN_PASSWORD` 그대로(httpOnly+secure+sameSite strict, 30일) — 단일 관리자용 게이트라 해싱 같은 추가 장치는 의도적으로 생략함. Supabase/OAuth(섹션 10.2에서 이미 삭제)는 다시 쓰지 않음.
+- `metadata.robots = { index: false, follow: false }`는 `src/app/admin/layout.tsx`에서 `/admin`·`/admin/login` 공통으로 한 번만 선언.
+- **방문자 추적**: 이 프로젝트 최초의 방문자 카운트 인프라. `src/proxy.ts`가 `ez_v` 쿠키가 없는 페이지 요청(API/관리자 경로 제외)마다 `crypto.randomUUID()`로 새 값을 발급해 다음 KST 자정에 만료되는 쿠키로 세팅하고, `event.waitUntil()`로 감싼 fire-and-forget `fetch`를 `/api/visit`(Node 런타임)에 보내 Notion `방문 기록` DB(`src/lib/notion/visits.ts`)에 1행 적재함. 쿠키가 매일 자정 만료되므로 "오늘 방문자"는 자연스럽게 순방문자 기준이 되고, 인메모리 카운터와 달리 재배포에도 숫자가 안 사라짐 — 대신 방문자가 쿠키를 지우면 중복 집계될 수 있음(허용 가능한 근사치, 이 프로젝트의 다른 "대략적 지표"들과 같은 수준의 트레이드오프).
+- 통계 카드 4개(오늘 키워드 검색/방문자/문의 메일/블로그지수 확인, `src/lib/notion/{sessions,visits,inquiries,blogScoreSessions}.ts`의 `count*Today()` 함수들) + 최근 7일 검색 키워드 카드 로그(`getSessionsInRange(7)`, `WeeklySearchLogCards.tsx`) — 예전의 "최근 50건 리스트"(`RecentSessionsList.tsx`, `getRecentSessions()`)는 이 7일 카드 로그와 목적이 겹쳐서 삭제하고 대체함. 블로그지수 세션은 여기 안 뜸(별도 관리 화면 없음).
+- 날짜 경계는 전부 `src/lib/utils/formatDate.ts`의 `getKstDateString()`/`kstDayRangeUtcIso()` 사용 — 섹션 15의 타임존 버그와 같은 이유로, 서버 UTC 기준 "오늘"과 KST 기준 "오늘"이 달라지지 않게 함.
 
 ### 12.3 문의하기 (`/contact`)
 

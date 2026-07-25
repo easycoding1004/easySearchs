@@ -2,6 +2,7 @@ import { isFullPage } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { SNAPSHOT_PROPS, SNAPSHOT_SOURCE } from "./schema";
+import { getKstDateString } from "../utils/formatDate";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -11,13 +12,6 @@ function requireEnv(name: string): string {
 
 function snapshotsDataSourceId(): string {
   return requireEnv("NOTION_KEYWORD_SNAPSHOTS_DB_ID");
-}
-
-// KST 기준 날짜 문자열(YYYY-MM-DD) — 서버가 어느 타임존에서 돌든 한국 사용자
-// 기준 "오늘"로 스냅샷을 묶기 위함.
-function todayKstDate(): string {
-  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-  return new Date(Date.now() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 type SnapshotSource = (typeof SNAPSHOT_SOURCE)[keyof typeof SNAPSHOT_SOURCE];
@@ -31,7 +25,7 @@ export async function upsertSnapshot(
   source: SnapshotSource
 ): Promise<void> {
   const dataSourceId = snapshotsDataSourceId();
-  const today = todayKstDate();
+  const today = getKstDateString();
 
   const existing = await notion.dataSources.query({
     data_source_id: dataSourceId,

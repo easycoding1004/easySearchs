@@ -1,5 +1,7 @@
 import { notion } from "./client";
 import { INQUIRY_PROPS } from "./schema";
+import { countRowsMatching } from "./queryHelpers";
+import { kstDayRangeUtcIso } from "../utils/formatDate";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -39,4 +41,15 @@ export async function createInquiry(input: {
     },
   });
   return page.id;
+}
+
+// 이메일 발송 자체는 Resend가 처리하고 이건 Notion 백업 기록 기준 카운트라,
+// 이메일은 성공했는데 Notion 저장만 실패한 경우(§12.3) 실제보다 적게 잡힐 수
+// 있음 — 화면에 그 각주를 함께 표시할 것.
+export async function countInquiriesToday(): Promise<number> {
+  const { startIso, endIso } = kstDayRangeUtcIso(0);
+  return countRowsMatching(inquiriesDataSourceId(), {
+    timestamp: "created_time",
+    created_time: { on_or_after: startIso, before: endIso },
+  });
 }

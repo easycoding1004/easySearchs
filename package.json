@@ -10,6 +10,7 @@
     "test:naver": "tsx scripts/test-naver-signing.ts",
     "setup:notion": "tsx scripts/setup-notion.ts",
     "setup:notion-snapshots": "tsx scripts/setup-notion-snapshots.ts",
+    "setup:notion-visits": "tsx scripts/setup-notion-visits.ts",
     "test:datalab": "tsx scripts/test-datalab.ts",
     "test:datalab-search": "tsx scripts/test-datalab-search.ts",
     "test:google-trends": "tsx scripts/test-google-trends.ts"

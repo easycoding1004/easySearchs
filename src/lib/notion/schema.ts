@@ -90,3 +90,11 @@ export const INQUIRY_PROPS = {
   handled: "처리완료",
   receivedAt: "접수일시",
 } as const;
+
+// 관리자 대시보드(`/admin`) 방문자 카운트용 — 미들웨어가 방문자 쿠키가 없는
+// 요청에 한해 1행 기록. 방문자당 하루 최대 1행(쿠키가 KST 자정에 만료돼
+// 다음날 다시 방문하면 새로 카운트됨).
+export const VISIT_PROPS = {
+  title: "방문자ID",
+  visitedAt: "방문일",
+} as const;

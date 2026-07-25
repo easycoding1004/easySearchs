@@ -3,6 +3,8 @@ import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { SESSION_PROPS } from "./schema";
 import type { SearchSession } from "./types";
+import { countRowsMatching } from "./queryHelpers";
+import { kstDayRangeUtcIso } from "../utils/formatDate";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -68,17 +70,6 @@ export async function createSearchSession(input: {
   return page.id;
 }
 
-export async function getRecentSessions(
-  limit = 10
-): Promise<SearchSession[]> {
-  const response = await notion.dataSources.query({
-    data_source_id: sessionsDataSourceId(),
-    sorts: [{ property: SESSION_PROPS.searchedAt, direction: "descending" }],
-    page_size: limit,
-  });
-  return response.results.filter(isFullPage).map(parseSession);
-}
-
 export async function getSessionById(
   id: string
 ): Promise<SearchSession | null> {
@@ -89,4 +80,34 @@ export async function getSessionById(
   } catch {
     return null;
   }
+}
+
+export async function countSessionsToday(): Promise<number> {
+  const { startIso, endIso } = kstDayRangeUtcIso(0);
+  return countRowsMatching(sessionsDataSourceId(), {
+    property: SESSION_PROPS.searchedAt,
+    date: { on_or_after: startIso, before: endIso },
+  });
+}
+
+// 관리자 대시보드의 "최근 7일 검색 키워드" 카드 로그용 — days=7이면 오늘
+// 포함 최근 7일(daysAgo=6부터 오늘까지).
+export async function getSessionsInRange(days: number): Promise<SearchSession[]> {
+  const { startIso } = kstDayRangeUtcIso(days - 1);
+  const sessions: SearchSession[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: sessionsDataSourceId(),
+      filter: { property: SESSION_PROPS.searchedAt, date: { on_or_after: startIso } },
+      sorts: [{ property: SESSION_PROPS.searchedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    sessions.push(...res.results.filter(isFullPage).map(parseSession));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return sessions;
 }

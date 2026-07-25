@@ -3,6 +3,8 @@ import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { BLOG_SCORE_SESSION_PROPS } from "./schema";
 import type { BlogScoreGap, BlogScoreSession } from "./types";
+import { countRowsMatching } from "./queryHelpers";
+import { kstDayRangeUtcIso } from "../utils/formatDate";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -105,4 +107,12 @@ export async function getBlogScoreSessionById(id: string): Promise<BlogScoreSess
   } catch {
     return null;
   }
+}
+
+export async function countBlogScoreSessionsToday(): Promise<number> {
+  const { startIso, endIso } = kstDayRangeUtcIso(0);
+  return countRowsMatching(sessionsDataSourceId(), {
+    property: BLOG_SCORE_SESSION_PROPS.searchedAt,
+    date: { on_or_after: startIso, before: endIso },
+  });
 }
