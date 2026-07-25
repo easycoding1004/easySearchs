@@ -3,6 +3,7 @@ import KeywordChart from "@/components/search/KeywordChart";
 import KeywordTable from "@/components/search/KeywordTable";
 import SearchTrendPanel from "@/components/search/SearchTrendPanel";
 import KeywordAudiencePanel from "@/components/search/KeywordAudiencePanel";
+import ShareResultButton from "@/components/search/ShareResultButton";
 import SiteHeader from "@/components/SiteHeader";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";
@@ -42,12 +43,15 @@ export default async function ResultPage({
               검색 키워드: {session.keyword} · 결과 {records.length}건
             </p>
           </div>
-          <a
-            href={`/api/session/${sessionId}/csv`}
-            className="self-start rounded-md border border-hairline px-4 py-2 text-sm font-medium text-ink transition ease-spring hover:bg-bg motion-safe:active:scale-[0.97] sm:self-auto"
-          >
-            CSV 다운로드
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <ShareResultButton title={session.title} />
+            <a
+              href={`/api/session/${sessionId}/csv`}
+              className="self-start rounded-md border border-hairline px-4 py-2 text-sm font-medium text-ink transition ease-spring hover:bg-bg motion-safe:active:scale-[0.97] sm:self-auto"
+            >
+              CSV 다운로드
+            </a>
+          </div>
         </div>
 
         {records.some((r) => r.kind === "추론 키워드") && (
