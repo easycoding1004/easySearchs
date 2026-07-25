@@ -1,4 +1,5 @@
 import type { KeywordRecord } from "../notion/types";
+import { formatKstDateTime } from "../utils/formatDate";
 
 const CSV_HEADERS = [
   "키워드",
@@ -28,7 +29,7 @@ function toRow(record: KeywordRecord): string[] {
     String(record.totalCount),
     record.compIdx ?? "",
     String(record.avgAdDepth),
-    record.checkedAt,
+    formatKstDateTime(record.checkedAt),
   ];
 }
 
