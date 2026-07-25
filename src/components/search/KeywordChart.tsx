@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import type { KeywordRecord } from "@/lib/notion/types";
-import KeywordBlogPreview from "./KeywordBlogPreview";
+import KeywordBlogModal from "./KeywordBlogModal";
 
 const BAR_SIZE = 24;
 const MIN_WIDTH_PER_BAR = 72;
@@ -92,7 +92,7 @@ function CustomTooltip({
 }
 
 export default function KeywordChart({ records }: { records: KeywordRecord[] }) {
-  const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
+  const [activeKeyword, setActiveKeyword] = useState<string | null>(null);
 
   const data: ChartDatum[] = records.map((record) => ({
     keyword: record.keyword,
@@ -105,17 +105,19 @@ export default function KeywordChart({ records }: { records: KeywordRecord[] }) 
   const width = Math.max(data.length * MIN_WIDTH_PER_BAR, 480);
 
   // recharts passes the rendered rectangle item, not our datum directly —
-  // the original ChartDatum row lives at `.payload`.
+  // the original ChartDatum row lives at `.payload`. No onMouseLeave: the
+  // modal should stay put once opened (hovering a *different* bar still
+  // updates it) so moving the mouse toward the modal to click a link
+  // doesn't clear it mid-transit.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleBarEnter = (item: { payload?: any }) => {
+  const handleBarActivate = (item: { payload?: any }) => {
     const keyword = item.payload?.keyword;
-    if (typeof keyword === "string") setHoveredKeyword(keyword);
+    if (typeof keyword === "string") setActiveKeyword(keyword);
   };
-  const handleBarLeave = () => setHoveredKeyword(null);
 
   return (
-    <div className="flex w-full flex-col gap-4 rounded-lg border border-hairline bg-surface p-4 lg:flex-row">
-      <div className="min-w-0 flex-1 overflow-x-auto">
+    <div className="w-full rounded-lg border border-hairline bg-surface p-4">
+      <div className="overflow-x-auto">
         <div style={{ width, height: 360 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 24 }}>
@@ -154,8 +156,8 @@ export default function KeywordChart({ records }: { records: KeywordRecord[] }) 
                 strokeWidth={2}
                 barSize={BAR_SIZE}
                 radius={[0, 0, 0, 0]}
-                onMouseEnter={handleBarEnter}
-                onMouseLeave={handleBarLeave}
+                onMouseEnter={handleBarActivate}
+                onClick={handleBarActivate}
               />
               <Bar
                 dataKey="mobileCount"
@@ -165,16 +167,14 @@ export default function KeywordChart({ records }: { records: KeywordRecord[] }) 
                 strokeWidth={2}
                 barSize={BAR_SIZE}
                 radius={[4, 4, 0, 0]}
-                onMouseEnter={handleBarEnter}
-                onMouseLeave={handleBarLeave}
+                onMouseEnter={handleBarActivate}
+                onClick={handleBarActivate}
               />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
-      <div className="hidden w-72 shrink-0 lg:block">
-        <KeywordBlogPreview keyword={hoveredKeyword} />
-      </div>
+      <KeywordBlogModal keyword={activeKeyword} onClose={() => setActiveKeyword(null)} />
     </div>
   );
 }
