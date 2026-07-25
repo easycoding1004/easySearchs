@@ -18,7 +18,6 @@ import MentionVolumePanel from "@/components/dashboard/MentionVolumePanel";
 import CompetitorExposurePanel from "@/components/dashboard/CompetitorExposurePanel";
 import KeywordClusterPanel from "@/components/dashboard/KeywordClusterPanel";
 import BlogScorePanel from "@/components/dashboard/BlogScorePanel";
-import DatalabTrendPanel from "@/components/dashboard/DatalabTrendPanel";
 import PanelError from "@/components/dashboard/PanelError";
 import DashboardTabs from "@/components/dashboard/DashboardTabs";
 import ExportableImage from "@/components/dashboard/ExportableImage";
@@ -175,7 +174,6 @@ export default async function BlogScoreResultPage({
                 ) : (
                   <PanelError title="키워드 클러스터 & 콘텐츠 전략" />
                 )}
-                <DatalabTrendPanel status="pending_approval" />
               </>
             ),
           },

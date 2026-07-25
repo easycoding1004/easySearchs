@@ -37,26 +37,16 @@ interface NaverSearchResponse<T> {
   items: T[];
 }
 
+import { throttle } from "./throttle";
+
 const MAX_DISPLAY = 100;
 // The local (지역검색) search endpoint caps display at 5, unlike blog/cafe's 100.
 const MAX_LOCAL_DISPLAY = 5;
 const RATE_LIMIT_MAX_ATTEMPTS = 6;
 const RATE_LIMIT_BASE_DELAY_MS = 1000;
-// Naver's Open API rate limit turned out much stricter than typical (250ms
-// spacing still triggered 429s) — pace every outgoing request (blog + cafe
-// share the same limit) to at least this far apart instead of only
-// reacting to 429s after the fact.
-const MIN_REQUEST_INTERVAL_MS = 1000;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-let lastRequestAt = 0;
-async function throttle() {
-  const wait = lastRequestAt + MIN_REQUEST_INTERVAL_MS - Date.now();
-  if (wait > 0) await sleep(wait);
-  lastRequestAt = Date.now();
 }
 
 function requireOpenApiHeaders() {

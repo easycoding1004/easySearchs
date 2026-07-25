@@ -21,3 +21,8 @@ export const TRENDING_NAVER_MATCH_CONCURRENCY = 3;
 export const SNAPSHOT_JOB_CONCURRENCY = 2;
 export const SNAPSHOT_JOB_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12시간
 export const RISING_KEYWORD_MIN_DAYS = 20;
+
+// 검색 트렌드 방향성 배지 (`TrendDirectionBadge`) — 키워드당 데이터랩 호출
+// 1회라 개인 도구(시드 최대 5개)는 그대로 다 보내지만, 블로그지수(최대 30개)
+// 쪽은 이미 느린 라이브 탭이 더 느려지지 않도록 상한을 둠.
+export const MAX_TREND_BADGE_KEYWORDS = 10;

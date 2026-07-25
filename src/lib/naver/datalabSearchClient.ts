@@ -5,6 +5,8 @@
 // an absolute search count — never label this "검색량" next to the
 // keywordstool API's absolute monthlyPcQcCnt/monthlyMobileQcCnt numbers.
 
+import { throttle } from "./throttle";
+
 const SEARCH_TREND_URL = "https://openapi.naver.com/v1/datalab/search";
 
 export type TrendTimeUnit = "date" | "week" | "month";
@@ -57,22 +59,30 @@ function requireHeaders() {
   };
 }
 
+export interface TrendDemographicFilter {
+  device?: "pc" | "mo";
+  gender?: "m" | "f";
+  ages?: string[];
+}
+
 export async function fetchSearchTrend(
   keywordGroups: TrendKeywordGroup[],
   startDate: string,
   endDate: string,
-  timeUnit: TrendTimeUnit
+  timeUnit: TrendTimeUnit,
+  filter: TrendDemographicFilter = {}
 ): Promise<TrendResponse> {
   const body: TrendRequestBody = {
     startDate,
     endDate,
     timeUnit,
     keywordGroups,
-    device: "",
-    gender: "",
-    ages: [],
+    device: filter.device ?? "",
+    gender: filter.gender ?? "",
+    ages: filter.ages ?? [],
   };
 
+  await throttle();
   const response = await fetch(SEARCH_TREND_URL, {
     method: "POST",
     headers: requireHeaders(),

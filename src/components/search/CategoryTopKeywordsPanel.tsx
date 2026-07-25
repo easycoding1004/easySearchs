@@ -3,20 +3,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryDef } from "@/lib/naver/categoryTrends";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
+import type { TrendDirection } from "@/lib/naver/trendDirection";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const ROTATE_INTERVAL_MS = 6000;
+
+const DIRECTION_STYLE: Record<TrendDirection, { arrow: string; color: string }> = {
+  상승: { arrow: "▲", color: "text-success" },
+  보합: { arrow: "－", color: "text-ink-muted" },
+  하락: { arrow: "▼", color: "text-error" },
+};
 
 interface Slide {
   category: CategoryDef;
   rows: NormalizedKeywordRow[];
   fetchedAt: number | null;
   error: boolean;
+  // undefined = 이 카테고리는 쇼핑인사이트 CID 매핑 자체가 없음(조용히 숨김).
+  shoppingDirection?: TrendDirection | null;
 }
 
 interface CachedCategory {
   rows: NormalizedKeywordRow[];
   fetchedAt: number;
+  shoppingDirection?: TrendDirection | null;
 }
 
 // Auto-rotating carousel through every category's BEST10, with a select +
@@ -34,25 +44,33 @@ export default function CategoryTopKeywordsPanel({
   initialRows,
   initialFetchedAt,
   initialError,
+  initialShoppingDirection,
 }: {
   categories: CategoryDef[];
   initialCategory: CategoryDef;
   initialRows: NormalizedKeywordRow[];
   initialFetchedAt: number | null;
   initialError: boolean;
+  initialShoppingDirection?: TrendDirection | null;
 }) {
   const [slide, setSlide] = useState<Slide>({
     category: initialCategory,
     rows: initialRows,
     fetchedAt: initialFetchedAt,
     error: initialError,
+    shoppingDirection: initialShoppingDirection,
   });
 
   const indexRef = useRef(Math.max(0, categories.findIndex((c) => c.id === initialCategory.id)));
   const cacheRef = useRef(
     new Map<string, CachedCategory>(
       !initialError && initialFetchedAt != null
-        ? [[initialCategory.id, { rows: initialRows, fetchedAt: initialFetchedAt }]]
+        ? [
+            [
+              initialCategory.id,
+              { rows: initialRows, fetchedAt: initialFetchedAt, shoppingDirection: initialShoppingDirection },
+            ],
+          ]
         : []
     )
   );
@@ -65,7 +83,13 @@ export default function CategoryTopKeywordsPanel({
       const cached = cacheRef.current.get(next.id);
 
       if (cached) {
-        setSlide({ category: next, rows: cached.rows, fetchedAt: cached.fetchedAt, error: false });
+        setSlide({
+          category: next,
+          rows: cached.rows,
+          fetchedAt: cached.fetchedAt,
+          error: false,
+          shoppingDirection: cached.shoppingDirection,
+        });
         return;
       }
 
@@ -73,8 +97,18 @@ export default function CategoryTopKeywordsPanel({
         const res = await fetch(`/api/category-trends?category=${next.id}`);
         if (!res.ok) throw new Error("request failed");
         const data = await res.json();
-        cacheRef.current.set(next.id, { rows: data.rows, fetchedAt: data.fetchedAt });
-        setSlide({ category: next, rows: data.rows, fetchedAt: data.fetchedAt, error: false });
+        cacheRef.current.set(next.id, {
+          rows: data.rows,
+          fetchedAt: data.fetchedAt,
+          shoppingDirection: data.shoppingDirection,
+        });
+        setSlide({
+          category: next,
+          rows: data.rows,
+          fetchedAt: data.fetchedAt,
+          error: false,
+          shoppingDirection: data.shoppingDirection,
+        });
       } catch {
         setSlide({ category: next, rows: [], fetchedAt: null, error: true });
       }
@@ -154,6 +188,15 @@ export default function CategoryTopKeywordsPanel({
         {slide.fetchedAt && (
           <p className="text-xs text-ink-muted">
             {formatKstDateTime(slide.fetchedAt)} 기준
+          </p>
+        )}
+
+        {slide.shoppingDirection && (
+          <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <span>쇼핑 관심도(최근 3개월)</span>
+            <span className={`font-semibold ${DIRECTION_STYLE[slide.shoppingDirection].color}`}>
+              {DIRECTION_STYLE[slide.shoppingDirection].arrow} {slide.shoppingDirection}
+            </span>
           </p>
         )}
       </div>

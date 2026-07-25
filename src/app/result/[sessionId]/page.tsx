@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import KeywordChart from "@/components/search/KeywordChart";
 import KeywordTable from "@/components/search/KeywordTable";
 import SearchTrendPanel from "@/components/search/SearchTrendPanel";
+import KeywordAudiencePanel from "@/components/search/KeywordAudiencePanel";
 import SiteHeader from "@/components/SiteHeader";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";
+import { KEYWORD_KIND } from "@/lib/notion/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export default async function ResultPage({
   if (!session) notFound();
 
   const records = await getRecordsForSession(sessionId);
+  const seedKeyword = records.find((r) => r.kind === KEYWORD_KIND.seed)?.keyword;
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -58,6 +61,7 @@ export default async function ResultPage({
         <KeywordChart records={records} />
         <KeywordTable records={records} />
         <SearchTrendPanel sessionId={sessionId} />
+        {seedKeyword && <KeywordAudiencePanel keyword={seedKeyword} />}
       </main>
     </div>
   );

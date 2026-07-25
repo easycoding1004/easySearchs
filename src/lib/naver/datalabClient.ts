@@ -2,6 +2,8 @@
 // as openApiClient.ts (NAVER_OPENAPI_CLIENT_ID/SECRET). Unlike the search
 // APIs (GET + query string), DataLab endpoints are POST + JSON body.
 
+import { throttle } from "./throttle";
+
 const DATALAB_BASE = "https://openapi.naver.com/v1/datalab/shopping";
 
 function requireHeaders() {
@@ -23,6 +25,7 @@ export async function postDatalab<T>(
   path: string,
   body: Record<string, unknown>
 ): Promise<T> {
+  await throttle();
   const response = await fetch(`${DATALAB_BASE}${path}`, {
     method: "POST",
     headers: requireHeaders(),

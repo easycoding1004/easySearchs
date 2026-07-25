@@ -1,6 +1,8 @@
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
 import type { BlogPublishStats } from "@/lib/naver/blogPublishStats";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
+import { MAX_TREND_BADGE_KEYWORDS } from "@/lib/constants";
+import TrendDirectionBadge from "@/components/TrendDirectionBadge";
 
 function formatBlogStat(value: number | undefined): string {
   return value == null ? "-" : value.toLocaleString();
@@ -43,12 +45,17 @@ export default function KeywordVolumePanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline">
-            {rows.map((row) => {
+            {rows.map((row, i) => {
               const stats = publishStats[row.relKeyword];
               return (
                 <tr key={row.relKeyword}>
                   <td className="px-3 py-2 font-medium text-ink">
-                    {row.relKeyword}
+                    <div className="flex items-center gap-2">
+                      <span>{row.relKeyword}</span>
+                      {i < MAX_TREND_BADGE_KEYWORDS && (
+                        <TrendDirectionBadge keyword={row.relKeyword} />
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right text-ink">
                     {row.monthlyPcQcCnt.toLocaleString()}
@@ -71,11 +78,14 @@ export default function KeywordVolumePanel({
       </div>
 
       <div className="flex flex-col gap-2 sm:hidden">
-        {rows.map((row) => {
+        {rows.map((row, i) => {
           const stats = publishStats[row.relKeyword];
           return (
             <div key={row.relKeyword} className="rounded-md border border-hairline p-3">
-              <div className="mb-1 font-medium text-ink">{row.relKeyword}</div>
+              <div className="mb-1 flex items-center gap-2">
+                <span className="font-medium text-ink">{row.relKeyword}</span>
+                {i < MAX_TREND_BADGE_KEYWORDS && <TrendDirectionBadge keyword={row.relKeyword} />}
+              </div>
               <div className="text-sm text-ink-muted">
                 PC {row.monthlyPcQcCnt.toLocaleString()} · 모바일{" "}
                 {row.monthlyMobileQcCnt.toLocaleString()} · 합계{" "}

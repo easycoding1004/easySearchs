@@ -10,6 +10,7 @@ import TrendTicker from "@/components/search/TrendTicker";
 import MobileStickyCta from "@/components/MobileStickyCta";
 import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
+import { getCategoryShoppingDirection } from "@/lib/naver/categoryShoppingTrend";
 import { getSiteStats } from "@/lib/notion/stats";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
 import type { NormalizedKeywordRow } from "@/lib/naver/types";
@@ -114,10 +115,11 @@ export default async function Home({
   const { category: categoryParam } = await searchParams;
   const category = CATEGORIES.find((c) => c.id === categoryParam) ?? CATEGORIES[0];
 
-  const [categoryTrend, siteStats, trending] = await Promise.all([
+  const [categoryTrend, siteStats, trending, shoppingDirection] = await Promise.all([
     getCategoryTopKeywords(category.id).catch(() => null),
     getSiteStats().catch(() => null),
     fetchTrendingKeywordsWithNaverVolume().catch(() => null),
+    getCategoryShoppingDirection(category.id).catch(() => undefined),
   ]);
   const categoryRows: NormalizedKeywordRow[] = categoryTrend?.rows ?? [];
 
@@ -158,6 +160,7 @@ export default async function Home({
                 initialRows={categoryRows}
                 initialFetchedAt={categoryTrend?.fetchedAt ?? null}
                 initialError={!categoryTrend}
+                initialShoppingDirection={shoppingDirection}
               />
             </div>
           </div>

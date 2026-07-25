@@ -1,4 +1,6 @@
 import type { KeywordRecord } from "@/lib/notion/types";
+import { KEYWORD_KIND } from "@/lib/notion/schema";
+import TrendDirectionBadge from "@/components/TrendDirectionBadge";
 
 function formatBlogStat(value: number | null): string {
   return value == null ? "-" : value.toLocaleString();
@@ -31,7 +33,14 @@ export default function KeywordTable({ records }: { records: KeywordRecord[] }) 
           <tbody className="divide-y divide-hairline">
             {records.map((record) => (
               <tr key={record.id}>
-                <td className="px-3 py-2 font-medium text-ink">{record.keyword}</td>
+                <td className="px-3 py-2 font-medium text-ink">
+                  <div className="flex items-center gap-2">
+                    <span>{record.keyword}</span>
+                    {record.kind === KEYWORD_KIND.seed && (
+                      <TrendDirectionBadge keyword={record.keyword} />
+                    )}
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-ink-muted">{record.kind}</td>
                 <td className="px-3 py-2 text-right text-ink">
                   {record.pcCount.toLocaleString()}
@@ -66,7 +75,12 @@ export default function KeywordTable({ records }: { records: KeywordRecord[] }) 
         {records.map((record) => (
           <div key={record.id} className="rounded-md border border-hairline p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="font-medium text-ink">{record.keyword}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-ink">{record.keyword}</span>
+                {record.kind === KEYWORD_KIND.seed && (
+                  <TrendDirectionBadge keyword={record.keyword} />
+                )}
+              </div>
               <span className="shrink-0 text-xs text-ink-muted">{record.kind}</span>
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">

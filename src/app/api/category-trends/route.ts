@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
+import { getCategoryShoppingDirection } from "@/lib/naver/categoryShoppingTrend";
 
 // Backs the auto-rotating BEST10 carousel (CategoryTopKeywordsPanel) — the
 // page itself only server-renders the initially-selected category; this
@@ -12,11 +13,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await getCategoryTopKeywords(categoryId);
+    const [result, shoppingDirection] = await Promise.all([
+      getCategoryTopKeywords(categoryId),
+      getCategoryShoppingDirection(categoryId),
+    ]);
     return NextResponse.json({
       categoryId: result.category.id,
       rows: result.rows,
       fetchedAt: result.fetchedAt,
+      // CID 매핑이 없는 카테고리는 undefined — "데이터 없음"을 지어내지
+      // 않고 프론트에서 그 섹션 자체를 안 그리게 함.
+      shoppingDirection,
     });
   } catch (err) {
     console.error(`[GET /api/category-trends] failed for "${categoryId}":`, err);
