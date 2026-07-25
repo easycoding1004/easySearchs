@@ -12,7 +12,8 @@ import {
 } from "@/lib/constants";
 import { createSearchSession } from "@/lib/notion/sessions";
 import { createKeywordRecord, getRecordsForSession } from "@/lib/notion/records";
-import { KEYWORD_KIND } from "@/lib/notion/schema";
+import { upsertSnapshot } from "@/lib/notion/keywordSnapshots";
+import { KEYWORD_KIND, SNAPSHOT_SOURCE } from "@/lib/notion/schema";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
 import { getErrorMessage } from "@/lib/utils/errors";
 import { createSseStream, SSE_HEADERS } from "@/lib/utils/sse";
@@ -214,6 +215,19 @@ export async function POST(request: Request) {
         send({ done: true, error: `Notion 레코드 저장에 실패했습니다: ${message}` });
         return;
       }
+
+      // Best-effort, not awaited — feeds /trending's self-accumulated "우리
+      // 데이터 기준 상승 키워드" history. Never blocks or fails the search.
+      mapWithConcurrency(capped, NOTION_WRITE_CONCURRENCY, (entry) =>
+        upsertSnapshot(
+          entry.row.relKeyword,
+          entry.row.monthlyPcQcCnt,
+          entry.row.monthlyMobileQcCnt,
+          SNAPSHOT_SOURCE.userSearch
+        )
+      ).catch((err) => {
+        console.error("[POST /api/search] snapshot upsert failed:", getErrorMessage(err), err);
+      });
 
       await waitForRecordsIndexed(sessionId, capped.length);
 

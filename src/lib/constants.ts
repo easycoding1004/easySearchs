@@ -15,3 +15,9 @@ export const NAVER_OPENAPI_CONCURRENCY = 1;
 // 블로그지수 (ad-hoc, Notion-backed — no saved "business").
 export const MAX_BLOG_SCORE_KEYWORDS = 30;
 export const MAX_BLOG_SCORE_COMPETITORS = 10;
+
+// 검색량 급상승 (`/trending`).
+export const TRENDING_NAVER_MATCH_CONCURRENCY = 3;
+export const SNAPSHOT_JOB_CONCURRENCY = 2;
+export const SNAPSHOT_JOB_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12시간
+export const RISING_KEYWORD_MIN_DAYS = 20;

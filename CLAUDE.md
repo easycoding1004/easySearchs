@@ -105,6 +105,14 @@ API 응답으로 받은 키워드 1개당 1행.
 - 네이버 데이터랩 검색어트렌드 그래프 (1개월/1년/기간 직접입력)
 - "CSV 다운로드" 버튼 → 해당 세션의 상세 데이터를 CSV 파일로 다운로드
 
+### 6.3 검색량 급상승 (`/trending`)
+
+네이버는 실시간급상승검색어(실검)를 2021년에 완전히 폐지했고 검색광고 키워드도구 API는 히스토리 없는 단일 스냅샷만 줘서, "지금 뜨는 검색어"를 네이버 자체로는 구할 방법이 없다. 두 소스를 조합해 대신함:
+
+- **구글 트렌드 한국 일간 트렌드 RSS** (`https://trends.google.com/trending/rss?geo=KR`, 인증 불필요, `src/lib/googleTrends/client.ts`) — Google이 의도적으로 공개하는 피드라 HTML 스크래핑보다 안전함. `fast-xml-parser`로 파싱, TTL 캐시 2시간. 항목마다 기존 `fetchKeywordStats`로 실제 네이버 검색량을 best-effort 교차 조회함 — **`hintKeywords` 파라미터는 공백이 섞이면 400 에러**(실측 확인)이므로 반드시 공백 제거 후 조회할 것. 화면에는 항상 "구글 트렌드 기준 — 네이버 자체 순위 아님"을 명시(섹션 2의 자체 지표 고지 원칙과 동일).
+- **자체 스냅샷 축적** — 실제 조회된 키워드의 네이버 검색량을 Notion `키워드 검색량 스냅샷` DB(스키마는 `src/lib/notion/schema.ts`의 `SNAPSHOT_PROPS`)에 날짜별로 쌓아 증가율을 계산(`src/lib/notion/keywordSnapshots.ts`의 `getRisingKeywords`, 최소 20일 이상 간격만 인정). 두 경로로 채워짐: (1) `/api/search`가 검색할 때마다 편승해서 저장(추가 네이버 API 호출 없음), (2) `src/lib/scheduler/snapshotJob.ts`가 카테고리 시드 키워드+현재 구글 트렌드 목록을 12시간마다 훑는 정기 잡. 데이터가 부족하면(신규 배포 직후 등) 정직한 빈 상태 문구를 보여줌 — 없는 상승률을 지어내지 말 것.
+- **`src/instrumentation.ts`**가 이 정기 잡을 서버 시작 시 1회 등록하는 **이 프로젝트 최초의 상시 백그라운드 잡**(요청과 무관하게 항상 돎) — 섹션 11의 상주형 서버 전제와 직결됨.
+
 ## 7. 기술 스택
 
 - **프론트엔드/백엔드**: Next.js App Router (API Route에서 네이버 API 호출 및 Notion API 연동 처리)
@@ -174,8 +182,8 @@ API 응답으로 받은 키워드 1개당 1행.
 
 ## 11. 배포
 
-- **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것.
+- **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 검색량 급상승 정기 스냅샷 잡**(섹션 6.3)도 서버가 계속 떠 있어야 12시간 주기가 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 4개. `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 5개(`NOTION_KEYWORD_SNAPSHOTS_DB_ID` 포함, `scripts/setup-notion-snapshots.ts`로 별도 생성). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion.ts`/`setup-notion-snapshots.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.

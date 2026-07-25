@@ -64,6 +64,22 @@ export const BLOG_SCORE_RECORD_PROPS = {
   checkedAt: "조회일시",
 } as const;
 
+// 검색량 급상승 (`/trending`) — 실제 조회된 키워드의 네이버 검색량을 날짜별로
+// 쌓아 자체 증감률을 계산하기 위한 스냅샷. 키워드+수집일 조합이 사실상 유니크
+// 키(같은 날 중복 검색은 갱신).
+export const SNAPSHOT_PROPS = {
+  title: "키워드",
+  pcCount: "PC 월간검색수",
+  mobileCount: "모바일 월간검색수",
+  collectedAt: "수집일",
+  source: "수집 방식",
+} as const;
+
+export const SNAPSHOT_SOURCE = {
+  userSearch: "실사용자 검색",
+  scheduledJob: "정기 스냅샷",
+} as const;
+
 // 문의하기 (`/contact`) — 사이트 문의 접수 기록. 이메일 발송(Resend)과 별개로
 // Notion에도 남겨 이메일 발송 실패 시에도 문의 내용이 유실되지 않게 함.
 export const INQUIRY_PROPS = {

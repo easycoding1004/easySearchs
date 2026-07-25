@@ -82,6 +82,9 @@ export default function DashboardHomePage() {
             <Link href="/dashboard" className="hover:text-primary">
               블로그지수
             </Link>
+            <Link href="/trending" className="hover:text-primary">
+              급상승
+            </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드
             </Link>
