@@ -100,9 +100,12 @@ export async function POST(request: Request) {
         gaps,
       });
 
-      await mapWithConcurrency(scores, NOTION_WRITE_CONCURRENCY, (score) => {
+      // "결과 저장 중..." 이후 진행률 없이 침묵하던 구간 — 경쟁사가 많으면
+      // 몇 초씩 걸려 진행바가 멈춘 것처럼 보였음(/api/search와 동일한 문제).
+      let savedCount = 0;
+      await mapWithConcurrency(scores, NOTION_WRITE_CONCURRENCY, async (score) => {
         const profile = profileStatsByDomain.get(score.domain) ?? null;
-        return createBlogScoreRecord({
+        const result = await createBlogScoreRecord({
           sessionId,
           domain: score.domain,
           label: score.label,
@@ -123,6 +126,10 @@ export async function POST(request: Request) {
           avgRecentComments: avgCommentsByDomain.get(score.domain) ?? null,
           topTerms: profileByDomainKey.get(score.domain)?.terms ?? [],
         });
+        savedCount++;
+        const progress = 92 + Math.round((7 * savedCount) / scores.length);
+        send({ status: `결과 저장 중... (${savedCount}/${scores.length})`, progress });
+        return result;
       });
 
       send({ done: true, sessionId, progress: 100 });

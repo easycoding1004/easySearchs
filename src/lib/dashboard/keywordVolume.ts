@@ -28,10 +28,13 @@ export async function getKeywordVolumes(
   const batches = chunk(keywords, MAX_SEED_KEYWORDS);
   const targets = new Set(keywords.map(normalizeForMatch));
 
+  // hintKeywords 파라미터는 공백이 섞이면 400 에러를 낸다(실측 확인,
+  // src/app/api/search/route.ts와 동일한 이슈) — 매칭은 normalizeForMatch가
+  // 이미 공백을 무시하므로 여기서 제거해도 targets 매칭에는 영향 없음.
   const results = await mapWithConcurrency(
     batches,
     NAVER_OPENAPI_CONCURRENCY,
-    (batch) => fetchKeywordStats(batch.join(","))
+    (batch) => fetchKeywordStats(batch.map((k) => k.replace(/\s+/g, "")).join(","))
   );
 
   return results

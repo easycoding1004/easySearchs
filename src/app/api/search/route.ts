@@ -115,9 +115,14 @@ export async function POST(request: Request) {
     try {
       send({ status: "네이버 키워드 검색량 조회 중...", progress: 5 });
 
+      // hintKeywords 파라미터는 공백이 섞이면 400 에러를 낸다(실측 확인) — 화면
+      // 표시/Notion 라벨은 사용자가 입력한 그대로(keywords) 쓰고, 네이버 호출에만
+      // 공백을 제거한 버전을 씀.
+      const hintKeywords = keywords.map((k) => k.replace(/\s+/g, "")).join(",");
+
       let rawRows: NormalizedKeywordRow[];
       try {
-        rawRows = await fetchKeywordStats(keywords.join(","));
+        rawRows = await fetchKeywordStats(hintKeywords);
       } catch (err) {
         const message = getErrorMessage(err);
         console.error("[POST /api/search] Naver API call failed:", message, err);
@@ -196,9 +201,14 @@ export async function POST(request: Request) {
         return;
       }
 
+      // 진행률을 계속 보내야 하는 이유: 결과가 많으면(인기 시드 키워드는 연관
+      // 키워드가 50개까지 붙음) 이 저장 단계만 여러 초가 걸리는데, 여기서 SSE를
+      // 하나도 안 보내면 클라이언트 진행바가 92%에서 멈춘 것처럼 보임(실측 확인
+      // — "카페" 검색 시 이 구간에서만 7초 넘게 무응답).
+      let savedCount = 0;
       try {
-        await mapWithConcurrency(capped, NOTION_WRITE_CONCURRENCY, (entry) =>
-          createKeywordRecord({
+        await mapWithConcurrency(capped, NOTION_WRITE_CONCURRENCY, async (entry) => {
+          await createKeywordRecord({
             sessionId,
             row: entry.row,
             kind: entry.isSeed
@@ -207,8 +217,11 @@ export async function POST(request: Request) {
                 ? KEYWORD_KIND.inferred
                 : KEYWORD_KIND.related,
             blogPublishStats: publishStats.get(entry.row.relKeyword) ?? null,
-          })
-        );
+          });
+          savedCount++;
+          const progress = 92 + Math.round((7 * savedCount) / capped.length);
+          send({ status: `결과 저장 중... (${savedCount}/${capped.length})`, progress });
+        });
       } catch (err) {
         const message = getErrorMessage(err);
         console.error("[POST /api/search] Notion record creation failed:", message, err);
@@ -229,6 +242,7 @@ export async function POST(request: Request) {
         console.error("[POST /api/search] snapshot upsert failed:", getErrorMessage(err), err);
       });
 
+      send({ status: "저장 확인 중...", progress: 99 });
       await waitForRecordsIndexed(sessionId, capped.length);
 
       send({ done: true, sessionId, progress: 100 });
