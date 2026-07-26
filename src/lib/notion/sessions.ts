@@ -84,9 +84,16 @@ export async function getSessionById(
 
 export async function countSessionsToday(): Promise<number> {
   const { startIso, endIso } = kstDayRangeUtcIso(0);
+  // Notion's date filter doesn't AND on_or_after+before together when both
+  // are given on the same condition object — it silently returns rows
+  // outside the intended range (confirmed by direct query: got results
+  // back to 4 days earlier). Each bound needs its own filter, joined by an
+  // explicit "and" — same fix applied everywhere else in this file.
   return countRowsMatching(sessionsDataSourceId(), {
-    property: SESSION_PROPS.searchedAt,
-    date: { on_or_after: startIso, before: endIso },
+    and: [
+      { property: SESSION_PROPS.searchedAt, date: { on_or_after: startIso } },
+      { property: SESSION_PROPS.searchedAt, date: { before: endIso } },
+    ],
   });
 }
 

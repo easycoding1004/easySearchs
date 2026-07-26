@@ -48,8 +48,12 @@ export async function createInquiry(input: {
 // 있음 — 화면에 그 각주를 함께 표시할 것.
 export async function countInquiriesToday(): Promise<number> {
   const { startIso, endIso } = kstDayRangeUtcIso(0);
+  // See sessions.ts's countSessionsToday for why this can't be one filter
+  // object with both on_or_after and before — Notion doesn't AND them.
   return countRowsMatching(inquiriesDataSourceId(), {
-    timestamp: "created_time",
-    created_time: { on_or_after: startIso, before: endIso },
+    and: [
+      { timestamp: "created_time", created_time: { on_or_after: startIso } },
+      { timestamp: "created_time", created_time: { before: endIso } },
+    ],
   });
 }

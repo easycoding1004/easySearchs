@@ -111,8 +111,12 @@ export async function getBlogScoreSessionById(id: string): Promise<BlogScoreSess
 
 export async function countBlogScoreSessionsToday(): Promise<number> {
   const { startIso, endIso } = kstDayRangeUtcIso(0);
+  // See sessions.ts's countSessionsToday for why this can't be one filter
+  // object with both on_or_after and before — Notion doesn't AND them.
   return countRowsMatching(sessionsDataSourceId(), {
-    property: BLOG_SCORE_SESSION_PROPS.searchedAt,
-    date: { on_or_after: startIso, before: endIso },
+    and: [
+      { property: BLOG_SCORE_SESSION_PROPS.searchedAt, date: { on_or_after: startIso } },
+      { property: BLOG_SCORE_SESSION_PROPS.searchedAt, date: { before: endIso } },
+    ],
   });
 }
