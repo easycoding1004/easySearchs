@@ -23,13 +23,14 @@ export const metadata: Metadata = {
     siteName: "ezzsearch",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: [{ url: "/ezzsearch_logo.png", width: 1285, height: 438, alt: "ezzsearch" }],
+    // Image comes from opengraph-image.tsx's file-convention route (auto
+    // 1200x630 branded card) — specifying images here too would risk a
+    // duplicate/conflicting og:image tag alongside it.
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/ezzsearch_logo.png"],
   },
   other: {
     "naver-site-verification": "7b6573f18ff8e86489146eb4ac6d99e7a5425ef5",

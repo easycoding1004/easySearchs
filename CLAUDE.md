@@ -228,9 +228,14 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - `ContactForm.tsx` → `POST /api/contact` → Resend로 이메일 발송(운영자 수신) + Notion `문의` DB에도 백업 저장. 이메일 발송이 우선이라 **Notion 저장이 실패해도 요청은 성공 처리**함(이메일은 이미 갔으므로) — 반대로 `RESEND_API_KEY`/`CONTACT_EMAIL_TO`가 없으면 아예 502로 막음.
 
+### 12.4 개인정보처리방침 (`/privacy`)
+
+- 방문자 추적(섹션 12.2)과 문의하기(이름/이메일)가 실제로 개인정보를 수집하는데 안내 페이지가 없던 걸 2026-07에 채움. `src/app/privacy/page.tsx`에 섹션 배열을 하드코딩(가이드 글과 동일한 패턴) — 실제 수집 항목(방문 통계/문의/검색·블로그지수 조회 입력값)과 위탁 업체(Notion, Resend)는 코드 기준으로 정확하지만, **보유기간·사업자 정보 등 법적으로 확정이 필요한 부분은 초안 수준**이니 배포 전 실제 운영자가 검토할 것. `metadata.robots = { index:false }`로 검색 노출은 막아뒀고 sitemap에도 안 넣음 — 홈/블로그지수/급상승 푸터의 "개인정보처리방침" 링크로만 접근 가능.
+
 ## 13. SEO
 
-- **메타데이터**: 루트 `layout.tsx`가 `title.template`("%s — ezzsearch")과 기본 OG/Twitter 카드를 설정하고, 각 페이지는 `export const metadata`로 제목/설명만 오버라이드 — 새 페이지 만들 때 이 패턴을 따를 것(OG 태그를 페이지마다 새로 정의할 필요 없음).
+- **메타데이터**: 루트 `layout.tsx`가 `title.template`("%s — ezzsearch")과 기본 OG/Twitter 카드(이미지 제외)를 설정하고, 각 페이지는 `export const metadata`로 제목/설명만 오버라이드 — 새 페이지 만들 때 이 패턴을 따를 것(OG 태그를 페이지마다 새로 정의할 필요 없음).
+- **OG/Twitter 이미지** (2026-07): 예전엔 로고 원본(1285×438, 가로로 긴 배너 비율)을 그대로 썼는데 카카오톡 등 1200×630 비율 카드에서 어색하게 잘렸음 — `src/app/opengraph-image.tsx`(`twitter-image.tsx`는 이걸 재수출)가 `next/og`의 `ImageResponse`로 브랜드 컬러 배경 + "ezzsearch" 워드마크 + 헤드라인을 즉석에서 1200×630으로 렌더링함. **`next/og`(Satori) 기본 폰트엔 한글 글리프가 없어서 한글 텍스트가 빈 박스로 나옴** — Google Fonts의 `css2` 엔드포인트를 구버전 Chrome User-Agent로 요청하면 Satori가 못 읽는 woff2 대신 ttf를 내려주는 방식(실측 확인)으로 Noto Sans KR을 로드해서 씀. 이 우회가 실패하면(폰트 fetch 실패 등) `fontFamily`를 지정 안 한 채로 폴백 렌더링됨 — 그 경우 한글이 깨질 수 있으니 새 OG 이미지 텍스트를 한글로 추가할 때도 이 로딩 함수를 재사용할 것. `layout.tsx`의 `openGraph.images`/`twitter.images`는 이 파일 컨벤션과 중복되므로 의도적으로 비워둠 — 다시 채우지 말 것.
 - **JSON-LD**: 루트 레이아웃에 `WebApplication` 스키마, `/guide/[slug]`마다 `Article` 스키마(섹션 12.1). 둘 다 `<script type="application/ld+json" dangerouslySetInnerHTML>`로 직접 주입 — 별도 라이브러리 없음.
 - **사이트맵/robots**: `src/app/sitemap.ts`(evergreen 페이지만: `/`, `/dashboard`, `/trending`, `/guide`+개별 글, `/contact`), `src/app/robots.ts`(`/result/*`, `/dashboard/*`, `/api/`, `/admin` 크롤링 차단 — 1회성 세션 페이지는 thin/duplicate content라 의도적으로 제외). `priority`/`changeFrequency` 값은 구글이 사실상 무시하는 필드라 여기 시간 쓰지 말 것.
 - **네이버 서치어드바이저**: `naver-site-verification` 메타 태그는 `layout.tsx`에 있지만, 사이트 등록·소유확인·사이트맵 제출·웹페이지 수집요청은 서치어드바이저에 로그인해야 하는 작업이라 **사용자가 직접** 해야 함 — 대신 해줄 수 없음. 사이트맵을 재배포해도 서치어드바이저가 자동으로 다시 가져가지 않으므로, 구조가 크게 바뀌면 사용자에게 재제출을 안내할 것.

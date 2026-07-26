@@ -131,6 +131,12 @@ export default async function TrendingPage() {
             <Link href="/guide" className="hover:text-primary">
               가이드
             </Link>
+            <Link href="/contact" className="hover:text-primary">
+              문의하기
+            </Link>
+            <Link href="/privacy" className="hover:text-primary">
+              개인정보처리방침
+            </Link>
           </div>
         </div>
       </footer>
