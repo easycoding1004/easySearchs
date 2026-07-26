@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NAV_LINKS } from "@/components/SiteHeader";
 
 const SITE_URL = "https://ezzsearch.com";
 const SITE_TITLE = "ezzsearch — 네이버 키워드 검색량 조회 & 블로그지수";
@@ -57,6 +58,19 @@ const jsonLd = {
   },
 };
 
+// Hints Google's sitelinks-style algorithm that these are the site's main
+// sections (mirrors SiteHeader.tsx's own NAV_LINKS, so it can never drift
+// out of sync with the actual nav) — this does NOT guarantee Google shows
+// them under the search snippet, that's entirely Google's own call.
+const siteNavigationJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": NAV_LINKS.map((link) => ({
+    "@type": "SiteNavigationElement",
+    name: link.label,
+    url: link.href === "/" ? SITE_URL : `${SITE_URL}${link.href}`,
+  })),
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -68,6 +82,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteNavigationJsonLd) }}
         />
         {children}
       </body>

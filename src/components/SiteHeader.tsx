@@ -3,7 +3,7 @@ import Link from "next/link";
 import ScrollProgressBar from "./ScrollProgressBar";
 import MobileNavMenu from "./MobileNavMenu";
 
-const NAV_LINKS = [
+export const NAV_LINKS = [
   { href: "/", label: "키워드 검색량" },
   { href: "/dashboard", label: "블로그지수" },
   { href: "/trending", label: "급상승" },
