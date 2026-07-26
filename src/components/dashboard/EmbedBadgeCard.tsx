@@ -41,6 +41,7 @@ export default function EmbedBadgeCard({ sessionId }: { sessionId: string }) {
           value={snippet}
           onFocus={(e) => e.currentTarget.select()}
           rows={3}
+          aria-label="배지 삽입 코드"
           className="w-full resize-none rounded-md border border-hairline bg-bg p-3 font-mono text-xs text-ink-muted"
         />
         <button

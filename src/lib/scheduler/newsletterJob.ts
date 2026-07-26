@@ -82,6 +82,16 @@ export async function runNewsletterJob(): Promise<void> {
     return;
   }
 
+  // Check subscribers first — no point spending a Naver/Google Trends
+  // fetch and a Notion snapshot scan building digest content nobody's
+  // going to receive (a very real case for the first several weeks of
+  // this feature's existence).
+  const subscribers = await getAllSubscribers();
+  if (subscribers.length === 0) {
+    console.log("[newsletterJob] no subscribers, skipping send");
+    return;
+  }
+
   let trending: TrendingKeywordWithVolume[] = [];
   try {
     trending = await fetchTrendingKeywordsWithNaverVolume();
@@ -94,12 +104,6 @@ export async function runNewsletterJob(): Promise<void> {
     rising = await getRisingKeywords(RISING_KEYWORD_MIN_DAYS);
   } catch (err) {
     console.error("[newsletterJob] rising keywords fetch failed:", err);
-  }
-
-  const subscribers = await getAllSubscribers();
-  if (subscribers.length === 0) {
-    console.log("[newsletterJob] no subscribers, skipping send");
-    return;
   }
 
   const resend = new Resend(apiKey);

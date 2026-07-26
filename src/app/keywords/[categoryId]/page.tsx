@@ -46,10 +46,23 @@ export default async function KeywordsCategoryPage({
   const category = CATEGORIES.find((c) => c.id === categoryId);
   if (!category) notFound();
 
-  const [{ rows, fetchedAt }, shoppingDirection] = await Promise.all([
-    getCategoryTopKeywords(categoryId),
-    getCategoryShoppingDirection(categoryId),
+  // Neither call was wrapped in error handling the way /trending's panels
+  // are — without this, a Naver outage would crash the whole page into the
+  // generic error boundary instead of degrading gracefully like every
+  // other Naver-backed page in this app. Both still run concurrently.
+  const [topKeywords, shoppingDirection] = await Promise.all([
+    getCategoryTopKeywords(categoryId).catch((err) => {
+      console.error(`[KeywordsCategoryPage] failed for "${categoryId}":`, err);
+      return null;
+    }),
+    getCategoryShoppingDirection(categoryId).catch((err) => {
+      console.error(`[KeywordsCategoryPage] shopping direction failed for "${categoryId}":`, err);
+      return undefined;
+    }),
   ]);
+  const rows = topKeywords?.rows ?? [];
+  const fetchedAt = topKeywords?.fetchedAt ?? null;
+  const fetchFailed = topKeywords === null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -76,7 +89,7 @@ export default async function KeywordsCategoryPage({
             ← 업종별 인기 검색어
           </Link>
           <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-            {category.label} 인기 검색어 TOP {rows.length}
+            {category.label} 인기 검색어{!fetchFailed && rows.length > 0 ? ` TOP ${rows.length}` : ""}
           </h1>
           <p className="mt-2 text-sm text-ink-muted">
             &quot;{category.seedKeyword}&quot; 연관 검색어 중 실제 네이버 검색량이 높은 순이에요
@@ -87,40 +100,73 @@ export default async function KeywordsCategoryPage({
           )}
         </div>
 
-        {rows.length === 0 ? (
+        {fetchFailed ? (
+          <p className="rounded-lg border border-dashed border-hairline p-6 text-center text-sm text-ink-muted">
+            일시적으로 데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.
+          </p>
+        ) : rows.length === 0 ? (
           <p className="rounded-lg border border-dashed border-hairline p-6 text-center text-sm text-ink-muted">
             지금은 불러올 데이터가 없어요. 잠시 후 다시 확인해주세요.
           </p>
         ) : (
-          <Reveal className="overflow-hidden rounded-lg border border-hairline">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-hairline bg-surface text-left text-xs text-ink-muted">
-                  <th className="px-4 py-2 font-medium">순위</th>
-                  <th className="px-4 py-2 font-medium">키워드</th>
-                  <th className="px-4 py-2 text-right font-medium">월간 검색량</th>
-                  <th className="px-4 py-2 text-right font-medium">경쟁정도</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.relKeyword} className="border-b border-hairline last:border-0">
-                    <td className="px-4 py-2.5 text-ink-muted">{i + 1}</td>
-                    <td className="px-4 py-2.5 font-medium text-ink">{row.relKeyword}</td>
-                    <td className="px-4 py-2.5 text-right text-ink">
-                      {(row.monthlyPcQcCnt + row.monthlyMobileQcCnt).toLocaleString()}
-                    </td>
-                    <td
-                      className={`px-4 py-2.5 text-right font-medium ${
+          <Reveal>
+            {/* Desktop: table. A plain table with overflow-hidden would clip
+                (not scroll) on narrow screens — sites elsewhere in this app
+                (KeywordVolumePanel, KeywordTable) instead pair a scrollable
+                sm:block table with a separate sm:hidden card list, which
+                this now matches. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-hairline sm:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-hairline bg-surface text-left text-xs text-ink-muted">
+                    <th className="px-4 py-2 font-medium">순위</th>
+                    <th className="px-4 py-2 font-medium">키워드</th>
+                    <th className="px-4 py-2 text-right font-medium">월간 검색량</th>
+                    <th className="px-4 py-2 text-right font-medium">경쟁정도</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={row.relKeyword} className="border-b border-hairline last:border-0">
+                      <td className="px-4 py-2.5 text-ink-muted">{i + 1}</td>
+                      <td className="px-4 py-2.5 font-medium text-ink">{row.relKeyword}</td>
+                      <td className="px-4 py-2.5 text-right text-ink">
+                        {(row.monthlyPcQcCnt + row.monthlyMobileQcCnt).toLocaleString()}
+                      </td>
+                      <td
+                        className={`px-4 py-2.5 text-right font-medium ${
+                          row.compIdx ? COMPETITION_STYLE[row.compIdx] : "text-ink-muted"
+                        }`}
+                      >
+                        {row.compIdx ?? "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:hidden">
+              {rows.map((row, i) => (
+                <div key={row.relKeyword} className="rounded-md border border-hairline p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-ink">
+                      {i + 1}. {row.relKeyword}
+                    </span>
+                    <span
+                      className={`shrink-0 text-xs font-medium ${
                         row.compIdx ? COMPETITION_STYLE[row.compIdx] : "text-ink-muted"
                       }`}
                     >
-                      {row.compIdx ?? "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      경쟁 {row.compIdx ?? "-"}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-ink-muted">
+                    월간 검색량 {(row.monthlyPcQcCnt + row.monthlyMobileQcCnt).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
           </Reveal>
         )}
 

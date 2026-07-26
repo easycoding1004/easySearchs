@@ -60,6 +60,7 @@ export default function NewsletterSubscribeForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="이메일 주소"
+          aria-label="이메일 주소"
           className="h-11 flex-1 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
           disabled={loading}
         />
