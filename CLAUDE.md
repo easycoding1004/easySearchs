@@ -16,7 +16,7 @@
 
 두 제품 사이의 유일한 연결점: `/`에는 블로그지수로 유도하는 CTA, `/dashboard` 헤더에는 `/`로 가는 "키워드 빠른 조회" 링크. 기능이 겹치는 화면(예전에 `/`에 있던 경쟁업체 노출순위 비교 폼)은 블로그지수 쪽 패널로 통합하고 개인 도구에서는 제거했으므로, 새 기능을 추가할 때 "이미 다른 쪽에 있는 기능은 아닌지" 먼저 확인할 것.
 
-이 두 제품과 별개로 **어느 한쪽에도 속하지 않는 사이트 공통 기능**도 있음: `/trending`(섹션 6.3), `/guide`·`/admin`·`/contact`(섹션 12). `SiteHeader.tsx` 내비게이션에 전부 노출되는 최상위 기능들이고, 새 공통 기능을 추가할 때도 여기 나열할 것.
+이 두 제품과 별개로 **어느 한쪽에도 속하지 않는 사이트 공통 기능**도 있음: `/trending`(섹션 6.3, 이메일 다이제스트는 섹션 6.4), `/guide`·`/admin`·`/contact`·`/keywords`·`/privacy`(섹션 12). `SiteHeader.tsx` 내비게이션에는 핵심 기능만 노출하고(`/keywords`·`/privacy`는 각 페이지 푸터 링크로만 접근), 새 공통 기능을 추가할 때도 여기 나열할 것.
 
 ## 1. 프로젝트 목적 (개인 도구)
 
@@ -116,6 +116,14 @@ API 응답으로 받은 키워드 1개당 1행.
 - **자체 스냅샷 축적** — 실제 조회된 키워드의 네이버 검색량을 Notion `키워드 검색량 스냅샷` DB(스키마는 `src/lib/notion/schema.ts`의 `SNAPSHOT_PROPS`)에 날짜별로 쌓아 증가율을 계산(`src/lib/notion/keywordSnapshots.ts`의 `getRisingKeywords`, 최소 20일 이상 간격만 인정). 두 경로로 채워짐: (1) `/api/search`가 검색할 때마다 편승해서 저장(추가 네이버 API 호출 없음), (2) `src/lib/scheduler/snapshotJob.ts`가 카테고리 시드 키워드+현재 구글 트렌드 목록을 12시간마다 훑는 정기 잡. 데이터가 부족하면(신규 배포 직후 등) 정직한 빈 상태 문구를 보여줌 — 없는 상승률을 지어내지 말 것.
 - **`src/instrumentation.ts`**가 이 정기 잡을 서버 시작 시 1회 등록하는 **이 프로젝트 최초의 상시 백그라운드 잡**(요청과 무관하게 항상 돎) — 섹션 11의 상주형 서버 전제와 직결됨.
 
+### 6.4 급상승 키워드 이메일 다이제스트
+
+`/trending` 하단 `NewsletterSubscribeForm.tsx`(`components/trending/`)에서 이메일을 입력하면 매주 급상승 키워드 요약을 받아볼 수 있음(2026-07 추가) — 1회성 조회 도구인 나머지 사이트와 달리 **재방문을 유도하는 유일한 기능**.
+
+- **구독**: `POST /api/subscribe` → `src/lib/notion/subscribers.ts`의 `subscribeEmail()`이 Notion `뉴스레터 구독자` DB(`NOTION_SUBSCRIBERS_DB_ID`, `scripts/setup-notion-subscribers.ts`로 생성)에 저장. 이메일(제목 속성) 중복 신청은 기존 행을 재사용하고 새로 안 만듦.
+- **구독 해지**: 구독 시점에 발급하는 임의 토큰(`구독해지토큰` 속성)을 이메일 자체 대신 식별자로 씀 — 이메일 주소로 바로 해지시키면 남의 이메일도 임의로 해지할 수 있어서다. `GET /api/unsubscribe?token=...`이 토큰으로 행을 찾아 `archived: true`로 소프트 삭제. 모든 발송 메일에 이 링크가 반드시 포함되어야 함(법적 요건이자 섹션 12.4 개인정보처리방침과 일치시켜야 하는 부분).
+- **발송 잡**: `src/lib/scheduler/newsletterJob.ts`가 구독자 전원에게 그 시점의 급상승 키워드(구글 트렌드)+상승 키워드(자체 스냅샷)를 Resend로 발송. `src/instrumentation.ts`에 스냅샷 잡과 같은 `setInterval` 패턴으로 등록하되, **스냅샷 잡과 달리 서버 시작 시 즉시 실행하지 않음**(매 배포마다 구독자에게 메일이 나가면 안 되므로). 이 방식의 알려진 트레이드오프: 별도의 "마지막 발송일" 저장소가 없어서, 서버가 발송 주기(`NEWSLETTER_JOB_INTERVAL_MS`, 7일)보다 자주 재배포되면 그 사이 발송이 아예 안 나갈 수 있음 — 배포 주기가 잦아지면 발송 이력을 Notion 등에 남겨 확인하는 방식으로 바꿔야 함.
+
 ## 7. 기술 스택
 
 - **프론트엔드/백엔드**: Next.js App Router (API Route에서 네이버 API 호출 및 Notion API 연동 처리)
@@ -165,6 +173,8 @@ API 응답으로 받은 키워드 1개당 1행.
 
 **콘텐츠 진단 지표(`src/lib/dashboard/contentDiagnostics.ts`의 `RADAR_AXES`)**: 콘텐츠량 / 키워드 커버리지 / 고검색량 공략도 / 저경쟁 공략도 / 평균 노출순위 / 콘텐츠 최신성 / **사용자 반응**(최근 게시물 댓글수 기반, `src/lib/naver/blogEngagementScraper.ts`) — 배열 하나로 관리되므로 축을 추가/삭제할 때 이 배열만 건드리면 컴포짓 점수·갭 메시지·화면 그리드가 자동으로 따라감. 로컬(지역검색) 노출 패널은 2026-07 재설계 시 입력 폼에서 업체명/로컬 경쟁사 필드가 빠지면서 함께 제외됨 — 필요해지면 입력 폼부터 다시 설계할 것. 데이터랩 쇼핑인사이트 승인 후 붙일 자리가 없어진 옛 "데이터랩 트렌드" 플레이스홀더(`DatalabTrendPanel.tsx`)는 삭제함 — 쇼핑인사이트는 홈페이지 카테고리 패널 쪽으로 옮겨감(아래).
 
+**임베드 배지** (2026-07 추가, "메인" 탭 하단 `EmbedBadgeCard.tsx`): 소상공인이 자기 블로그에 붙일 수 있는 `<img>` 배지 코드를 제공 — 배지를 클릭하면 이 세션의 `/dashboard/[sessionId]`로 연결되는 백링크이자 재유입 경로. 배지 이미지 자체는 `GET /api/badge/[sessionId]`가 `next/og`의 `ImageResponse`로 즉석 렌더링(320×88, 종합점수만 표시). 이 라우트는 **다른 사람 블로그에 계속 박제되어 매 방문자마다 호출**되므로, `getBlogScoreSessionById`/`getRecordsForBlogScoreSession` 조회 결과를 세션당 24시간 TTL 캐시(`createTtlCache`)에 담아 재요청마다 Notion을 다시 때리지 않게 함 — 어차피 점수는 세션 생성 시점에 고정되고 다시 안 바뀌므로(섹션 10.1) 긴 TTL이 안전함.
+
 ### 10.3.1 데이터랩 확장 (검색어트렌드 방향성 + 연령·성별·기기 + 쇼핑인사이트)
 
 **2026-07, 데이터랩 쇼핑인사이트 승인 완료**(`npm run test:datalab`으로 실측 확인) — 더 이상 "승인 대기 중"이 아님. 검색어트렌드(`/v1/datalab/search`)는 원래부터 별도 승인 없이 쓸 수 있었음.
@@ -198,9 +208,9 @@ API 응답으로 받은 키워드 1개당 1행.
 
 ## 11. 배포
 
-- **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 검색량 급상승 정기 스냅샷 잡**(섹션 6.3)도 서버가 계속 떠 있어야 12시간 주기가 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
+- **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 백그라운드 잡 2개**(검색량 급상승 스냅샷 — 섹션 6.3, 12시간 주기 / 뉴스레터 발송 — 섹션 6.4, 7일 주기)도 서버가 계속 떠 있어야 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 7개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 8개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
 
@@ -230,14 +240,19 @@ API 응답으로 받은 키워드 1개당 1행.
 
 ### 12.4 개인정보처리방침 (`/privacy`)
 
-- 방문자 추적(섹션 12.2)과 문의하기(이름/이메일)가 실제로 개인정보를 수집하는데 안내 페이지가 없던 걸 2026-07에 채움. `src/app/privacy/page.tsx`에 섹션 배열을 하드코딩(가이드 글과 동일한 패턴) — 실제 수집 항목(방문 통계/문의/검색·블로그지수 조회 입력값)과 위탁 업체(Notion, Resend)는 코드 기준으로 정확하지만, **보유기간·사업자 정보 등 법적으로 확정이 필요한 부분은 초안 수준**이니 배포 전 실제 운영자가 검토할 것. `metadata.robots = { index:false }`로 검색 노출은 막아뒀고 sitemap에도 안 넣음 — 홈/블로그지수/급상승 푸터의 "개인정보처리방침" 링크로만 접근 가능.
+- 방문자 추적(섹션 12.2)과 문의하기(이름/이메일)가 실제로 개인정보를 수집하는데 안내 페이지가 없던 걸 2026-07에 채움. `src/app/privacy/page.tsx`에 섹션 배열을 하드코딩(가이드 글과 동일한 패턴) — 실제 수집 항목(방문 통계/문의/뉴스레터 구독/검색·블로그지수 조회 입력값)과 위탁 업체(Notion, Resend)는 코드 기준으로 정확하지만, **보유기간·사업자 정보 등 법적으로 확정이 필요한 부분은 초안 수준**이니 배포 전 실제 운영자가 검토할 것. `metadata.robots = { index:false }`로 검색 노출은 막아뒀고 sitemap에도 안 넣음 — 홈/블로그지수/급상승 푸터의 "개인정보처리방침" 링크로만 접근 가능. 뉴스레터(섹션 6.4) 같은 새 개인정보 수집 지점을 추가할 때마다 이 페이지도 같이 갱신할 것 — 실제 코드보다 뒤처지면 의미가 없음.
+
+### 12.5 업종별 인기 검색어 (`/keywords`, `/keywords/[categoryId]`)
+
+- 홈페이지 카테고리 캐러셀(`CategoryTopKeywordsPanel`, `lib/naver/categoryTrends.ts`)이 쓰는 8개 카테고리 데이터를 독립 URL로도 노출하는 SEO 랜딩 페이지(2026-07 추가) — 캐러셀 안에만 있으면 검색엔진이 개별 색인을 못 하고 링크 공유도 안 됐던 문제를 해결. `/keywords`는 8개 카테고리 목록, `/keywords/[categoryId]`는 `generateStaticParams()`로 빌드 타임에 SSG되는 카테고리별 TOP10 표 + 쇼핑 관심도(매핑 있는 4개 카테고리만, 섹션 10.3.1과 동일). 새 데이터 소스를 추가하지 않고 기존 `getCategoryTopKeywords`/`getCategoryShoppingDirection`을 그대로 재사용함 — 캐시도 그대로 공유되므로 홈페이지와 이 페이지가 같은 카테고리를 동시에 조회해도 네이버를 중복 호출하지 않음.
 
 ## 13. SEO
 
 - **메타데이터**: 루트 `layout.tsx`가 `title.template`("%s — ezzsearch")과 기본 OG/Twitter 카드(이미지 제외)를 설정하고, 각 페이지는 `export const metadata`로 제목/설명만 오버라이드 — 새 페이지 만들 때 이 패턴을 따를 것(OG 태그를 페이지마다 새로 정의할 필요 없음).
 - **OG/Twitter 이미지** (2026-07): 예전엔 로고 원본(1285×438, 가로로 긴 배너 비율)을 그대로 썼는데 카카오톡 등 1200×630 비율 카드에서 어색하게 잘렸음 — `src/app/opengraph-image.tsx`(`twitter-image.tsx`는 이걸 재수출)가 `next/og`의 `ImageResponse`로 브랜드 컬러 배경 + "ezzsearch" 워드마크 + 헤드라인을 즉석에서 1200×630으로 렌더링함. **`next/og`(Satori) 기본 폰트엔 한글 글리프가 없어서 한글 텍스트가 빈 박스로 나옴** — Google Fonts의 `css2` 엔드포인트를 구버전 Chrome User-Agent로 요청하면 Satori가 못 읽는 woff2 대신 ttf를 내려주는 방식(실측 확인)으로 Noto Sans KR을 로드해서 씀. 이 우회가 실패하면(폰트 fetch 실패 등) `fontFamily`를 지정 안 한 채로 폴백 렌더링됨 — 그 경우 한글이 깨질 수 있으니 새 OG 이미지 텍스트를 한글로 추가할 때도 이 로딩 함수를 재사용할 것. `layout.tsx`의 `openGraph.images`/`twitter.images`는 이 파일 컨벤션과 중복되므로 의도적으로 비워둠 — 다시 채우지 말 것.
 - **JSON-LD**: 루트 레이아웃에 `WebApplication` 스키마, `/guide/[slug]`마다 `Article` 스키마(섹션 12.1). 둘 다 `<script type="application/ld+json" dangerouslySetInnerHTML>`로 직접 주입 — 별도 라이브러리 없음.
-- **사이트맵/robots**: `src/app/sitemap.ts`(evergreen 페이지만: `/`, `/dashboard`, `/trending`, `/guide`+개별 글, `/contact`), `src/app/robots.ts`(`/result/*`, `/dashboard/*`, `/api/`, `/admin` 크롤링 차단 — 1회성 세션 페이지는 thin/duplicate content라 의도적으로 제외). `priority`/`changeFrequency` 값은 구글이 사실상 무시하는 필드라 여기 시간 쓰지 말 것.
+- **사이트맵/robots**: `src/app/sitemap.ts`(evergreen 페이지만: `/`, `/dashboard`, `/trending`, `/keywords`+카테고리별 페이지, `/guide`+개별 글, `/contact` — `/privacy`는 noindex라 의도적으로 제외, 섹션 12.4), `src/app/robots.ts`(`/result/*`, `/dashboard/*`, `/api/`, `/admin` 크롤링 차단 — 1회성 세션 페이지는 thin/duplicate content라 의도적으로 제외). `priority`/`changeFrequency` 값은 구글이 사실상 무시하는 필드라 여기 시간 쓰지 말 것.
+- **RSS 피드**: `/guide/rss.xml`(`src/app/guide/rss.xml/route.ts`)이 `GUIDE_ARTICLES`를 RSS 2.0으로 내보냄 — 새 글이 배열에 추가되면 자동 반영. 루트 `layout.tsx`의 `metadata.alternates.types`로 피드 리더가 자동 탐지할 수 있게 링크 태그도 심어둠.
 - **네이버 서치어드바이저**: `naver-site-verification` 메타 태그는 `layout.tsx`에 있지만, 사이트 등록·소유확인·사이트맵 제출·웹페이지 수집요청은 서치어드바이저에 로그인해야 하는 작업이라 **사용자가 직접** 해야 함 — 대신 해줄 수 없음. 사이트맵을 재배포해도 서치어드바이저가 자동으로 다시 가져가지 않으므로, 구조가 크게 바뀌면 사용자에게 재제출을 안내할 것.
 
 ## 14. 파일 구조 (기능별 폴더 컨벤션)

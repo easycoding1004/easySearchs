@@ -4,6 +4,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Reveal from "@/components/Reveal";
 import TrendingKeywordsTable from "@/components/trending/TrendingKeywordsTable";
 import RisingKeywordsTable from "@/components/trending/RisingKeywordsTable";
+import NewsletterSubscribeForm from "@/components/trending/NewsletterSubscribeForm";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
 import { getRisingKeywords } from "@/lib/notion/keywordSnapshots";
 import { RISING_KEYWORD_MIN_DAYS } from "@/lib/constants";
@@ -95,6 +96,12 @@ export default async function TrendingPage() {
           </Reveal>
         </section>
 
+        <section className="w-full px-4 pb-4 sm:px-6">
+          <Reveal className="mx-auto w-full max-w-md">
+            <NewsletterSubscribeForm />
+          </Reveal>
+        </section>
+
         <section className="w-full border-t border-hairline bg-surface px-4 py-16 text-center sm:px-6 sm:py-20">
           <Reveal className="flex w-full flex-col items-center gap-5">
             <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
@@ -127,6 +134,9 @@ export default async function TrendingPage() {
             </Link>
             <Link href="/dashboard" className="hover:text-primary">
               블로그지수
+            </Link>
+            <Link href="/keywords" className="hover:text-primary">
+              업종별 키워드
             </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드

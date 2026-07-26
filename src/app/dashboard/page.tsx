@@ -85,6 +85,9 @@ export default function DashboardHomePage() {
             <Link href="/trending" className="hover:text-primary">
               급상승
             </Link>
+            <Link href="/keywords" className="hover:text-primary">
+              업종별 키워드
+            </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드
             </Link>

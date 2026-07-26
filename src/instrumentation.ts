@@ -1,4 +1,4 @@
-import { SNAPSHOT_JOB_INTERVAL_MS } from "./lib/constants";
+import { SNAPSHOT_JOB_INTERVAL_MS, NEWSLETTER_JOB_INTERVAL_MS } from "./lib/constants";
 
 // Next.js가 서버 프로세스 시작 시 정확히 1회 호출하는 공식 훅. 이 프로젝트
 // 최초의 "상시 백그라운드 잡" — 기존 TTL 캐시들은 요청이 있을 때만 채워지는
@@ -25,4 +25,13 @@ export async function register() {
       console.error("[instrumentation] scheduled snapshot job failed:", err);
     });
   }, SNAPSHOT_JOB_INTERVAL_MS);
+
+  // 스냅샷 잡과 달리 시작 시 즉시 실행하지 않음 — 매 배포마다 구독자에게
+  // 이메일이 나가면 안 되므로, 주기(7일)가 실제로 다 찼을 때만 발송한다.
+  const { runNewsletterJob } = await import("./lib/scheduler/newsletterJob");
+  setInterval(() => {
+    runNewsletterJob().catch((err) => {
+      console.error("[instrumentation] scheduled newsletter job failed:", err);
+    });
+  }, NEWSLETTER_JOB_INTERVAL_MS);
 }

@@ -19,6 +19,12 @@ export default function GuideIndexPage() {
           <p className="text-sm text-ink-muted">
             키워드 검색량과 블로그지수를 실제로 어떻게 활용하면 좋을지 정리했어요.
           </p>
+          <Link
+            href="/guide/rss.xml"
+            className="mx-auto text-xs text-ink-muted transition-colors hover:text-primary"
+          >
+            RSS로 구독하기
+          </Link>
         </div>
 
         <div className="flex flex-col gap-4">

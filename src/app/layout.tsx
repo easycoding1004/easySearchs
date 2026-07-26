@@ -35,6 +35,11 @@ export const metadata: Metadata = {
   other: {
     "naver-site-verification": "7b6573f18ff8e86489146eb4ac6d99e7a5425ef5",
   },
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: "/guide/rss.xml", title: "ezzsearch 가이드" }],
+    },
+  },
 };
 
 const jsonLd = {

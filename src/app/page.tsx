@@ -153,7 +153,7 @@ export default async function Home({
               <SearchForm />
             </div>
 
-            <div className="w-full max-w-xl">
+            <div className="flex w-full max-w-xl flex-col gap-2">
               <CategoryTopKeywordsPanel
                 categories={CATEGORIES}
                 initialCategory={category}
@@ -162,6 +162,12 @@ export default async function Home({
                 initialError={!categoryTrend}
                 initialShoppingDirection={shoppingDirection}
               />
+              <Link
+                href="/keywords"
+                className="self-end text-xs text-ink-muted transition-colors hover:text-primary"
+              >
+                업종별 인기 검색어 전체보기 →
+              </Link>
             </div>
           </div>
         </section>
@@ -381,6 +387,9 @@ export default async function Home({
             </Link>
             <Link href="/trending" className="hover:text-primary">
               급상승
+            </Link>
+            <Link href="/keywords" className="hover:text-primary">
+              업종별 키워드
             </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드

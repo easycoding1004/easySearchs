@@ -100,3 +100,12 @@ export const VISIT_PROPS = {
   referrer: "유입경로",
   landingPage: "진입 페이지",
 } as const;
+
+// 급상승 키워드 이메일 다이제스트(`/trending`) 구독자 목록.
+// unsubscribeToken은 이메일 자체를 키로 구독해지를 받으면 누구나 남의 이메일을
+// 해지시킬 수 있어서, 발송 시 개별 발급하는 임의 토큰으로 대신 식별한다.
+export const SUBSCRIBER_PROPS = {
+  title: "이메일",
+  subscribedAt: "구독일",
+  unsubscribeToken: "구독해지토큰",
+} as const;
