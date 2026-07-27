@@ -3,6 +3,7 @@ import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { SNAPSHOT_PROPS, SNAPSHOT_SOURCE } from "./schema";
 import { getKstDateString } from "../utils/formatDate";
+import { createTtlCache } from "../utils/ttlCache";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -99,10 +100,20 @@ export interface RisingKeyword {
   changeRatio: number; // (latest - earliest) / earliest
 }
 
+// 스냅샷 DB 전체를 필터 없이 페이지네이션하며 훑는 무거운 계산이라(스냅샷 잡이
+// 12시간마다+검색할 때마다 계속 행을 추가하므로 시간이 지날수록 느려짐),
+// /trending 방문마다 매번 다시 계산하지 않도록 캐싱 — 원본 스냅샷은 최소
+// 12시간 주기로만 바뀌니 1시간 캐시로도 신선도 문제 없음.
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const risingKeywordsCache = createTtlCache<number, RisingKeyword[]>(CACHE_TTL_MS);
+
 // 키워드별로 가장 오래된 스냅샷과 최신 스냅샷을 비교 — 최소 minDays 이상
 // 간격이 벌어진 것만(하루 이틀 만에 생긴 우연한 변동을 "급상승"으로 오인하지
 // 않도록), 증가율 내림차순 정렬.
 export async function getRisingKeywords(minDays = 20): Promise<RisingKeyword[]> {
+  const cached = risingKeywordsCache.get(minDays);
+  if (cached) return cached;
+
   const dataSourceId = snapshotsDataSourceId();
   const byKeyword = new Map<string, RawSnapshot[]>();
 
@@ -151,5 +162,7 @@ export async function getRisingKeywords(minDays = 20): Promise<RisingKeyword[]> 
     });
   }
 
-  return results.sort((a, b) => b.changeRatio - a.changeRatio);
+  const sorted = results.sort((a, b) => b.changeRatio - a.changeRatio);
+  risingKeywordsCache.set(minDays, sorted);
+  return sorted;
 }

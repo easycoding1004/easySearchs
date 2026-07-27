@@ -115,7 +115,8 @@ API 응답으로 받은 키워드 1개당 1행.
 네이버는 실시간급상승검색어(실검)를 2021년에 완전히 폐지했고 검색광고 키워드도구 API는 히스토리 없는 단일 스냅샷만 줘서, "지금 뜨는 검색어"를 네이버 자체로는 구할 방법이 없다. 두 소스를 조합해 대신함:
 
 - **구글 트렌드 한국 일간 트렌드 RSS** (`https://trends.google.com/trending/rss?geo=KR`, 인증 불필요, `src/lib/googleTrends/client.ts`) — Google이 의도적으로 공개하는 피드라 HTML 스크래핑보다 안전함. `fast-xml-parser`로 파싱, TTL 캐시 2시간. 항목마다 기존 `fetchKeywordStats`로 실제 네이버 검색량을 best-effort 교차 조회함 — **`hintKeywords` 파라미터는 공백이 섞이면 400 에러**(실측 확인)이므로 반드시 공백 제거 후 조회할 것. 화면에는 항상 "구글 트렌드 기준 — 네이버 자체 순위 아님"을 명시(섹션 2의 자체 지표 고지 원칙과 동일).
-- **자체 스냅샷 축적** — 실제 조회된 키워드의 네이버 검색량을 Notion `키워드 검색량 스냅샷` DB(스키마는 `src/lib/notion/schema.ts`의 `SNAPSHOT_PROPS`)에 날짜별로 쌓아 증가율을 계산(`src/lib/notion/keywordSnapshots.ts`의 `getRisingKeywords`, 최소 20일 이상 간격만 인정). 두 경로로 채워짐: (1) `/api/search`가 검색할 때마다 편승해서 저장(추가 네이버 API 호출 없음), (2) `src/lib/scheduler/snapshotJob.ts`가 카테고리 시드 키워드+현재 구글 트렌드 목록을 12시간마다 훑는 정기 잡. 데이터가 부족하면(신규 배포 직후 등) 정직한 빈 상태 문구를 보여줌 — 없는 상승률을 지어내지 말 것.
+- **자체 스냅샷 축적** — 실제 조회된 키워드의 네이버 검색량을 Notion `키워드 검색량 스냅샷` DB(스키마는 `src/lib/notion/schema.ts`의 `SNAPSHOT_PROPS`)에 날짜별로 쌓아 증가율을 계산(`src/lib/notion/keywordSnapshots.ts`의 `getRisingKeywords`, 최소 20일 이상 간격만 인정). 두 경로로 채워짐: (1) `/api/search`가 검색할 때마다 편승해서 저장(추가 네이버 API 호출 없음), (2) `src/lib/scheduler/snapshotJob.ts`가 카테고리 시드 키워드+현재 구글 트렌드 목록을 12시간마다 훑는 정기 잡. 데이터가 부족하면(신규 배포 직후 등) 정직한 빈 상태 문구를 보여줌 — 없는 상승률을 지어내지 말 것. `getRisingKeywords`는 스냅샷 DB 전체를 필터 없이 훑는 무거운 계산이라(스냅샷이 쌓일수록 느려짐) 1시간 TTL 캐시를 씌워둠(2026-07 추가) — 실측으로 첫 방문 5.5초 → 캐시 적중 시 0.3초로 확인.
+- **`/trending`에 `loading.tsx` 있음**(2026-07 추가, `/dashboard/[sessionId]`와 같은 이유) — 홈페이지의 "요즘 뜨는 검색어 더보기" 링크로 들어올 때 구글 트렌드/자체 스냅샷 라이브 조회가 끝날 때까지 화면이 멈춘 것처럼 보이는 문제가 있었음. `/trending`은 전용 `layout.tsx`가 없어서(`/dashboard/*`와 다름) 이 `loading.tsx`가 `SiteHeader`를 직접 렌더링함 — 안 그러면 로딩 중 헤더가 깜빡이며 사라짐.
 - **`src/instrumentation.ts`**가 이 정기 잡을 서버 시작 시 1회 등록하는 **이 프로젝트 최초의 상시 백그라운드 잡**(요청과 무관하게 항상 돎) — 섹션 11의 상주형 서버 전제와 직결됨.
 
 ### 6.4 급상승 키워드 이메일 다이제스트
