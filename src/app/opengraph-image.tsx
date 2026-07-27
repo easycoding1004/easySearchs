@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "ezzsearch — 네이버 키워드 검색량 조회 & 블로그지수";
+export const alt = "이지서치 — 네이버 키워드 검색량 조회 & 블로그지수";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+const BRAND_NAME = "이지서치";
 const HEADLINE = "네이버 키워드 검색량 & 블로그지수";
 const SUBTEXT = "회원가입 없이 무료로 바로 확인하세요";
 
@@ -32,7 +33,11 @@ async function loadNotoSansKR(text: string): Promise<ArrayBuffer | null> {
 }
 
 export default async function OpengraphImage() {
-  const fontData = await loadNotoSansKR(HEADLINE + SUBTEXT);
+  // BRAND_NAME's own characters must be in the requested subset too —
+  // Google's css2 `text=` param only includes glyphs for exactly the
+  // characters given, so leaving it out would risk BRAND_NAME rendering as
+  // blank boxes while HEADLINE/SUBTEXT (which were already covered) render fine.
+  const fontData = await loadNotoSansKR(BRAND_NAME + HEADLINE + SUBTEXT);
 
   return new ImageResponse(
     (
@@ -58,7 +63,7 @@ export default async function OpengraphImage() {
             marginBottom: 44,
           }}
         >
-          ezzsearch
+          {BRAND_NAME}
         </div>
         <div
           style={{

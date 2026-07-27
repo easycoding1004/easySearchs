@@ -7,13 +7,13 @@ function htmlPage(message: string): Response {
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>구독 해지 — ezzsearch</title>
+  <title>구독 해지 — 이지서치</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body style="display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:-apple-system,'Noto Sans KR',sans-serif;background:#FFFBF7;">
   <div style="text-align:center;padding:24px;">
     <p style="font-size:16px;color:#3D2E1F;">${message}</p>
-    <a href="https://ezzsearch.com" style="color:#E06B3D;font-size:14px;">ezzsearch로 돌아가기</a>
+    <a href="https://ezzsearch.com" style="color:#E06B3D;font-size:14px;">이지서치로 돌아가기</a>
   </div>
 </body>
 </html>`,

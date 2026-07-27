@@ -127,7 +127,7 @@ export default async function TrendingPage() {
 
       <footer className="w-full border-t border-hairline bg-bg px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 text-xs text-ink-muted sm:flex-row">
-          <span>© 2026 ezzsearch. All rights reserved.</span>
+          <span>© 2026 이지서치. All rights reserved.</span>
           <div className="flex gap-4">
             <Link href="/" className="hover:text-primary">
               키워드 검색량

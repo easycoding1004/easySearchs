@@ -32,9 +32,9 @@ export async function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>ezzsearch 가이드</title>
+    <title>이지서치 가이드</title>
     <link>${SITE_URL}/guide</link>
-    <description>네이버 키워드 검색량 조회 &amp; 블로그지수 — ezzsearch 콘텐츠 마케팅 가이드</description>
+    <description>네이버 키워드 검색량 조회 &amp; 블로그지수 — 이지서치 콘텐츠 마케팅 가이드</description>
     <language>ko</language>${items}
   </channel>
 </rss>`;

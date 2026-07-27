@@ -47,7 +47,7 @@ function buildEmailHtml(
 <html lang="ko">
 <body style="font-family:-apple-system,'Noto Sans KR',sans-serif;color:#3D2E1F;background:#FFFBF7;padding:24px;">
   <div style="max-width:560px;margin:0 auto;">
-    <p style="font-size:20px;font-weight:800;color:#E06B3D;margin:0 0 24px;">ezzsearch</p>
+    <p style="font-size:20px;font-weight:800;color:#E06B3D;margin:0 0 24px;">이지서치</p>
     <h1 style="font-size:22px;margin:0 0 16px;">이번 주 급상승 키워드</h1>
 
     <h2 style="font-size:16px;margin:24px 0 8px;">요즘 뜨는 검색어</h2>
@@ -115,7 +115,7 @@ export async function runNewsletterJob(): Promise<void> {
     const unsubscribeUrl = `${SITE_URL}/api/unsubscribe?token=${subscriber.unsubscribeToken}`;
     try {
       const { error } = await resend.emails.send({
-        from: "ezzsearch 급상승 키워드 <trending@ezzsearch.com>",
+        from: "이지서치 급상승 키워드 <trending@ezzsearch.com>",
         to: subscriber.email,
         subject: `이번 주 급상승 키워드 (${dateLabel})`,
         html: buildEmailHtml(trending, rising, unsubscribeUrl),

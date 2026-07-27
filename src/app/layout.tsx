@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { NAV_LINKS } from "@/components/SiteHeader";
 
+// Display brand name only — the domain, email addresses (contact@,
+// trending@ezzsearch.com), and internal file/route names deliberately stay
+// "ezzsearch" (changing those would need a new domain + email re-verification,
+// which the user explicitly chose not to do).
+const BRAND_NAME = "이지서치";
 const SITE_URL = "https://ezzsearch.com";
-const SITE_TITLE = "ezzsearch — 네이버 키워드 검색량 조회 & 블로그지수";
+const SITE_TITLE = `${BRAND_NAME} — 네이버 키워드 검색량 조회 & 블로그지수`;
 const SITE_DESCRIPTION =
   "키워드 검색량과 연관검색어를 빠르게 조회하고, 블로그지수에서 경쟁업체 노출·콘텐츠 진단까지 한눈에 관리하세요.";
 
@@ -11,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_TITLE,
-    template: "%s — ezzsearch",
+    template: `%s — ${BRAND_NAME}`,
   },
   description: SITE_DESCRIPTION,
   icons: {
@@ -21,7 +26,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ko_KR",
     url: SITE_URL,
-    siteName: "ezzsearch",
+    siteName: BRAND_NAME,
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     // Image comes from opengraph-image.tsx's file-convention route (auto
@@ -38,7 +43,7 @@ export const metadata: Metadata = {
   },
   alternates: {
     types: {
-      "application/rss+xml": [{ url: "/guide/rss.xml", title: "ezzsearch 가이드" }],
+      "application/rss+xml": [{ url: "/guide/rss.xml", title: `${BRAND_NAME} 가이드` }],
     },
   },
 };
@@ -46,7 +51,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "ezzsearch",
+  name: BRAND_NAME,
   url: SITE_URL,
   description: SITE_DESCRIPTION,
   applicationCategory: "BusinessApplication",

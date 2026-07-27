@@ -65,7 +65,7 @@ function badgeImage(scoreLabel: string) {
         }}
       >
         <div style={{ display: "flex", fontSize: 22, fontWeight: 800, color: "#E06B3D" }}>
-          ezzsearch
+          이지서치
         </div>
         <div
           style={{

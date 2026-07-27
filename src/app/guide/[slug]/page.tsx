@@ -41,8 +41,8 @@ export default async function GuideArticlePage({
     description: article.description,
     datePublished: article.publishedAt,
     url: `${SITE_URL}/guide/${article.slug}`,
-    author: { "@type": "Organization", name: "ezzsearch" },
-    publisher: { "@type": "Organization", name: "ezzsearch" },
+    author: { "@type": "Organization", name: "이지서치" },
+    publisher: { "@type": "Organization", name: "이지서치" },
     mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/guide/${article.slug}` },
   };
 

@@ -3,7 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "개인정보처리방침",
-  description: "ezzsearch가 수집하는 정보와 이용 목적을 안내합니다.",
+  description: "이지서치가 수집하는 정보와 이용 목적을 안내합니다.",
   robots: { index: false, follow: false },
 };
 
@@ -45,7 +45,7 @@ const SECTIONS: Section[] = [
   {
     heading: "4. 개인정보의 제3자 제공",
     paragraphs: [
-      "ezzsearch는 이용자의 개인정보를 원칙적으로 외부에 제공하지 않습니다. 다만 법령에 특별한 규정이 있거나 수사 목적으로 법령에서 정한 절차와 방법에 따라 요청이 있는 경우는 예외로 합니다.",
+      "이지서치는 이용자의 개인정보를 원칙적으로 외부에 제공하지 않습니다. 다만 법령에 특별한 규정이 있거나 수사 목적으로 법령에서 정한 절차와 방법에 따라 요청이 있는 경우는 예외로 합니다.",
     ],
   },
   {

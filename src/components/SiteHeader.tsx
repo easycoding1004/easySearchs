@@ -17,7 +17,7 @@ export default function SiteHeader() {
       <ScrollProgressBar />
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center">
-          <Image src="/ezzsearch_logo.png" alt="ezzsearch" width={94} height={32} priority />
+          <Image src="/ezzsearch_logo.png" alt="이지서치" width={94} height={32} priority />
         </Link>
         <nav className="hidden items-center gap-5 text-sm font-medium text-ink-muted sm:flex">
           {NAV_LINKS.map((link) => (

@@ -9,7 +9,7 @@ export default function EmbedBadgeCard({ sessionId }: { sessionId: string }) {
 
   const badgeUrl = `${SITE_URL}/api/badge/${sessionId}`;
   const linkUrl = `${SITE_URL}/dashboard/${sessionId}`;
-  const snippet = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer"><img src="${badgeUrl}" alt="ezzsearch 블로그지수" width="320" height="88" /></a>`;
+  const snippet = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer"><img src="${badgeUrl}" alt="이지서치 블로그지수" width="320" height="88" /></a>`;
 
   async function handleCopy() {
     try {
@@ -33,7 +33,7 @@ export default function EmbedBadgeCard({ sessionId }: { sessionId: string }) {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={badgeUrl} alt="ezzsearch 블로그지수 배지 미리보기" width={320} height={88} />
+      <img src={badgeUrl} alt="이지서치 블로그지수 배지 미리보기" width={320} height={88} />
 
       <div className="flex flex-col gap-2">
         <textarea
