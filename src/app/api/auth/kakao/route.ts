@@ -15,6 +15,9 @@ export async function GET() {
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", `${SITE_URL}/api/auth/kakao/callback`);
   url.searchParams.set("state", state);
+  // 사업자 전환 없이는 이메일 동의항목을 못 씀 — 닉네임은 기본 제공 항목이라
+  // 대신 표시용 이름으로 쓴다 (CLAUDE.md §16 참고).
+  url.searchParams.set("scope", "profile_nickname");
 
   return NextResponse.redirect(url.toString());
 }

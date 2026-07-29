@@ -10,7 +10,10 @@ const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 interface KakaoProfileResponse {
   id: number;
-  kakao_account?: { email?: string };
+  kakao_account?: {
+    email?: string;
+    profile?: { nickname?: string };
+  };
 }
 
 function redirectWithError(message: string): NextResponse {
@@ -60,11 +63,16 @@ export async function GET(request: Request) {
     if (!profileData.id) throw new Error(`카카오 프로필 조회 실패: ${JSON.stringify(profileData)}`);
 
     const providerId = String(profileData.id);
-    const email = profileData.kakao_account?.email;
+    // 사업자 미전환 상태라 이메일 동의항목을 못 받아옴 — 닉네임(기본 제공
+    // 항목)을 대신 표시 이름으로 씀. 소셜 계정은 (가입방식, 소셜ID)로
+    // 조회하지 title/이메일로 조회하지 않으므로, 닉네임이 겹치거나 없어도
+    // 조회 로직에는 영향 없음(순수 표시용).
+    const displayName =
+      profileData.kakao_account?.email ?? profileData.kakao_account?.profile?.nickname ?? "카카오 사용자";
     const existingUser = await findUserByProvider(AUTH_PROVIDER.kakao, providerId);
     const pageId = existingUser
       ? existingUser.pageId
-      : await createSocialUser(email ?? `kakao_${providerId}`, AUTH_PROVIDER.kakao, providerId);
+      : await createSocialUser(displayName, AUTH_PROVIDER.kakao, providerId);
 
     const sessionToken = await setSession(pageId);
     const response = NextResponse.redirect(`${SITE_URL}/write`);
