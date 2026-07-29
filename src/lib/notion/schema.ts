@@ -109,3 +109,18 @@ export const SUBSCRIBER_PROPS = {
   subscribedAt: "구독일",
   unsubscribeToken: "구독해지토큰",
 } as const;
+
+// AI 블로그 글쓰기(`/write`)용 계정 — 로그인 없는 이 사이트에서 유일하게 계정이
+// 필요한 기능(CLAUDE.md §16: 유료 Claude API 남용 방지 목적). 비밀번호는
+// bcrypt 해시만 저장, 평문 저장 안 함. sessionToken은 로그인 시 매번 새로
+// 발급(1계정 1세션만 유지 — 여러 기기 동시 로그인 지원 안 함, MVP 범위).
+export const USER_PROPS = {
+  title: "이메일",
+  passwordHash: "비밀번호해시",
+  emailVerified: "이메일인증됨",
+  verificationToken: "인증토큰",
+  sessionToken: "세션토큰",
+  sessionIssuedAt: "세션발급일시",
+  lastUsedAt: "마지막사용일",
+  createdAt: "가입일시",
+} as const;

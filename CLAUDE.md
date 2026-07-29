@@ -213,7 +213,7 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 백그라운드 잡 2개**(검색량 급상승 스냅샷 — 섹션 6.3, 12시간 주기 / 뉴스레터 발송 — 섹션 6.4, 7일 주기)도 서버가 계속 떠 있어야 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 8개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 9개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`/`NOTION_USERS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송/회원가입 인증메일도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4·16), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2), `ANTHROPIC_API_KEY`+`AUTH_EMAIL_FROM`(AI 블로그 글쓰기, 섹션 16). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
 
@@ -268,6 +268,7 @@ API 응답으로 받은 키워드 1개당 1행.
 | `lib/search/`, `components/search/` | 개인 도구 | `src/app/page.tsx`/`src/app/result/**`에서만 import됨 |
 | `components/trending/` | 검색량 급상승 | `src/app/trending/**`에서만 import됨 (lib 쪽은 `lib/googleTrends/`·`lib/notion/keywordSnapshots.ts`·`lib/scheduler/`로 기술적 계층별 분리 — 아래 참고) |
 | `components/admin/` | 관리자 | `/admin`에서만 import됨 |
+| `lib/write/`, `components/write/` | AI 블로그 글쓰기 | `src/app/write/**`·`src/app/api/write/**`·`src/app/api/auth/**`에서만 import됨 (Notion 계정 CRUD는 다른 DB 접근과 동일하게 `lib/notion/users.ts`) |
 | `lib/naver/`, `lib/notion/`, `lib/utils/` | 공유 | 네이버 API 클라이언트 / Notion 클라이언트+스키마 / 범용 유틸 — 두 제품 이상이 함께 쓰는 것 확인 후에만 여기 둘 것 |
 | `components/` 최상위, `lib/constants.ts` | 공유 | `SiteHeader`/`Reveal`/`PainPointPromo`/`AmbientParticles`/`SearchProgressModal`/`ContactForm`/`MobileStickyCta`/`MobileNavMenu`/`ScrollProgressBar`처럼 두 제품 이상에서 쓰는 것 |
 | `src/app/**` | 라우팅 | **절대 이 컨벤션으로 옮기지 않음** — 파일 위치 자체가 Next.js 라우팅 규칙 |
@@ -280,3 +281,16 @@ API 응답으로 받은 키워드 1개당 1행.
 - **네이버 검색광고 `hintKeywords` 파라미터는 공백이 섞이면 400 에러**(실측 확인, 섹션 6.3). 여러 단어로 된 후보 키워드를 조회할 땐 공백을 제거하고 보낼 것.
 - **`src/lib/naver/throttle.ts`의 공유 스로틀(최소 1초 간격, 오픈API+데이터랩 공용)은 병렬화로 못 줄임** — 새로 느린 검색 기능을 만들 때 이 제약을 우회하려 하지 말고, 대신 반복 조회되는 키워드에 TTL 캐시를 씌우는 쪽으로 최적화할 것(`blogPublishStats.ts`의 3시간 캐시가 그 예).
 - **Notion `date`/`created_time` 필터에 `on_or_after`와 `before`를 같은 조건 객체 안에 같이 넣으면 두 조건이 AND로 안 묶인다**(실측 확인 — `/admin`의 "오늘" 통계 3개가 최대 4일치 데이터를 합산해서 보여주고 있던 실제 버그의 원인이었음, `countSessionsToday`/`countInquiriesToday`/`countBlogScoreSessionsToday`). `{ property, date: { on_or_after: a, before: b } }` 하나로 쓰지 말고, 반드시 `{ and: [{ property, date: { on_or_after: a } }, { property, date: { before: b } }] }`처럼 조건을 둘로 쪼개서 `and`로 묶을 것 — `keywordSnapshots.ts`의 중복 체크 쿼리가 이미 이 올바른 패턴을 쓰고 있으니 참고. 새로 날짜 범위 필터(오늘/최근 N일 등)를 추가할 때마다 이 패턴을 따를 것.
+
+## 16. AI 블로그 글쓰기 (`/write`, 2026-07 구현 완료)
+
+사진 여러 장 + 프롬프트 한 줄만 입력하면 Claude API(Anthropic)가 네이버 블로그에 바로 붙여넣을 수 있는 완성된 글(제목+본문+사진 삽입 위치+추천 썸네일)을 생성해주는 페이지. 개인 도구/블로그지수 어느 쪽도 아닌 제3의 독립 기능 — §0의 "사이트 공통 기능" 성격. 실제 프롬프트 엔지니어링(시스템 프롬프트 전문)과 구현 레시피는 `.claude/skills/ai-blog-writer/SKILL.md`에 — 이 기능을 다시 손볼 때는 그 스킬을 먼저 참고할 것.
+
+- **저장 없음** — 완성된 글은 이 사이트에 게시되지 않고 화면에서 복사해서 쓰는 1회성 결과물. 업로드된 사진도 서버에 파일로 남기지 않고 Claude API 요청에만 담아 전송(클라이언트 쪽 미리보기는 브라우저 로컬 blob URL). 외부 이미지 저장소 연동 없음.
+- **이 사이트에서 유일하게 로그인이 있는 사용자 기능**(`/admin`과 별개) — Claude API가 요청마다 과금되는데 사이트 전체가 로그인 없는 게 원칙이라, 봇 남용으로 비용이 커지는 걸 막으려고 계정 단위 "하루 1회" 제한을 뒀다(사용자와 논의 후 확정 — 처음엔 방문자 쿠키 기준 제한도 검토했으나, 더 확실한 남용 방지를 위해 정식 계정으로 감). **Supabase/OAuth는 §10.2 결정대로 다시 안 씀** — 이 로그인은 그 방식이 아니라 Notion `사용자 계정` DB에 bcrypt 해시 비밀번호를 저장하는 자체 구현.
+- **회원가입 흐름**: `POST /api/auth/signup`(이메일+비밀번호, bcryptjs 해시 저장) → Resend로 인증 메일 발송 → `GET /api/auth/verify?token=`(랜덤 UUID, 1회용) 클릭해야 `이메일인증됨` 체크 → `POST /api/auth/login`으로 세션 발급. 세션은 Notion 유저 레코드에 저장하는 랜덤 토큰(`write_session` 쿠키, httpOnly+secure+sameSite lax, 30일) — 계정당 세션 1개만 유지(재로그인하면 이전 세션 무효화). `src/lib/write/auth.ts`의 `getCurrentUser()`가 쿠키→세션토큰→Notion 조회까지 한 번에 처리, 페이지(Server Component)와 API 라우트 양쪽에서 재사용.
+- **일일 제한 로직**: Notion 유저 레코드의 `마지막사용일`(KST 날짜 문자열)이 오늘과 같으면 차단(`hasUsedToday()`, `src/lib/notion/users.ts`) — 이 사이트의 다른 "오늘" 판정과 동일하게 `getKstDateString()` 기준. **Claude 호출이 실제로 성공했을 때만** `markUsedToday()`를 호출하도록 `/api/write`에서 순서를 맞춰뒀음 — 검증 실패나 API 오류로 실패한 시도까지 하루치를 소진시키면 안 되기 때문(실측 확인: 실패한 요청 뒤 `마지막사용일`이 그대로 비어있음).
+- **입력 제한** (`/api/write`, `src/app/api/write/route.ts`): 사진 최대 5장, 장당 5MB, jpg/png/webp/gif만 허용, 프롬프트 500자 — 전부 서버에서 강제.
+- **Claude 호출**: `src/lib/write/blogWriter.ts` — `@anthropic-ai/sdk`로 이미지 base64 + 프롬프트를 한 메시지에 담아 전송, 응답은 JSON(title/body/recommendedThumbnail/thumbnailReason)만 오도록 시스템 프롬프트로 강제하고 방어적으로 파싱(앞뒤에 다른 텍스트가 붙어도 첫 `{`~마지막 `}`만 추출).
+- 필요 환경변수: `ANTHROPIC_API_KEY`(console.anthropic.com에서 별도 발급 — Claude Code/Claude.ai 구독과 무관), `NOTION_USERS_DB_ID`(`scripts/setup-notion-users.ts`로 생성 완료), `AUTH_EMAIL_FROM`(인증 메일 발신 표시명, `RESEND_API_KEY` 재사용).
+- 검증 완료: 실제 프로덕션 standalone 서버 + 실제 Notion/Resend로 회원가입→이메일 발송→인증→로그인→세션 쿠키→`/api/write` 인증 게이트(401)/검증(400)까지 전부 실측 확인. `ANTHROPIC_API_KEY`가 아직 발급 전이라 실제 글 생성 자체는 미검증 — 키 발급 후 확인 필요.
