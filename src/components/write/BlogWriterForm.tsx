@@ -173,7 +173,8 @@ export default function BlogWriterForm({
                 className="h-12 w-12 rounded-md border border-hairline object-cover"
               />
               <p className="text-xs text-ink-muted">
-                추천 썸네일: 사진 {result.recommendedThumbnail} — {result.thumbnailReason}
+                추천 썸네일: 사진 {result.recommendedThumbnail}
+                {result.thumbnailReason && ` — ${result.thumbnailReason}`}
               </p>
             </div>
           )}

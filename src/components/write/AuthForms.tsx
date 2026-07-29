@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "login" | "signup";
 
 export default function AuthForms() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [signupDone, setSignupDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -58,9 +59,31 @@ export default function AuthForms() {
   }
 
   return (
+    <div className="flex w-full max-w-sm flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <a
+          href="/api/auth/naver"
+          className="flex h-11 items-center justify-center rounded-md bg-[#03C75A] text-sm font-semibold text-white transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97]"
+        >
+          네이버로 계속하기
+        </a>
+        <a
+          href="/api/auth/kakao"
+          className="flex h-11 items-center justify-center rounded-md bg-[#FEE500] text-sm font-semibold text-[#191919] transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97]"
+        >
+          카카오로 계속하기
+        </a>
+      </div>
+
+      <div className="flex items-center gap-3 text-xs text-ink-muted">
+        <div className="h-px flex-1 bg-hairline" />
+        또는
+        <div className="h-px flex-1 bg-hairline" />
+      </div>
+
     <form
       onSubmit={handleSubmit}
-      className="flex w-full max-w-sm flex-col gap-3 rounded-lg border-2 border-hairline bg-surface p-4 text-left shadow-sm transition-colors focus-within:border-primary sm:p-5"
+      className="flex w-full flex-col gap-3 rounded-lg border-2 border-hairline bg-surface p-4 text-left shadow-sm transition-colors focus-within:border-primary sm:p-5"
     >
       <div className="flex gap-1 border-b border-hairline pb-3">
         <button
@@ -127,5 +150,6 @@ export default function AuthForms() {
         AI 블로그 글쓰기는 유료 API를 사용해서 계정당 하루 1회로 제한돼요.
       </p>
     </form>
+    </div>
   );
 }

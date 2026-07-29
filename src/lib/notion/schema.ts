@@ -114,6 +114,10 @@ export const SUBSCRIBER_PROPS = {
 // 필요한 기능(CLAUDE.md §16: 유료 Claude API 남용 방지 목적). 비밀번호는
 // bcrypt 해시만 저장, 평문 저장 안 함. sessionToken은 로그인 시 매번 새로
 // 발급(1계정 1세션만 유지 — 여러 기기 동시 로그인 지원 안 함, MVP 범위).
+// authProvider/providerId는 네이버·카카오 소셜 로그인용(2026-07 추가) —
+// 소셜 로그인은 발급처가 이미 신원을 확인한 것이라 emailVerified가 가입
+// 즉시 true로 세팅됨(별도 인증 메일 없음). providerId로 재로그인 시 계정을
+// 찾음(이메일이 안 바뀌어도, 혹은 제공 안 돼도 안전하게 매칭하기 위함).
 export const USER_PROPS = {
   title: "이메일",
   passwordHash: "비밀번호해시",
@@ -123,4 +127,12 @@ export const USER_PROPS = {
   sessionIssuedAt: "세션발급일시",
   lastUsedAt: "마지막사용일",
   createdAt: "가입일시",
+  authProvider: "가입방식",
+  providerId: "소셜ID",
+} as const;
+
+export const AUTH_PROVIDER = {
+  email: "이메일",
+  naver: "네이버",
+  kakao: "카카오",
 } as const;

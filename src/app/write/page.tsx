@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForms from "@/components/write/AuthForms";
 import BlogWriterForm from "@/components/write/BlogWriterForm";
@@ -31,7 +32,9 @@ export default async function WritePage() {
         {user && user.emailVerified ? (
           <BlogWriterForm email={user.email} hasUsedToday={hasUsedToday(user)} />
         ) : (
-          <AuthForms />
+          <Suspense>
+            <AuthForms />
+          </Suspense>
         )}
       </main>
     </div>

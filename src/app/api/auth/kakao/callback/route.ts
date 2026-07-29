@@ -1,0 +1,83 @@
+import { NextResponse } from "next/server";
+import { findUserByProvider, createSocialUser, setSession } from "@/lib/notion/users";
+import { AUTH_PROVIDER } from "@/lib/notion/schema";
+import { verifyAndConsumeOAuthState } from "@/lib/write/socialAuth";
+import { SESSION_COOKIE } from "@/lib/write/auth";
+import { getErrorMessage } from "@/lib/utils/errors";
+
+const SITE_URL = "https://ezzsearch.com";
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+
+interface KakaoProfileResponse {
+  id: number;
+  kakao_account?: { email?: string };
+}
+
+function redirectWithError(message: string): NextResponse {
+  const url = new URL(`${SITE_URL}/write`);
+  url.searchParams.set("error", message);
+  return NextResponse.redirect(url.toString());
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+
+  const clientId = process.env.KAKAO_CLIENT_ID;
+  if (!clientId) {
+    return redirectWithError("카카오 로그인이 아직 설정되지 않았어요.");
+  }
+  if (!code || !(await verifyAndConsumeOAuthState(state))) {
+    return redirectWithError("로그인 요청이 유효하지 않아요. 다시 시도해 주세요.");
+  }
+
+  try {
+    // client_secret은 카카오 앱 설정에서 "Client Secret" 사용을 켰을 때만
+    // 필요 — 꺼져 있으면 KAKAO_CLIENT_SECRET을 안 넣어도 됨.
+    const clientSecret = process.env.KAKAO_CLIENT_SECRET;
+    const tokenParams = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: `${SITE_URL}/api/auth/kakao/callback`,
+      code,
+    });
+    if (clientSecret) tokenParams.set("client_secret", clientSecret);
+
+    const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString(),
+    });
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token as string | undefined;
+    if (!accessToken) throw new Error(`카카오 토큰 발급 실패: ${JSON.stringify(tokenData)}`);
+
+    const profileRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const profileData = (await profileRes.json()) as KakaoProfileResponse;
+    if (!profileData.id) throw new Error(`카카오 프로필 조회 실패: ${JSON.stringify(profileData)}`);
+
+    const providerId = String(profileData.id);
+    const email = profileData.kakao_account?.email;
+    const existingUser = await findUserByProvider(AUTH_PROVIDER.kakao, providerId);
+    const pageId = existingUser
+      ? existingUser.pageId
+      : await createSocialUser(email ?? `kakao_${providerId}`, AUTH_PROVIDER.kakao, providerId);
+
+    const sessionToken = await setSession(pageId);
+    const response = NextResponse.redirect(`${SITE_URL}/write`);
+    response.cookies.set(SESSION_COOKIE, sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    });
+    return response;
+  } catch (err) {
+    console.error("[GET /api/auth/kakao/callback] failed:", getErrorMessage(err), err);
+    return redirectWithError("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+  }
+}

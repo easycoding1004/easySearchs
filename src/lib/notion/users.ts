@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { isFullPage } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
-import { USER_PROPS } from "./schema";
+import { USER_PROPS, AUTH_PROVIDER } from "./schema";
 import { getKstDateString } from "../utils/formatDate";
+
+export type AuthProviderValue = (typeof AUTH_PROVIDER)[keyof typeof AUTH_PROVIDER];
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -23,6 +25,8 @@ export interface User {
   verificationToken: string;
   sessionToken: string;
   lastUsedAt: string; // KST date string (YYYY-MM-DD), "" if never used
+  authProvider: AuthProviderValue | "";
+  providerId: string;
 }
 
 function parseUser(page: PageObjectResponse): User {
@@ -53,7 +57,25 @@ function parseUser(page: PageObjectResponse): User {
   const lastUsedProp = props[USER_PROPS.lastUsedAt];
   const lastUsedAt = lastUsedProp?.type === "date" ? lastUsedProp.date?.start ?? "" : "";
 
-  return { pageId: page.id, email, passwordHash, emailVerified, verificationToken, sessionToken, lastUsedAt };
+  const providerProp = props[USER_PROPS.authProvider];
+  const authProvider =
+    providerProp?.type === "select" ? (providerProp.select?.name as AuthProviderValue) ?? "" : "";
+
+  const providerIdProp = props[USER_PROPS.providerId];
+  const providerId =
+    providerIdProp?.type === "rich_text" ? providerIdProp.rich_text.map((t) => t.plain_text).join("") : "";
+
+  return {
+    pageId: page.id,
+    email,
+    passwordHash,
+    emailVerified,
+    verificationToken,
+    sessionToken,
+    lastUsedAt,
+    authProvider,
+    providerId,
+  };
 }
 
 export async function findUserByEmail(email: string): Promise<User | null> {
@@ -87,6 +109,26 @@ export async function findUserBySessionToken(token: string): Promise<User | null
   return page ? parseUser(page) : null;
 }
 
+// Looked up by (provider, providerId) rather than email — a social login's
+// email can be absent/change, but the provider's own user id doesn't.
+export async function findUserByProvider(
+  provider: AuthProviderValue,
+  providerId: string
+): Promise<User | null> {
+  const res = await notion.dataSources.query({
+    data_source_id: usersDataSourceId(),
+    filter: {
+      and: [
+        { property: USER_PROPS.authProvider, select: { equals: provider } },
+        { property: USER_PROPS.providerId, rich_text: { equals: providerId } },
+      ],
+    },
+    page_size: 1,
+  });
+  const page = res.results.find(isFullPage);
+  return page ? parseUser(page) : null;
+}
+
 // Returns the raw verification token so the caller (signup route) can email
 // it — Notion is the source of truth, this function doesn't send mail itself.
 export async function createUser(email: string, passwordHash: string): Promise<string> {
@@ -104,10 +146,33 @@ export async function createUser(email: string, passwordHash: string): Promise<s
         type: "rich_text",
         rich_text: [{ type: "text", text: { content: verificationToken } }],
       },
+      [USER_PROPS.authProvider]: { type: "select", select: { name: AUTH_PROVIDER.email } },
       [USER_PROPS.createdAt]: { type: "date", date: { start: new Date().toISOString() } },
     },
   });
   return verificationToken;
+}
+
+// 네이버/카카오 로그인 — 발급처가 이미 신원을 확인했으므로 emailVerified를
+// 바로 true로 세팅하고 별도 인증 메일을 안 보냄. 비밀번호 자체가 없는
+// 계정이라 passwordHash는 빈 문자열로 둠(로그인 라우트가 이메일+비밀번호
+// 계정과 구분해서 처리). 반환값은 세션 발급까지 바로 이어갈 수 있게 pageId.
+export async function createSocialUser(
+  email: string,
+  provider: AuthProviderValue,
+  providerId: string
+): Promise<string> {
+  const page = await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: usersDataSourceId() },
+    properties: {
+      [USER_PROPS.title]: { type: "title", title: [{ type: "text", text: { content: email } }] },
+      [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: true },
+      [USER_PROPS.authProvider]: { type: "select", select: { name: provider } },
+      [USER_PROPS.providerId]: { type: "rich_text", rich_text: [{ type: "text", text: { content: providerId } }] },
+      [USER_PROPS.createdAt]: { type: "date", date: { start: new Date().toISOString() } },
+    },
+  });
+  return page.id;
 }
 
 export async function markEmailVerified(pageId: string): Promise<void> {
