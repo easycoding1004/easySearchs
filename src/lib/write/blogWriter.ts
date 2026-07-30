@@ -33,7 +33,10 @@ const SYSTEM_PROMPT = `당신은 네이버 블로그에 익숙한 한국어 블�
   이미지 검색 서비스가 영어 태그 위주라서).
 - 실제 사진이나 스톡 사진으로 대체하기 어려운 경우(제품 비교표, 데이터 시각화, 개념
   설명용 그래픽 등)에만 AI로 새로 생성한 이미지를 요청하세요 — 비용이 드는 기능이니
-  꼭 필요할 때만 0~2개 이내로 사용하세요. 본문에는 "[AI이미지N: 짧은 캡션]"(N은 1부터,
+  꼭 필요한 것만 골라 쓰되, 글의 맥락상 여러 장이 실제로 필요하면(예: 제품을 3개
+  비교하면서 각각 그래픽이 필요하거나, 여러 단계를 각각 그림으로 보여줘야 하는 경우)
+  주저하지 말고 필요한 만큼(최대 5개까지) 요청하세요 — 무조건 적게 쓰는 것보다
+  글에 실제로 도움이 되는지가 기준입니다. 본문에는 "[AI이미지N: 짧은 캡션]"(N은 1부터,
   캡션 필수) 표시를 넣고, 그 이미지를 그릴 상세한 프롬프트를 "aiImagePrompts" 배열에
   순서대로 담으세요. 구도·스타일 등 전반적인 설명은 영어로 써도 됩니다(이미지 생성
   모델이 영어 지시를 가장 잘 따릅니다). **하지만 이미지 안에 실제로 보이는 글자(제품명,
@@ -121,16 +124,21 @@ function parseResult(text: string, imageCount: number): BlogWriterResult {
   const stockImageQueries = Array.isArray(parsed.stockImageQueries)
     ? parsed.stockImageQueries.filter((q: unknown): q is string => typeof q === "string").slice(0, 4)
     : [];
+  // 서버 쪽 하드 캡 — 시스템 프롬프트가 "최대 5개"라고 안내하지만, 모델이 지시를
+  // 안 지켜도 비용 폭주를 막는 최종 안전장치(사용자 요청으로 2026-07에 2→5로 상향).
   const aiImagePrompts = Array.isArray(parsed.aiImagePrompts)
-    ? parsed.aiImagePrompts.filter((p: unknown): p is string => typeof p === "string").slice(0, 2)
+    ? parsed.aiImagePrompts.filter((p: unknown): p is string => typeof p === "string").slice(0, 5)
     : [];
 
   return { title, body, recommendedThumbnail, thumbnailReason, tags, stockImageQueries, aiImagePrompts };
 }
 
-export async function generateBlogPost(
+// generateBlogPost와 reviseBlogPost가 공유하는 실제 호출부 — 시스템 프롬프트
+// 구성/파싱 로직은 완전히 같고, user 턴에 들어가는 텍스트(최초 프롬프트 vs
+// "기존 글 + 수정 요청")만 다르므로 여기로 몰아둠.
+async function callClaude(
   images: BlogWriterImage[],
-  prompt: string,
+  userText: string,
   category: BlogCategory
 ): Promise<BlogWriterResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -152,7 +160,7 @@ export async function generateBlogPost(
     messages: [
       {
         role: "user",
-        content: [...imageBlocks, { type: "text", text: prompt }],
+        content: [...imageBlocks, { type: "text", text: userText }],
       },
     ],
   });
@@ -163,4 +171,42 @@ export async function generateBlogPost(
   }
 
   return parseResult(textBlock.text, images.length);
+}
+
+export async function generateBlogPost(
+  images: BlogWriterImage[],
+  prompt: string,
+  category: BlogCategory
+): Promise<BlogWriterResult> {
+  return callClaude(images, prompt, category);
+}
+
+// 이미 생성된 글에 "제목을 더 짧게", "3번째 문단 빼줘" 같은 수정 요청을 반영해
+// 다시 쓰게 함(2026-07 추가). 유형(category)은 최초 생성 때 정해진 걸 그대로
+// 유지 — 재분류하지 않음(사용자가 유형을 바꿔달라고 한 게 아니므로). 사진도
+// 다시 같이 보내는 이유: 수정 요청이 사진 배치·설명과 관련될 수도 있어서
+// (예: "사진1 캡션을 더 자세히 써줘") 매번 새로 맥락을 줘야 함 — 이 API가
+// 대화 상태를 유지하는 게 아니라 매 호출이 독립적인 단발 요청이기 때문.
+export async function reviseBlogPost(
+  images: BlogWriterImage[],
+  previous: Pick<BlogWriterResult, "title" | "body" | "tags">,
+  instruction: string,
+  category: BlogCategory
+): Promise<BlogWriterResult> {
+  const userText = `기존에 작성한 글입니다.
+
+제목: ${previous.title}
+
+본문:
+${previous.body}
+
+태그: ${previous.tags.join(", ")}
+
+사용자의 수정 요청: "${instruction}"
+
+위 수정 요청만 반영해서 전체 글을 다시 작성하세요. 요청하지 않은 부분(사진·스톡·AI이미지
+배치, 나머지 문단, 톤 등)은 원래 내용을 최대한 그대로 유지하세요. 응답은 처음 글쓰기
+때와 똑같은 JSON 형식으로 하세요.`;
+
+  return callClaude(images, userText, category);
 }

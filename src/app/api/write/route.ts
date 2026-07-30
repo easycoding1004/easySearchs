@@ -7,8 +7,15 @@ import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
 import { getErrorMessage } from "@/lib/utils/errors";
 
-const MAX_IMAGES = 5;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGES = 10;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB (per-file sanity cap)
+// Claude API의 요청 전체 크기 한도는 32MB(base64 인코딩된 이미지 포함) — base64는
+// 원본 대비 약 4/3배로 커지므로, 텍스트 프롬프트 여유분을 감안해 원본 합계를
+// 18MB로 제한(18MB × 4/3 ≈ 24MB, 32MB 한도에 여유를 둠). 사진 1장당 5MB 제한만
+// 있으면 10장을 각각 5MB로 채웠을 때(원본 50MB → base64 약 66MB) 32MB를 훌쩍
+// 넘어 "요청이 너무 큽니다" 에러가 나므로, 개수/장당 용량과 별개로 합계를 따로
+// 검사해야 함(사용자 문의로 확인).
+const MAX_TOTAL_IMAGE_BYTES = 18 * 1024 * 1024; // 18MB
 const MAX_PROMPT_LENGTH = 500;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -49,6 +56,7 @@ export async function POST(request: Request) {
   if (files.length > MAX_IMAGES) {
     return NextResponse.json({ error: `사진은 최대 ${MAX_IMAGES}장까지예요.` }, { status: 400 });
   }
+  let totalImageBytes = 0;
   for (const file of files) {
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
       return NextResponse.json({ error: "jpg/png/webp/gif 형식의 사진만 올릴 수 있어요." }, { status: 400 });
@@ -56,6 +64,13 @@ export async function POST(request: Request) {
     if (file.size > MAX_IMAGE_BYTES) {
       return NextResponse.json({ error: "사진 1장의 용량은 5MB를 넘을 수 없어요." }, { status: 400 });
     }
+    totalImageBytes += file.size;
+  }
+  if (totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
+    return NextResponse.json(
+      { error: "사진 전체 용량이 너무 커요(총 18MB 이하). 사진을 줄이거나 압축해서 다시 시도해 주세요." },
+      { status: 400 }
+    );
   }
 
   try {

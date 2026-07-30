@@ -14,7 +14,15 @@ import {
   type BodyInline,
 } from "@/lib/write/parseBody";
 
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 10;
+// 서버(route.ts)와 같은 값 — Claude API 요청 전체 크기 한도(32MB, base64
+// 인코딩 포함)를 넘기지 않기 위한 원본 합계 상한. 여기서도 먼저 걸러줘야
+// 사진을 다 고르고 제출한 다음에야 서버에서 거절당하는 걸 피할 수 있음.
+const MAX_TOTAL_IMAGE_BYTES = 18 * 1024 * 1024; // 18MB
+// 서버(/api/write/revise/route.ts)와 같은 값 — 수정 요청 무한 반복으로 비용이
+// 새는 걸 막는 상한. 새로 생성하면(handleSubmit) 0으로 초기화됨.
+const MAX_REVISIONS = 5;
+const MAX_INSTRUCTION_LENGTH = 300;
 
 interface StockImage {
   query: string;
@@ -137,6 +145,12 @@ export default function BlogWriterForm({
   const [plainCopied, setPlainCopied] = useState(false);
   const [copiedTagIndex, setCopiedTagIndex] = useState<number | null>(null);
 
+  // 생성된 글에 대한 수정 요청 — 새 원본 생성(handleSubmit)마다 0으로 초기화됨.
+  const [revisionInstruction, setRevisionInstruction] = useState("");
+  const [revising, setRevising] = useState(false);
+  const [revisionCount, setRevisionCount] = useState(0);
+  const [revisionError, setRevisionError] = useState<string | null>(null);
+
   // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 [스톡이미지] 자리에
   // 끼워 넣은 것들 — 클릭한 순서대로 문서에 나오는 자리에 차례로 채워짐.
   const [insertedStockImages, setInsertedStockImages] = useState<StockImage[]>([]);
@@ -181,10 +195,19 @@ export default function BlogWriterForm({
     e.preventDefault();
     if (!prompt.trim() || loading || hasUsedToday) return;
 
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+    if (totalBytes > MAX_TOTAL_IMAGE_BYTES) {
+      setError("사진 전체 용량이 너무 커요(총 18MB 이하). 사진을 줄이거나 압축해서 다시 시도해 주세요.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
     setInsertedStockImages([]);
+    setRevisionCount(0);
+    setRevisionInstruction("");
+    setRevisionError(null);
 
     try {
       const formData = new FormData();
@@ -205,6 +228,45 @@ export default function BlogWriterForm({
       setError("네트워크 오류가 발생했어요.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // 이미 생성된 글에 "제목을 더 짧게", "3번째 문단 빼줘" 같은 수정을 반영—
+  // /api/write와 별도 라우트라 하루 1회 제한과 무관하게 쓸 수 있지만, 대신
+  // 이 글 하나당 MAX_REVISIONS번까지만 되도록 서버가 다시 검증함.
+  async function handleRevise() {
+    if (!result || !revisionInstruction.trim() || revising || revisionCount >= MAX_REVISIONS) return;
+
+    setRevising(true);
+    setRevisionError(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("instruction", revisionInstruction.trim());
+      formData.set("category", result.category);
+      formData.set("revisionCount", String(revisionCount));
+      formData.set(
+        "previousResult",
+        JSON.stringify({ title: result.title, body: result.body, tags: result.tags })
+      );
+      for (const file of files) formData.append("images", file);
+
+      const res = await fetch("/api/write/revise", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setRevisionError(data.error ?? "수정에 실패했어요.");
+        return;
+      }
+
+      setResult(data);
+      setInsertedStockImages([]); // 본문이 바뀌었으니 이전 [스톡이미지] 삽입 자리는 무효화
+      setRevisionCount((c) => c + 1);
+      setRevisionInstruction("");
+    } catch {
+      setRevisionError("네트워크 오류가 발생했어요.");
+    } finally {
+      setRevising(false);
     }
   }
 
@@ -490,6 +552,34 @@ export default function BlogWriterForm({
               </div>
             </div>
           )}
+
+          <div className="flex flex-col gap-2 border-t border-hairline pt-3">
+            <span className="text-xs font-semibold text-ink-muted">
+              수정 요청 ({revisionCount}/{MAX_REVISIONS}회 사용) — 이 글에서 바꾸고 싶은 부분만 말씀해 주세요
+            </span>
+            <div className="flex gap-2">
+              <input
+                value={revisionInstruction}
+                onChange={(e) => setRevisionInstruction(e.target.value)}
+                placeholder="예: 제목을 더 짧게 해줘, 3번째 문단은 빼줘, 더 발랄한 톤으로"
+                maxLength={MAX_INSTRUCTION_LENGTH}
+                disabled={revising || revisionCount >= MAX_REVISIONS}
+                className="flex-1 rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleRevise}
+                disabled={revising || !revisionInstruction.trim() || revisionCount >= MAX_REVISIONS}
+                className="shrink-0 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+              >
+                {revising ? "수정 중..." : "수정하기"}
+              </button>
+            </div>
+            {revisionCount >= MAX_REVISIONS && (
+              <p className="text-xs text-ink-muted">이 글은 수정 요청을 다 사용했어요. 다시 생성하면 초기화돼요.</p>
+            )}
+            {revisionError && <p className="text-sm text-error">{revisionError}</p>}
+          </div>
 
           {naverBlogId && (
             <a
