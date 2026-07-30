@@ -237,7 +237,11 @@ export default function BlogWriterForm({
   async function handleCopyTags() {
     if (!result) return;
     try {
-      await navigator.clipboard.writeText(result.tags.map((t) => `#${t}`).join(" "));
+      // "#"는 화면 표시용일 뿐 — 네이버 태그 입력창은 텍스트를 직접 입력받고
+      // "#"는 자기가 자동으로 붙이므로, "#"까지 그대로 붙여넣으면 태그
+      // 문자열에 "#"가 두 번 들어가 인식 오류가 남(사용자 실측 확인).
+      // 태그 입력창은 쉼표로 여러 개를 한 번에 구분해서 받으므로 쉼표로 join.
+      await navigator.clipboard.writeText(result.tags.join(","));
       setTagsCopied(true);
       setTimeout(() => setTagsCopied(false), 2000);
     } catch {
