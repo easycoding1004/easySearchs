@@ -8,7 +8,10 @@ import {
   stripBodyMarkup,
   renderBodyToHtml,
   createImageResolver,
+  escapeHtmlText,
+  CIRCLED_DIGITS,
   type BodyBlock,
+  type BodyInline,
 } from "@/lib/write/parseBody";
 
 const MAX_IMAGES = 5;
@@ -35,56 +38,81 @@ interface WriteResult {
   aiImages: (AiImage | null)[];
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+// 본문 미리보기(우리 페이지 안 React 렌더링)에서 텍스트/강조/이미지 자리를
+// 인라인으로 그려준다. parseBody.ts의 파서 결과를 그대로 쓰므로 clipboard용
+// renderBodyToHtml과 마크업 해석 자체는 항상 같다 — 다만 이미지 표현 방식은
+// 다름(미리보기는 실제 <img>, clipboard는 안내 문구 — 네이버 에디터가
+// 붙여넣기에서 <img>를 통째로 지워버리는 걸 실측 확인했기 때문, parseBody.ts
+// 참고). 다운로드 링크를 같이 보여줘서 사용자가 이미지를 직접 저장해
+// 네이버 에디터에 끼워 넣을 수 있게 함.
+function renderInlineNodes(pieces: BodyInline[], resolveImage: ReturnType<typeof createImageResolver>, keyPrefix: string) {
+  return pieces.map((piece, j) => {
+    const key = `${keyPrefix}-${j}`;
+    if (piece.type === "text") return <span key={key}>{piece.text}</span>;
+    if (piece.type === "em") {
+      return (
+        <strong key={key} className="rounded bg-primary/15 px-1 font-bold text-primary">
+          {piece.text}
+        </strong>
+      );
+    }
+    const resolved = resolveImage(piece.token);
+    if (!resolved) {
+      return (
+        <span key={key} className="mx-1 inline-block rounded bg-bg px-2 py-0.5 text-xs text-ink-muted">
+          [{piece.token} 자리]
+        </span>
+      );
+    }
+    return (
+      <span key={key} className="my-2 block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={resolved.src}
+          alt={resolved.alt}
+          className="block max-h-72 w-full rounded-md border border-hairline object-cover"
+        />
+        {piece.caption && <span className="mt-1 block text-center text-xs italic text-ink-muted">{piece.caption}</span>}
+        <a
+          href={resolved.src}
+          download={`${piece.token}.png`}
+          target={resolved.src.startsWith("data:") ? undefined : "_blank"}
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-xs font-semibold text-primary hover:underline"
+        >
+          이 사진 다운로드
+        </a>
+      </span>
+    );
   });
 }
 
-// 본문 미리보기 렌더링 — parseBody.ts의 파서를 그대로 써서 clipboard용
-// renderBodyToHtml과 같은 마크업 해석 결과를 공유한다(둘이 따로 놀면 화면에
-// 보이는 것과 복사되는 것이 달라지는 버그가 생김).
 function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeof createImageResolver>) {
   return blocks.map((block, i) => {
     if (block.type === "heading") {
       return (
-        <h3 key={i} className="mt-1 text-base font-bold text-primary">
-          {block.text}
+        <h3 key={i} className="mt-2 border-b-2 border-primary/25 pb-1 text-base font-extrabold text-primary">
+          ◆ {block.text}
         </h3>
+      );
+    }
+    if (block.type === "list") {
+      return (
+        <div key={i} className="flex flex-col gap-1">
+          {block.items.map((item, idx) => (
+            <p key={idx} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+              <span className="mr-1.5 font-bold text-primary">
+                {block.ordered ? (CIRCLED_DIGITS[idx] ?? `${idx + 1}.`) : "▶"}
+              </span>
+              {renderInlineNodes(item, resolveImage, `${i}-${idx}`)}
+            </p>
+          ))}
+        </div>
       );
     }
     return (
       <p key={i} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-        {block.inline.map((piece, j) => {
-          if (piece.type === "text") return <span key={j}>{piece.text}</span>;
-          if (piece.type === "em") {
-            return (
-              <strong key={j} className="font-bold text-primary">
-                {piece.text}
-              </strong>
-            );
-          }
-          const resolved = resolveImage(piece.token);
-          if (!resolved) {
-            return (
-              <span key={j} className="mx-1 inline-block rounded bg-bg px-2 py-0.5 text-xs text-ink-muted">
-                [{piece.token} 자리]
-              </span>
-            );
-          }
-          return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={j}
-              src={resolved.src}
-              alt={resolved.alt}
-              className="my-2 block max-h-72 w-full rounded-md border border-hairline object-cover"
-            />
-          );
-        })}
+        {renderInlineNodes(block.inline, resolveImage, `${i}`)}
       </p>
     );
   });
@@ -107,7 +135,7 @@ export default function BlogWriterForm({
   const [result, setResult] = useState<WriteResult | null>(null);
   const [richCopied, setRichCopied] = useState(false);
   const [plainCopied, setPlainCopied] = useState(false);
-  const [tagsCopied, setTagsCopied] = useState(false);
+  const [copiedTagIndex, setCopiedTagIndex] = useState<number | null>(null);
 
   // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 [스톡이미지] 자리에
   // 끼워 넣은 것들 — 클릭한 순서대로 문서에 나오는 자리에 차례로 채워짐.
@@ -199,22 +227,16 @@ export default function BlogWriterForm({
     }
   }
 
-  // 네이버 에디터에 붙여넣을 때 굵게/소제목/사진이 그대로 살아 있도록
-  // text/html로도 같이 써넣는다. 업로드한 사진은 blob: URL이 다른 origin
-  // (blog.naver.com)에서는 못 열리므로 base64 data URL로 바꿔서 넣음 —
-  // 스톡/AI 이미지는 이미 원격 URL·data URL이라 그대로 씀. 실제 네이버
-  // SmartEditor가 붙여넣기에서 style을 얼마나 살려두는지는 미검증(best-effort).
+  // 네이버 에디터에 붙여넣을 때 굵게/소제목/목록 서식이 살아 있도록 text/html도
+  // 같이 써넣는다(실측 확인: 이 서식 자체는 붙여넣기에서 유지됨). 이미지는
+  // <img>를 넣어도 붙여넣기에서 통째로 사라지는 게 실측 확인돼서(글자만
+  // 들어감), renderBodyToHtml이 아예 embed하지 않고 안내 문구만 남김 — 실제
+  // 사진은 미리보기의 "이 사진 다운로드"로 받아서 직접 끼워 넣어야 함.
   async function handleCopyRich() {
     if (!result) return;
     try {
-      const photoDataUrls = await Promise.all(files.map(fileToDataUrl));
-      const resolveImage = createImageResolver({
-        photoSrcs: photoDataUrls,
-        insertedStockImages,
-        aiImages: result.aiImages,
-      });
       const blocks = parseBody(result.body);
-      const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${result.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>\n${renderBodyToHtml(blocks, resolveImage)}`;
+      const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks)}`;
       const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}`;
 
       if (typeof ClipboardItem !== "undefined") {
@@ -230,20 +252,20 @@ export default function BlogWriterForm({
       setRichCopied(true);
       setTimeout(() => setRichCopied(false), 2000);
     } catch {
-      // Clipboard access blocked or 파일을 읽지 못함 — 피드백 없이 조용히 무시.
+      // Clipboard access blocked — no feedback to show.
     }
   }
 
-  async function handleCopyTags() {
-    if (!result) return;
+  // 태그는 한 번에 여러 개를 붙여넣을 수 없음 — 네이버 태그 입력창은 쉼표나
+  // Enter 키 입력 이벤트로만 태그를 분리 인식하고, 붙여넣기로 들어온 텍스트는
+  // 쉼표까지 포함해서 통째로 태그 하나로 인식됨(사용자 실측 확인). 그래서
+  // 태그를 한 번에 다 복사하는 대신, 하나씩 클릭해서 복사 → 붙여넣기 →
+  // Enter를 반복하도록 UI를 바꿈.
+  async function handleCopySingleTag(tag: string, index: number) {
     try {
-      // "#"는 화면 표시용일 뿐 — 네이버 태그 입력창은 텍스트를 직접 입력받고
-      // "#"는 자기가 자동으로 붙이므로, "#"까지 그대로 붙여넣으면 태그
-      // 문자열에 "#"가 두 번 들어가 인식 오류가 남(사용자 실측 확인).
-      // 태그 입력창은 쉼표로 여러 개를 한 번에 구분해서 받으므로 쉼표로 join.
-      await navigator.clipboard.writeText(result.tags.join(","));
-      setTagsCopied(true);
-      setTimeout(() => setTagsCopied(false), 2000);
+      await navigator.clipboard.writeText(tag);
+      setCopiedTagIndex(index);
+      setTimeout(() => setCopiedTagIndex((cur) => (cur === index ? null : cur)), 1500);
     } catch {
       // Clipboard access blocked — no feedback to show.
     }
@@ -393,6 +415,10 @@ export default function BlogWriterForm({
               </button>
             </div>
           </div>
+          <p className="text-xs text-ink-muted">
+            사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
+            저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.
+          </p>
           <p className="text-lg font-bold text-ink">{result.title}</p>
           <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage)}</div>
 
@@ -413,23 +439,21 @@ export default function BlogWriterForm({
 
           {result.tags.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-hairline pt-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold text-ink-muted">
-                  추천 태그 · 유형: {BLOG_CATEGORIES.find((c) => c.id === result.category)?.label}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyTags}
-                  className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
-                >
-                  {tagsCopied ? "복사됐어요" : "태그 복사"}
-                </button>
-              </div>
+              <span className="text-xs font-semibold text-ink-muted">
+                추천 태그 · 유형: {BLOG_CATEGORIES.find((c) => c.id === result.category)?.label} — 하나씩
+                클릭해서 복사한 뒤 태그 입력창에 붙여넣고 Enter를 눌러주세요 (네이버 태그창은 한 번에
+                여러 개를 못 받아요)
+              </span>
               <div className="flex flex-wrap gap-1">
-                {result.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-bg px-2 py-0.5 text-xs text-ink">
-                    #{t}
-                  </span>
+                {result.tags.map((t, i) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => handleCopySingleTag(t, i)}
+                    className="rounded-full bg-bg px-2 py-0.5 text-xs text-ink transition hover:bg-primary hover:text-white"
+                  >
+                    {copiedTagIndex === i ? "복사됨" : `#${t}`}
+                  </button>
                 ))}
               </div>
             </div>
