@@ -49,11 +49,20 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     const referrer = categorizeReferrer(request.headers.get("referer"), origin);
     const landingPage = categorizeLandingPage(pathname);
 
+    // 공개 도메인(origin, https://ezzsearch.com)으로 자기 자신을 다시 호출하면
+    // Railway 컨테이너 내부에서 TLS 핸드셰이크가 깨짐(실측 확인 — "SSL
+    // routines:ssl3_get_record:wrong version number" 에러로 계속 조용히
+    // 실패해서 방문 기록이 하나도 안 쌓이고 있었음, 반면 브라우저가 직접
+    // 보내는 /api/search 같은 요청은 이 경로를 안 타서 멀쩡했음). 같은
+    // 프로세스 안에서 도는 호출이니 로컬 루프백으로 보내면 TLS 자체가
+    // 필요 없어져서 이 문제를 피해간다.
+    //
     // fire-and-forget이지만 waitUntil로 감싸서, 응답이 먼저 나가도 이 fetch가
     // 중간에 끊기지 않고 끝까지 실행되게 함(Vercel Edge Function과 동일한
     // 배경 작업 패턴).
+    const port = process.env.PORT ?? "3000";
     event.waitUntil(
-      fetch(new URL("/api/visit", origin), {
+      fetch(`http://127.0.0.1:${port}/api/visit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ visitorId, referrer, landingPage }),

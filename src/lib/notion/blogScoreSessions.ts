@@ -109,6 +109,29 @@ export async function getBlogScoreSessionById(id: string): Promise<BlogScoreSess
   }
 }
 
+// 관리자 대시보드의 "최근 7일 블로그지수 확인" 카드 로그용 —
+// sessions.ts의 getSessionsInRange와 동일한 패턴(days=7이면 오늘 포함
+// 최근 7일).
+export async function getBlogScoreSessionsInRange(days: number): Promise<BlogScoreSession[]> {
+  const { startIso } = kstDayRangeUtcIso(days - 1);
+  const sessions: BlogScoreSession[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: sessionsDataSourceId(),
+      filter: { property: BLOG_SCORE_SESSION_PROPS.searchedAt, date: { on_or_after: startIso } },
+      sorts: [{ property: BLOG_SCORE_SESSION_PROPS.searchedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    sessions.push(...res.results.filter(isFullPage).map(parseSession));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return sessions;
+}
+
 export async function countBlogScoreSessionsToday(): Promise<number> {
   const { startIso, endIso } = kstDayRangeUtcIso(0);
   // See sessions.ts's countSessionsToday for why this can't be one filter

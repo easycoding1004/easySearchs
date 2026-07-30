@@ -2,9 +2,10 @@ import SiteHeader from "@/components/SiteHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import WeeklySearchLogCards from "@/components/admin/WeeklySearchLogCards";
+import WeeklyBlogScoreLogCards from "@/components/admin/WeeklyBlogScoreLogCards";
 import VisitBreakdownCard from "@/components/admin/VisitBreakdownCard";
 import { countSessionsToday, getSessionsInRange } from "@/lib/notion/sessions";
-import { countBlogScoreSessionsToday } from "@/lib/notion/blogScoreSessions";
+import { countBlogScoreSessionsToday, getBlogScoreSessionsInRange } from "@/lib/notion/blogScoreSessions";
 import { countInquiriesToday } from "@/lib/notion/inquiries";
 import { countVisitsToday, getVisitBreakdownToday, type VisitBreakdown } from "@/lib/notion/visits";
 
@@ -26,15 +27,23 @@ async function settle<T>(fetcher: () => Promise<T>): Promise<T | null> {
 const EMPTY_VISIT_BREAKDOWN: VisitBreakdown = { total: 0, byReferrer: [], byLandingPage: [] };
 
 export default async function AdminPage() {
-  const [searchCount, visitCount, inquiryCount, blogScoreCount, weeklySessions, visitBreakdown] =
-    await Promise.all([
-      settle(countSessionsToday),
-      settle(countVisitsToday),
-      settle(countInquiriesToday),
-      settle(countBlogScoreSessionsToday),
-      getSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
-      settle(getVisitBreakdownToday),
-    ]);
+  const [
+    searchCount,
+    visitCount,
+    inquiryCount,
+    blogScoreCount,
+    weeklySessions,
+    weeklyBlogScoreSessions,
+    visitBreakdown,
+  ] = await Promise.all([
+    settle(countSessionsToday),
+    settle(countVisitsToday),
+    settle(countInquiriesToday),
+    settle(countBlogScoreSessionsToday),
+    getSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
+    getBlogScoreSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
+    settle(getVisitBreakdownToday),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col font-sans">
@@ -70,6 +79,11 @@ export default async function AdminPage() {
         <div className="flex flex-col gap-3">
           <h2 className="text-base font-semibold text-ink">최근 {WEEKLY_LOG_DAYS}일 검색 키워드</h2>
           <WeeklySearchLogCards sessions={weeklySessions} />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="text-base font-semibold text-ink">최근 {WEEKLY_LOG_DAYS}일 블로그지수 확인</h2>
+          <WeeklyBlogScoreLogCards sessions={weeklyBlogScoreSessions} />
         </div>
       </main>
     </div>
