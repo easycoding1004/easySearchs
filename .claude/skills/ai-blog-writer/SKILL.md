@@ -107,6 +107,16 @@ const message = await anthropic.messages.create({
 
 **추천 스톡 이미지**: `src/lib/write/imageSearch.ts`의 `searchStockImages(queries)`가 Pixabay 무료 이미지 검색(`GET https://pixabay.com/api/`, `PIXABAY_API_KEY` env var)을 호출. 검색어는 `blogWriter.ts`가 응답에 담는 `stockImageQueries: string[]`(반드시 영어 — Pixabay 태그 코퍼스가 영어 위주라서 시스템 프롬프트가 영어로 뽑도록 지시함). **`searchStockImages`는 절대 throw하지 않는 계약** — `PIXABAY_API_KEY` 미설정이거나 개별 쿼리가 실패하면 그 쿼리는 그냥 빈 배열, 전체 실패해도 `[]`만 반환. `/api/write` route가 이 결과를 응답에 `stockImages`로 얹지만, 실패해도 title/body/tags 등 나머지는 정상 반환돼야 한다(부가 기능이 본 기능을 막으면 안 됨 — CLAUDE.md 섹션 10.3의 `settle()`과 같은 원칙).
 
+### 본문 마크업 + 서식 포함 복사 + AI 이미지 생성 (2026-07 추가)
+
+사용자가 "제목에 광고 표기가 보기 싫다 / 소제목·강조 서식을 지정하고 싶다 / [사진N] 자리에 실제 사진이 보였으면 / 사진 없이도 쓰고 싶다 / 스톡 이미지를 클릭하면 본문에 들어갔으면 / 제품 비교처럼 실사진으로 안 되는 건 AI가 생성했으면"을 한 번에 요청해서 추가된 묶음. 전부 CLAUDE.md §16에 자세히 정리돼 있으니 다시 손볼 때는 거기부터 읽을 것 — 여기서는 파일 지도만.
+
+- **마크업 스키마**: `blogWriter.ts` SYSTEM_PROMPT가 소제목 `## `, 강조 `**문구**`, 사진 자리 `[사진N]`, 스톡 이미지 자리 `[스톡이미지]`(번호 없음, 반복 가능), AI 생성 이미지 자리 `[AI이미지N]`을 쓰도록 지시. `src/lib/write/parseBody.ts`(fs 없는 순수 파서 — `parseBody`/`stripBodyMarkup`/`renderBodyToHtml`/`createImageResolver`)가 유일한 파싱 로직이고, 미리보기 렌더링(`BlogWriterForm.tsx`)과 서식 포함 클립보드 복사가 **반드시 이 모듈을 공유**해야 함 — 따로 파싱 로직을 만들면 화면에 보이는 것과 복사되는 것이 어긋난다.
+- **제목 광고 표기 제거**: `new_blog/`의 협찬체험단·홍보광고형 규칙 문서를 고쳐서 표기를 본문 첫 줄에만 넣게 했고(원본 소스부터 고침), `blogWriter.ts`의 `stripAdTagFromTitle()`이 모델이 놓쳤을 경우를 대비한 방어적 안전망.
+- **서식 포함 복사**: 표준 `navigator.clipboard.write([new ClipboardItem({...})])`로 `text/html`+`text/plain`을 함께 씀 — 서버 자동화가 아니라 브라우저 표준 Clipboard API. 업로드 사진은 붙여넣을 때 `blob:` URL이 다른 origin에서 안 열리므로 `FileReader.readAsDataURL()`로 base64화. **네이버 SmartEditor가 실제로 이 서식을 얼마나 살려두는지 미검증** — 문제 생기면(style 다 벗겨짐 등) `<h3>`/`<strong>` 같은 시맨틱 태그 의존도를 높이는 쪽으로 조정.
+- **AI 이미지 생성**: `src/lib/write/generateAiImages.ts`가 OpenAI Images API(`POST https://api.openai.com/v1/images/generations`, `gpt-image-1`, 공식 문서로 스펙 확인 후 구현)를 호출, `data[].b64_json`을 `data:image/png;base64,...`로 바로 씀. Pixabay와 같은 계약(`OPENAI_API_KEY` 없거나 실패해도 throw 안 하고 `null`) + **입력 prompts와 항상 1:1 길이 유지**(실패분을 배열에서 걸러내면 `[AI이미지N]` 번호가 밀려서 엉뚱한 이미지가 매칭됨). 이미지 1장당 실제 과금됨 — Claude/Pixabay보다 비싸니 무분별하게 개수를 늘리지 말 것(시스템 프롬프트가 0~2개로 제한).
+- **사진 선택사항화**: `/api/write`의 "사진 1장 이상 필수" 검증 제거. 사진 0장이면 `recommendedThumbnail`은 0(센티널, "없음")으로 강제(`parseResult`), UI는 `recommendedThumbnail > 0`일 때만 추천 썸네일을 보여줌.
+
 **네이버 블로그 아이디**: Naver OAuth 프로필 응답에는 `blog.naver.com/{아이디}`에 쓰이는 슬러그가 없다(오픈API의 `id`는 앱별 해시일 뿐 블로그 URL과 무관 — 실제로 이것 때문에 계정에 한 번 입력받아 저장하는 방식으로 갔다). `USER_PROPS.naverBlogId`(Notion 속성명 `네이버블로그ID`, `scripts/add-user-naver-blog-id-prop.ts`로 추가) + `setNaverBlogId()`(`src/lib/notion/users.ts`) + 저장 전용 라우트 `POST /api/write/naver-blog-id`. 이 라우트를 `/api/write`(하루 1회 제한 걸린 유료 호출)와 분리한 이유: 이 필드는 공짜고 여러 번 고칠 수 있어야 해서 일일 제한 로직과 섞으면 안 된다.
 
 ### 응답 파싱

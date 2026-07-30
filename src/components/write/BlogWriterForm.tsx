@@ -3,6 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BLOG_CATEGORIES, type BlogCategory } from "@/lib/write/blogCategories";
+import {
+  parseBody,
+  stripBodyMarkup,
+  renderBodyToHtml,
+  createImageResolver,
+  type BodyBlock,
+} from "@/lib/write/parseBody";
 
 const MAX_IMAGES = 5;
 
@@ -12,14 +19,75 @@ interface StockImage {
   pageURL: string;
 }
 
+interface AiImage {
+  prompt: string;
+  dataUrl: string;
+}
+
 interface WriteResult {
   title: string;
   body: string;
-  recommendedThumbnail: number;
+  recommendedThumbnail: number; // 0 = 없음
   thumbnailReason: string;
   tags: string[];
   category: BlogCategory;
   stockImages: StockImage[];
+  aiImages: (AiImage | null)[];
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// 본문 미리보기 렌더링 — parseBody.ts의 파서를 그대로 써서 clipboard용
+// renderBodyToHtml과 같은 마크업 해석 결과를 공유한다(둘이 따로 놀면 화면에
+// 보이는 것과 복사되는 것이 달라지는 버그가 생김).
+function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeof createImageResolver>) {
+  return blocks.map((block, i) => {
+    if (block.type === "heading") {
+      return (
+        <h3 key={i} className="mt-1 text-base font-bold text-primary">
+          {block.text}
+        </h3>
+      );
+    }
+    return (
+      <p key={i} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+        {block.inline.map((piece, j) => {
+          if (piece.type === "text") return <span key={j}>{piece.text}</span>;
+          if (piece.type === "em") {
+            return (
+              <strong key={j} className="font-bold text-primary">
+                {piece.text}
+              </strong>
+            );
+          }
+          const resolved = resolveImage(piece.token);
+          if (!resolved) {
+            return (
+              <span key={j} className="mx-1 inline-block rounded bg-bg px-2 py-0.5 text-xs text-ink-muted">
+                [{piece.token} 자리]
+              </span>
+            );
+          }
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={j}
+              src={resolved.src}
+              alt={resolved.alt}
+              className="my-2 block max-h-72 w-full rounded-md border border-hairline object-cover"
+            />
+          );
+        })}
+      </p>
+    );
+  });
 }
 
 export default function BlogWriterForm({
@@ -37,8 +105,13 @@ export default function BlogWriterForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WriteResult | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [richCopied, setRichCopied] = useState(false);
+  const [plainCopied, setPlainCopied] = useState(false);
   const [tagsCopied, setTagsCopied] = useState(false);
+
+  // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 [스톡이미지] 자리에
+  // 끼워 넣은 것들 — 클릭한 순서대로 문서에 나오는 자리에 차례로 채워짐.
+  const [insertedStockImages, setInsertedStockImages] = useState<StockImage[]>([]);
 
   const [naverBlogId, setNaverBlogId] = useState(initialNaverBlogId);
   const [editingBlogId, setEditingBlogId] = useState(false);
@@ -78,11 +151,12 @@ export default function BlogWriterForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (files.length === 0 || !prompt.trim() || loading || hasUsedToday) return;
+    if (!prompt.trim() || loading || hasUsedToday) return;
 
     setLoading(true);
     setError(null);
     setResult(null);
+    setInsertedStockImages([]);
 
     try {
       const formData = new FormData();
@@ -106,14 +180,57 @@ export default function BlogWriterForm({
     }
   }
 
-  async function handleCopy() {
+  function handleToggleStockImage(img: StockImage) {
+    setInsertedStockImages((prev) => {
+      const exists = prev.some((p) => p.webformatURL === img.webformatURL);
+      if (exists) return prev.filter((p) => p.webformatURL !== img.webformatURL);
+      return [...prev, img];
+    });
+  }
+
+  async function handleCopyPlain() {
     if (!result) return;
     try {
-      await navigator.clipboard.writeText(`${result.title}\n\n${result.body}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(`${result.title}\n\n${stripBodyMarkup(result.body)}`);
+      setPlainCopied(true);
+      setTimeout(() => setPlainCopied(false), 2000);
     } catch {
       // Clipboard access blocked — no feedback to show.
+    }
+  }
+
+  // 네이버 에디터에 붙여넣을 때 굵게/소제목/사진이 그대로 살아 있도록
+  // text/html로도 같이 써넣는다. 업로드한 사진은 blob: URL이 다른 origin
+  // (blog.naver.com)에서는 못 열리므로 base64 data URL로 바꿔서 넣음 —
+  // 스톡/AI 이미지는 이미 원격 URL·data URL이라 그대로 씀. 실제 네이버
+  // SmartEditor가 붙여넣기에서 style을 얼마나 살려두는지는 미검증(best-effort).
+  async function handleCopyRich() {
+    if (!result) return;
+    try {
+      const photoDataUrls = await Promise.all(files.map(fileToDataUrl));
+      const resolveImage = createImageResolver({
+        photoSrcs: photoDataUrls,
+        insertedStockImages,
+        aiImages: result.aiImages,
+      });
+      const blocks = parseBody(result.body);
+      const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${result.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>\n${renderBodyToHtml(blocks, resolveImage)}`;
+      const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}`;
+
+      if (typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([plain], { type: "text/plain" }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
+      setRichCopied(true);
+      setTimeout(() => setRichCopied(false), 2000);
+    } catch {
+      // Clipboard access blocked or 파일을 읽지 못함 — 피드백 없이 조용히 무시.
     }
   }
 
@@ -127,6 +244,11 @@ export default function BlogWriterForm({
       // Clipboard access blocked — no feedback to show.
     }
   }
+
+  const resultBlocks = result ? parseBody(result.body) : [];
+  const resultResolveImage = result
+    ? createImageResolver({ photoSrcs: previews, insertedStockImages, aiImages: result.aiImages })
+    : null;
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-6">
@@ -190,7 +312,7 @@ export default function BlogWriterForm({
           className="flex flex-col gap-3 rounded-lg border-2 border-hairline bg-surface p-4 shadow-sm transition-colors focus-within:border-primary sm:p-5"
         >
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-ink">사진 (최대 {MAX_IMAGES}장)</span>
+            <span className="font-medium text-ink">사진 (선택, 최대 {MAX_IMAGES}장)</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
@@ -199,6 +321,9 @@ export default function BlogWriterForm({
               disabled={loading}
               className="text-sm text-ink-muted file:mr-3 file:rounded-md file:border file:border-hairline file:bg-bg file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink"
             />
+            <span className="text-xs text-ink-muted">
+              사진이 없어도 프롬프트만으로 글을 완성해드려요 — 필요하면 스톡·AI 이미지를 추천해드립니다.
+            </span>
           </label>
 
           {previews.length > 0 && (
@@ -235,7 +360,7 @@ export default function BlogWriterForm({
 
           <button
             type="submit"
-            disabled={loading || files.length === 0 || !prompt.trim()}
+            disabled={loading || !prompt.trim()}
             className="h-11 rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97] disabled:opacity-50"
           >
             {loading ? "글 쓰는 중... (최대 1분 정도 걸려요)" : "글 생성하기"}
@@ -243,21 +368,31 @@ export default function BlogWriterForm({
         </form>
       )}
 
-      {result && (
+      {result && resultResolveImage && (
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink">생성된 글</h2>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
-            >
-              {copied ? "복사됐어요" : "전체 복사"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCopyPlain}
+                className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
+              >
+                {plainCopied ? "복사됐어요" : "텍스트만 복사"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyRich}
+                className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-hover"
+              >
+                {richCopied ? "복사됐어요" : "서식 포함 복사"}
+              </button>
+            </div>
           </div>
-          <p className="font-semibold text-ink">{result.title}</p>
-          <p className="whitespace-pre-wrap text-sm text-ink">{result.body}</p>
-          {previews[result.recommendedThumbnail - 1] && (
+          <p className="text-lg font-bold text-ink">{result.title}</p>
+          <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage)}</div>
+
+          {result.recommendedThumbnail > 0 && previews[result.recommendedThumbnail - 1] && (
             <div className="flex items-center gap-2 border-t border-hairline pt-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -299,19 +434,31 @@ export default function BlogWriterForm({
           {result.stockImages.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-hairline pt-3">
               <span className="text-xs font-semibold text-ink-muted">
-                추천 스톡 이미지 (Pixabay 제공, 클릭하면 원본 페이지로 이동)
+                추천 스톡 이미지 (Pixabay 제공) · 클릭하면 위 본문의 [스톡이미지] 자리에 순서대로
+                들어가요 (다시 클릭하면 빼요)
               </span>
               <div className="flex flex-wrap gap-2">
-                {result.stockImages.map((img) => (
-                  <a key={img.webformatURL} href={img.pageURL} target="_blank" rel="noopener noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={img.webformatURL}
-                      alt={img.query}
-                      className="h-16 w-16 rounded-md border border-hairline object-cover"
-                    />
-                  </a>
-                ))}
+                {result.stockImages.map((img) => {
+                  const inserted = insertedStockImages.some((p) => p.webformatURL === img.webformatURL);
+                  return (
+                    <button
+                      key={img.webformatURL}
+                      type="button"
+                      onClick={() => handleToggleStockImage(img)}
+                      className={`relative h-16 w-16 overflow-hidden rounded-md border-2 transition ${
+                        inserted ? "border-primary" : "border-hairline"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.webformatURL} alt={img.query} className="h-full w-full object-cover" />
+                      {inserted && (
+                        <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

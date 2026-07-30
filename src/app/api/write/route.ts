@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/write/auth";
 import { generateBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { classifyPromptCategory } from "@/lib/write/classifyCategory";
 import { searchStockImages } from "@/lib/write/imageSearch";
+import { generateAiImages } from "@/lib/write/generateAiImages";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 const MAX_IMAGES = 5;
@@ -43,10 +44,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "어떤 글을 원하는지 입력해 주세요." }, { status: 400 });
   }
 
+  // 사진은 선택 사항 — 프롬프트만으로도 글을 완성할 수 있음(2026-07 변경).
   const files = formData.getAll("images").filter((v): v is File => v instanceof File);
-  if (files.length === 0) {
-    return NextResponse.json({ error: "사진을 1장 이상 올려주세요." }, { status: 400 });
-  }
   if (files.length > MAX_IMAGES) {
     return NextResponse.json({ error: `사진은 최대 ${MAX_IMAGES}장까지예요.` }, { status: 400 });
   }
@@ -78,9 +77,13 @@ export async function POST(request: Request) {
     // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
     await markUsedToday(user.pageId);
 
-    // 부가 기능(무료 스톡 이미지 추천) — PIXABAY_API_KEY 미설정/실패 시 []만
-    // 반환하고 나머지 응답은 그대로 성공 처리(imageSearch.ts의 계약).
-    const stockImages = await searchStockImages(result.stockImageQueries);
+    // 부가 기능(무료 스톡 이미지 추천 + AI 이미지 생성) — 둘 다 절대 throw
+    // 안 하고 실패/미설정 시 []/null만 반환하는 계약(imageSearch.ts,
+    // generateAiImages.ts) — 병렬로 돌려서 전체 응답 시간을 늘리지 않음.
+    const [stockImages, aiImages] = await Promise.all([
+      searchStockImages(result.stockImageQueries),
+      generateAiImages(result.aiImagePrompts),
+    ]);
 
     return NextResponse.json({
       title: result.title,
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
       tags: result.tags,
       category,
       stockImages,
+      aiImages,
     });
   } catch (err) {
     console.error("[POST /api/write] generation failed:", getErrorMessage(err), err);
