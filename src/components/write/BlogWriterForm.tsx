@@ -2,22 +2,34 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { BLOG_CATEGORIES, type BlogCategory } from "@/lib/write/blogCategories";
 
 const MAX_IMAGES = 5;
+
+interface StockImage {
+  query: string;
+  webformatURL: string;
+  pageURL: string;
+}
 
 interface WriteResult {
   title: string;
   body: string;
   recommendedThumbnail: number;
   thumbnailReason: string;
+  tags: string[];
+  category: BlogCategory;
+  stockImages: StockImage[];
 }
 
 export default function BlogWriterForm({
   email,
   hasUsedToday,
+  naverBlogId: initialNaverBlogId,
 }: {
   email: string;
   hasUsedToday: boolean;
+  naverBlogId: string;
 }) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
@@ -26,6 +38,12 @@ export default function BlogWriterForm({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WriteResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tagsCopied, setTagsCopied] = useState(false);
+
+  const [naverBlogId, setNaverBlogId] = useState(initialNaverBlogId);
+  const [editingBlogId, setEditingBlogId] = useState(false);
+  const [blogIdDraft, setBlogIdDraft] = useState(initialNaverBlogId);
+  const [savingBlogId, setSavingBlogId] = useState(false);
 
   const previews = files.map((f) => URL.createObjectURL(f));
 
@@ -38,6 +56,24 @@ export default function BlogWriterForm({
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.refresh();
+  }
+
+  async function handleSaveBlogId() {
+    setSavingBlogId(true);
+    try {
+      const res = await fetch("/api/write/naver-blog-id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ naverBlogId: blogIdDraft.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNaverBlogId(data.naverBlogId);
+        setEditingBlogId(false);
+      }
+    } finally {
+      setSavingBlogId(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -81,6 +117,17 @@ export default function BlogWriterForm({
     }
   }
 
+  async function handleCopyTags() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.tags.map((t) => `#${t}`).join(" "));
+      setTagsCopied(true);
+      setTimeout(() => setTagsCopied(false), 2000);
+    } catch {
+      // Clipboard access blocked — no feedback to show.
+    }
+  }
+
   return (
     <div className="flex w-full max-w-xl flex-col gap-6">
       <div className="flex items-center justify-between text-sm text-ink-muted">
@@ -88,6 +135,49 @@ export default function BlogWriterForm({
         <button type="button" onClick={handleLogout} className="hover:text-primary">
           로그아웃
         </button>
+      </div>
+
+      <div className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface p-3 text-sm">
+        <span className="font-medium text-ink">네이버 블로그 아이디</span>
+        {editingBlogId ? (
+          <div className="flex gap-2">
+            <input
+              value={blogIdDraft}
+              onChange={(e) => setBlogIdDraft(e.target.value)}
+              placeholder="blog.naver.com/여기"
+              className="flex-1 rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleSaveBlogId}
+              disabled={savingBlogId}
+              className="rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg disabled:opacity-50"
+            >
+              저장
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingBlogId(false)}
+              className="rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:bg-bg"
+            >
+              취소
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-ink-muted">{naverBlogId || "설정 안 됨"}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setBlogIdDraft(naverBlogId);
+                setEditingBlogId(true);
+              }}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              {naverBlogId ? "수정" : "설정"}
+            </button>
+          </div>
+        )}
       </div>
 
       {hasUsedToday ? (
@@ -136,6 +226,9 @@ export default function BlogWriterForm({
               className="rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
               disabled={loading}
             />
+            <span className="text-xs text-ink-muted">
+              글 유형(정보·리뷰·에세이·홍보 등)은 입력하신 내용을 보고 AI가 자동으로 판단해요.
+            </span>
           </label>
 
           {error && <p className="text-sm text-error">{error}</p>}
@@ -177,6 +270,61 @@ export default function BlogWriterForm({
                 {result.thumbnailReason && ` — ${result.thumbnailReason}`}
               </p>
             </div>
+          )}
+
+          {result.tags.length > 0 && (
+            <div className="flex flex-col gap-2 border-t border-hairline pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-ink-muted">
+                  추천 태그 · 유형: {BLOG_CATEGORIES.find((c) => c.id === result.category)?.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyTags}
+                  className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
+                >
+                  {tagsCopied ? "복사됐어요" : "태그 복사"}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {result.tags.map((t) => (
+                  <span key={t} className="rounded-full bg-bg px-2 py-0.5 text-xs text-ink">
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.stockImages.length > 0 && (
+            <div className="flex flex-col gap-2 border-t border-hairline pt-3">
+              <span className="text-xs font-semibold text-ink-muted">
+                추천 스톡 이미지 (Pixabay 제공, 클릭하면 원본 페이지로 이동)
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {result.stockImages.map((img) => (
+                  <a key={img.webformatURL} href={img.pageURL} target="_blank" rel="noopener noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.webformatURL}
+                      alt={img.query}
+                      className="h-16 w-16 rounded-md border border-hairline object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {naverBlogId && (
+            <a
+              href={`https://blog.naver.com/${naverBlogId}?Redirect=Write&`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 flex h-11 items-center justify-center rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+            >
+              네이버 블로그 글쓰기 열기
+            </a>
           )}
         </div>
       )}

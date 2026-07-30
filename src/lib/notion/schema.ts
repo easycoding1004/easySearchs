@@ -129,6 +129,10 @@ export const USER_PROPS = {
   createdAt: "가입일시",
   authProvider: "가입방식",
   providerId: "소셜ID",
+  // "네이버 블로그 글쓰기 열기" 버튼용 — blog.naver.com/{id}의 슬러그.
+  // 네이버 로그인 프로필에는 이 값이 없어(오픈API의 id는 앱별 해시일 뿐 블로그
+  // 주소와 무관) 계정에 1회 입력받아 저장해두고 재사용함(2026-07 추가).
+  naverBlogId: "네이버블로그ID",
 } as const;
 
 export const AUTH_PROVIDER = {

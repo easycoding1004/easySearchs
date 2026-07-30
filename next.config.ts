@@ -10,8 +10,10 @@ const nextConfig: NextConfig = {
   // standalone build ships without them — breaks tokenize.ts (used by
   // /api/search, /api/blog-score, and the 블로그지수 result page) in
   // production with an ENOENT. Force the whole package into the trace.
+  // Same issue for new_blog/*.md — blogRules.ts reads them with fs at
+  // runtime (src/lib/write/blogRules.ts), not a static import.
   outputFileTracingIncludes: {
-    "/**": ["./node_modules/garu-ko/**"],
+    "/**": ["./node_modules/garu-ko/**", "./new_blog/**"],
   },
 };
 

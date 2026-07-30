@@ -27,6 +27,7 @@ export interface User {
   lastUsedAt: string; // KST date string (YYYY-MM-DD), "" if never used
   authProvider: AuthProviderValue | "";
   providerId: string;
+  naverBlogId: string;
 }
 
 function parseUser(page: PageObjectResponse): User {
@@ -65,6 +66,10 @@ function parseUser(page: PageObjectResponse): User {
   const providerId =
     providerIdProp?.type === "rich_text" ? providerIdProp.rich_text.map((t) => t.plain_text).join("") : "";
 
+  const naverBlogIdProp = props[USER_PROPS.naverBlogId];
+  const naverBlogId =
+    naverBlogIdProp?.type === "rich_text" ? naverBlogIdProp.rich_text.map((t) => t.plain_text).join("") : "";
+
   return {
     pageId: page.id,
     email,
@@ -75,6 +80,7 @@ function parseUser(page: PageObjectResponse): User {
     lastUsedAt,
     authProvider,
     providerId,
+    naverBlogId,
   };
 }
 
@@ -208,6 +214,18 @@ export async function clearSession(pageId: string): Promise<void> {
     page_id: pageId,
     properties: {
       [USER_PROPS.sessionToken]: { type: "rich_text", rich_text: [] },
+    },
+  });
+}
+
+export async function setNaverBlogId(pageId: string, naverBlogId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: {
+      [USER_PROPS.naverBlogId]: {
+        type: "rich_text",
+        rich_text: naverBlogId ? [{ type: "text", text: { content: naverBlogId } }] : [],
+      },
     },
   });
 }

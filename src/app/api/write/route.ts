@@ -2,12 +2,18 @@ import { NextResponse } from "next/server";
 import { hasUsedToday, markUsedToday } from "@/lib/notion/users";
 import { getCurrentUser } from "@/lib/write/auth";
 import { generateBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
+import { classifyPromptCategory } from "@/lib/write/classifyCategory";
+import { searchStockImages } from "@/lib/write/imageSearch";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const MAX_PROMPT_LENGTH = 500;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+// TEMP(테스트 목적, 사용자 요청): 하루 1회 제한을 임시로 꺼둠. 복구 요청 오면
+// 이 상수를 false로 되돌리고 src/app/write/page.tsx의 같은 이름 상수도 같이 되돌릴 것.
+const TEMP_DISABLE_DAILY_LIMIT = true;
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -18,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
   // 유료 API 남용 방지 — 계정당 하루 1회로 제한 (CLAUDE.md §16).
-  if (hasUsedToday(user)) {
+  if (!TEMP_DISABLE_DAILY_LIMIT && hasUsedToday(user)) {
     return NextResponse.json(
       { error: "오늘은 이미 사용하셨어요. 내일 다시 시도해 주세요." },
       { status: 429 }
@@ -64,12 +70,27 @@ export async function POST(request: Request) {
       })
     );
 
-    const result = await generateBlogPost(images, prompt);
+    // 프롬프트만으로 유형을 자동 분류 — 이 결과로 어떤 new_blog/*.md 규칙을
+    // 시스템 프롬프트에 넣을지 정해지므로 반드시 본 생성 호출보다 먼저 실행.
+    const category = await classifyPromptCategory(prompt);
+    const result = await generateBlogPost(images, prompt, category);
     // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
     // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
     await markUsedToday(user.pageId);
 
-    return NextResponse.json(result);
+    // 부가 기능(무료 스톡 이미지 추천) — PIXABAY_API_KEY 미설정/실패 시 []만
+    // 반환하고 나머지 응답은 그대로 성공 처리(imageSearch.ts의 계약).
+    const stockImages = await searchStockImages(result.stockImageQueries);
+
+    return NextResponse.json({
+      title: result.title,
+      body: result.body,
+      recommendedThumbnail: result.recommendedThumbnail,
+      thumbnailReason: result.thumbnailReason,
+      tags: result.tags,
+      category,
+      stockImages,
+    });
   } catch (err) {
     console.error("[POST /api/write] generation failed:", getErrorMessage(err), err);
     return NextResponse.json(

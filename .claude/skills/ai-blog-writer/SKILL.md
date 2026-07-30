@@ -95,6 +95,20 @@ const message = await anthropic.messages.create({
 }
 ```
 
+### 글 유형별 규칙 첨부 (2026-07 추가)
+
+실제 구현은 여기에 유형별 규칙을 이어붙인다. `src/lib/write/blogRules.ts`(서버 전용, `fs`로 `new_blog/*.md`를 런타임에 읽음)의 `getCategoryRuleText(category)`가 `new_blog/블로그글쓰기규칙_개요.md`(공통 규칙) + 선택된 유형의 `.md` 파일을 합쳐서 돌려주고, `blogWriter.ts`가 이걸 `SYSTEM_PROMPT` 뒤에 이어붙여 `anthropic.messages.create`의 `system`으로 보낸다. 카테고리 목록 자체(`BLOG_CATEGORIES`)는 `fs` 의존이 없는 `src/lib/write/blogCategories.ts`에 따로 있음 — 클라이언트 컴포넌트(`BlogWriterForm.tsx`)는 반드시 이쪽만 import할 것, `blogRules.ts`를 client 쪽에서 import하면 `fs`가 브라우저 번들에 끌려들어가 빌드가 깨진다.
+
+**유형은 사용자가 고르지 않고 자동 분류된다** (2026-07 추가) — `src/lib/write/classifyCategory.ts`의 `classifyPromptCategory(prompt)`가 본 생성 호출 전에 `claude-haiku-4-5`로 프롬프트를 강제 tool-call 분류(`tool_choice: {type:"tool", name:"classify_blog_category"}`, enum 제약된 `category` 파라미터 하나)한다. 텍스트 JSON 파싱이 아니라 강제 tool call을 쓴 이유는 5지선다 분류 하나에는 그게 훨씬 안전해서(프리텍스트 섞임 등의 실패 모드가 구조적으로 없어짐). 분류가 실패하면(Haiku 오류 등) `정보노하우형`으로 조용히 폴백하고 절대 throw하지 않는다 — 여기서 실패해서 하루 1회뿐인 본 생성(Sonnet 5) 시도까지 날리면 안 되기 때문. `/api/write/route.ts`에서 호출 순서는 반드시 `classifyPromptCategory` → `generateBlogPost`(분류 결과가 어떤 규칙 파일을 넣을지 결정하므로).
+
+**네이버 블로그에 직접 자동 발행하지 않는다 — 반자동이 최종 결정이다.** 처음에는 "프롬프트만 넣으면 네이버 블로그에 자동 발행"이 요청됐으나, 조사 결과 네이버 블로그 글쓰기 오픈API(`writePost.json`)는 광고 스팸 남용 때문에 **2020-05-06부로 완전히 폐지**되어 지금은 신청할 수 있는 API 자체가 없다(뉴스 확인, 개인/사업자 무관). 그래서 서버가 대신 발행하는 방식은 아예 불가능하고, 사용자와 다시 논의해 결과 화면에 제목/본문/추천 태그/추천 스톡이미지를 다 만들어 보여주고 "네이버 블로그 글쓰기 열기" 버튼(`https://blog.naver.com/{아이디}?Redirect=Write&`)으로 최종 등록은 사용자가 직접 하는 흐름으로 확정했다. 이걸 다시 완전 자동화하려는 요청이 오면 이 폐지 사실부터 다시 확인하고 CLAUDE.md §16을 참고할 것 — 남은 유일한 경로는 브라우저 확장/북마클릿으로 사용자 자신의 로그인 세션에서 에디터를 채우는 것뿐이고, 이건 별도 프로젝트급 작업이다.
+
+**추천 태그**: `blogWriter.ts`의 JSON 응답 스키마에 `tags: string[]`(한국어 해시태그 5~8개, `#` 없이) 추가됨. 네이버 공식 API에 애초에 태그 파라미터가 없었으므로 자동 삽입 대상이 아니라 복사·붙여넣기 UI(`BlogWriterForm.tsx`의 "태그 복사" 버튼)로만 노출.
+
+**추천 스톡 이미지**: `src/lib/write/imageSearch.ts`의 `searchStockImages(queries)`가 Pixabay 무료 이미지 검색(`GET https://pixabay.com/api/`, `PIXABAY_API_KEY` env var)을 호출. 검색어는 `blogWriter.ts`가 응답에 담는 `stockImageQueries: string[]`(반드시 영어 — Pixabay 태그 코퍼스가 영어 위주라서 시스템 프롬프트가 영어로 뽑도록 지시함). **`searchStockImages`는 절대 throw하지 않는 계약** — `PIXABAY_API_KEY` 미설정이거나 개별 쿼리가 실패하면 그 쿼리는 그냥 빈 배열, 전체 실패해도 `[]`만 반환. `/api/write` route가 이 결과를 응답에 `stockImages`로 얹지만, 실패해도 title/body/tags 등 나머지는 정상 반환돼야 한다(부가 기능이 본 기능을 막으면 안 됨 — CLAUDE.md 섹션 10.3의 `settle()`과 같은 원칙).
+
+**네이버 블로그 아이디**: Naver OAuth 프로필 응답에는 `blog.naver.com/{아이디}`에 쓰이는 슬러그가 없다(오픈API의 `id`는 앱별 해시일 뿐 블로그 URL과 무관 — 실제로 이것 때문에 계정에 한 번 입력받아 저장하는 방식으로 갔다). `USER_PROPS.naverBlogId`(Notion 속성명 `네이버블로그ID`, `scripts/add-user-naver-blog-id-prop.ts`로 추가) + `setNaverBlogId()`(`src/lib/notion/users.ts`) + 저장 전용 라우트 `POST /api/write/naver-blog-id`. 이 라우트를 `/api/write`(하루 1회 제한 걸린 유료 호출)와 분리한 이유: 이 필드는 공짜고 여러 번 고칠 수 있어야 해서 일일 제한 로직과 섞으면 안 된다.
+
 ### 응답 파싱
 
 Claude가 지시를 따르지 않고 JSON 앞뒤에 설명을 붙일 수 있으므로, 방어적으로 파싱할 것 — `content[0].text`에서 첫 `{`부터 마지막 `}`까지만 추출한 뒤 `JSON.parse`, 실패 시 사용자에게 "생성에 실패했어요, 다시 시도해주세요" 에러로 처리(이 프로젝트의 다른 API 라우트들과 같은 패턴 — 조용히 깨지지 않고 명확한 에러 메시지).
