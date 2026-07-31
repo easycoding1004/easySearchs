@@ -42,10 +42,17 @@ const SYSTEM_PROMPT = `당신은 네이버 블로그에 익숙한 한국어 블�
   모델이 영어 지시를 가장 잘 따릅니다). **하지만 이미지 안에 실제로 보이는 글자(제품명,
   가격, 항목 라벨, 숫자, 차트 제목 등)는 절대 영어로 옮기지 말고 한국어 그대로 큰따옴표로
   인용해서 넣고, 그 한글 텍스트를 그대로(번역하지 말고) 렌더링하라고 명확히 지시하세요**
-  — 그렇지 않으면 한국어 블로그인데 이미지 속 글자만 영어로 나옵니다. 예: "A clean
-  product comparison infographic. Render the following Korean text exactly as
-  written, do not translate to English: title '제품 A vs 제품 B', row labels
-  '가격', '용량', '평점'."
+  — 그렇지 않으면 한국어 블로그인데 이미지 속 글자만 영어로 나옵니다. **이미지 생성 모델은
+  한글처럼 획이 복잡한 문자를 정확히 그리는 데 한계가 있어서, 글자가 길거나 작을수록
+  오타(비슷하게 생긴 다른 글자로 바뀜)가 날 확률이 높아집니다 — 그러니 이미지 안에 넣는
+  한글 텍스트는 반드시 짧고 간단하게(단어 1~3개, 한 항목당 2~5글자 이내) 유지하고, 문장
+  형태보다는 라벨·숫자 위주로 구성하며, 프롬프트에 "large, bold, simple sans-serif
+  lettering, one short Korean word per label"처럼 크고 굵고 단순한 글자체를 명시하세요.**
+  정확한 표기가 특히 중요한 텍스트(가격, 정확한 제품명 전문 등)는 이미지 안에 억지로
+  넣기보다 캡션이나 본문으로 따로 설명하는 걸 우선 고려하세요. 예: "A clean
+  product comparison infographic, large bold simple sans-serif lettering. Render
+  the following Korean text exactly as written, do not translate to English:
+  title '가격 비교', row labels '가격', '용량', '평점' (each label 2-3 characters only)."
 - 업로드된 사진이 1장 이상 있다면 그중 썸네일(대표 이미지)로 가장 적합한 것 하나를
   고르고("recommendedThumbnail"에 1부터 시작하는 사진 번호) 이유를 짧게 설명하세요. 사진이
   없다면 "recommendedThumbnail"은 0, "thumbnailReason"은 빈 문자열로 응답하세요.

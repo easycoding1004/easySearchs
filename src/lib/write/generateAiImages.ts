@@ -6,7 +6,10 @@ import { getErrorMessage } from "@/lib/utils/errors";
 const ENDPOINT = "https://api.openai.com/v1/images/generations";
 const MODEL = "gpt-image-1";
 const SIZE = "1536x1024"; // 블로그 본문에 자연스러운 가로형
-const QUALITY = "medium"; // 비용 절제 — 제품 비교/개념 설명용이라 고화질까지는 불필요
+// 2026-07: medium에서 high로 상향 — 실측 결과 한글 텍스트가 미묘하게 틀리는
+// 사례(예: "아메리카노"→"아페리카노")가 있어, 비용이 더 들더라도 글자 정확도를
+// 우선하기로 사용자와 합의함(프롬프트의 "짧고 굵은 글자" 지시와 함께 적용).
+const QUALITY = "high";
 const FETCH_TIMEOUT_MS = 60000; // 이미지 생성은 스톡 검색보다 훨씬 오래 걸림
 
 export interface AiImageResult {

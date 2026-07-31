@@ -204,7 +204,7 @@ function BlogScoreCard({
         <span className="break-all text-sm font-semibold text-ink">{score.label}</span>
         {rank && (
           <span className="rounded-full bg-bg px-2 py-0.5 text-[10px] font-medium text-ink-muted">
-            등록 업체 중 {rank.position}/{rank.total}위
+            비교 대상 중 {rank.position}/{rank.total}위
           </span>
         )}
       </div>
@@ -338,7 +338,7 @@ export default function BlogScorePanel({
   if (!mine && competitors.length === 0) {
     return (
       <section className="rounded-lg border border-dashed border-hairline bg-surface p-5 text-sm text-ink-muted">
-        내 블로그 도메인과 경쟁업체가 등록되어 있지 않습니다. 설정에서 추가해 주세요.
+        내 블로그 도메인과 비교 블로그가 입력되어 있지 않습니다. 블로그지수에서 다시 조회할 때 입력해 주세요.
       </section>
     );
   }
@@ -353,8 +353,8 @@ export default function BlogScorePanel({
           <h2 className="text-base font-semibold text-ink">블로그 지수</h2>
           <p className="text-sm text-ink-muted">
             검색 키워드 기반 콘텐츠 진단 {RADAR_AXES.length}개 지표를 종합해 10점 만점으로 환산한 자체 점수예요 (네이버
-            공식 지표나 다른 블로그 지수 서비스의 점수와는 산정 방식이 다릅니다). 순위도 등록된 업체끼리
-            비교한 것으로, 네이버 전체 블로그 대비 순위가 아니에요.
+            공식 지표나 다른 블로그 지수 서비스의 점수와는 산정 방식이 다릅니다). 순위도 이번에 함께 조회한
+            블로그끼리 비교한 것으로, 네이버 전체 블로그 대비 순위가 아니에요.
           </p>
         </div>
         <span className="text-xs text-ink-muted">
@@ -364,12 +364,12 @@ export default function BlogScorePanel({
 
       {!mine && (
         <p className="text-sm text-ink-muted">
-          내 블로그 도메인이 등록되어 있지 않아 경쟁업체 점수만 보여드려요. 설정에서 추가하면 비교할 수 있어요.
+          내 블로그 도메인이 입력되어 있지 않아 비교 블로그 점수만 보여드려요. 블로그지수에서 다시 조회할 때 내 블로그 주소를 입력하면 비교할 수 있어요.
         </p>
       )}
       {mine && competitors.length === 0 && (
         <p className="text-sm text-ink-muted">
-          경쟁업체가 등록되어 있지 않아 내 블로그 점수만 보여드려요. 설정에서 추가하면 비교할 수 있어요.
+          비교 블로그가 입력되어 있지 않아 내 블로그 점수만 보여드려요. 블로그지수에서 다시 조회할 때 비교 블로그 주소를 입력하면 비교할 수 있어요.
         </p>
       )}
 

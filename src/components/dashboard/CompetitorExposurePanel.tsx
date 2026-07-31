@@ -13,7 +13,7 @@ export default function CompetitorExposurePanel({
   if (competitors.length === 0) {
     return (
       <section className="rounded-lg border border-dashed border-hairline bg-surface p-5 text-sm text-ink-muted">
-        경쟁업체가 등록되어 있지 않습니다. 설정에서 추가해 주세요.
+        비교 블로그가 입력되어 있지 않습니다. 블로그지수에서 다시 조회할 때 입력해 주세요.
       </section>
     );
   }
