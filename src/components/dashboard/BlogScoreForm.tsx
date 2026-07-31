@@ -13,6 +13,7 @@ function sleep(ms: number) {
 export default function BlogScoreForm() {
   const router = useRouter();
   const [myBlogDomain, setMyBlogDomain] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [competitors, setCompetitors] = useState("");
   const [keywords, setKeywords] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function BlogScoreForm() {
       const res = await fetch("/api/blog-score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ myBlogDomain, competitors, keywords }),
+        body: JSON.stringify({ myBlogDomain, businessName, competitors, keywords }),
       });
 
       if (!res.ok) {
@@ -80,6 +81,18 @@ export default function BlogScoreForm() {
           value={myBlogDomain}
           onChange={(e) => setMyBlogDomain(e.target.value)}
           placeholder="예: blog.naver.com/my_blog"
+          className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
+          disabled={loading}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-ink">업체명 (선택, 지역·플레이스 노출순위 조회용)</span>
+        <input
+          type="text"
+          value={businessName}
+          onChange={(e) => setBusinessName(e.target.value)}
+          placeholder="예: 이지카페 강남점"
           className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
           disabled={loading}
         />

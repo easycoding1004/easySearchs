@@ -39,6 +39,10 @@ export const BLOG_SCORE_SESSION_PROPS = {
   searchedAt: "조회일시",
   gapSummary: "부족 항목",
   relatedRecords: "관련 레코드",
+  // 2026-07 추가 — 지역·플레이스 노출순위 조회용(섹션 10.3.2 참고). 네이버
+  // 공식 지역검색 API는 블로그 URL이 아니라 업체명으로 매칭하므로 별도 필드로
+  // 받음. 선택 입력이라 없으면 지역·플레이스 패널만 빈 상태로 보임.
+  businessName: "업체명",
 } as const;
 
 // 2026-07 블로그 지수 산정 방식 전면 개편(검색 상위노출·게시글수·댓글수·

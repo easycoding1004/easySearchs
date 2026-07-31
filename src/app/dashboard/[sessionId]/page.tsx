@@ -5,7 +5,7 @@ import { getRecordsForBlogScoreSession } from "@/lib/notion/blogScoreRecords";
 import { getKeywordVolumes } from "@/lib/dashboard/keywordVolume";
 import { getBlogPublishStatsForKeywords } from "@/lib/naver/blogPublishStats";
 import { getMentionVolume } from "@/lib/dashboard/mentions";
-import { getDashboardExposure } from "@/lib/dashboard/dashboardExposure";
+import { getDashboardExposure, getDashboardLocalExposure } from "@/lib/dashboard/dashboardExposure";
 import { getCompetitorKeywordProfiles } from "@/lib/dashboard/competitorKeywords";
 import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/lib/dashboard/keywordCluster";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
@@ -17,7 +17,8 @@ import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 
 import KeywordVolumePanel from "@/components/dashboard/KeywordVolumePanel";
 import MentionVolumePanel from "@/components/dashboard/MentionVolumePanel";
-import CompetitorExposurePanel from "@/components/dashboard/CompetitorExposurePanel";
+import CompetitorExposurePanel, { type ExposureDomainEntry } from "@/components/dashboard/CompetitorExposurePanel";
+import LocalExposurePanel from "@/components/dashboard/LocalExposurePanel";
 import KeywordClusterPanel from "@/components/dashboard/KeywordClusterPanel";
 import BlogScorePanel from "@/components/dashboard/BlogScorePanel";
 import PostAnalysisPanel from "@/components/dashboard/PostAnalysisPanel";
@@ -96,22 +97,32 @@ async function MentionVolumeSection({
 
 async function CompetitorExposureSection({
   keywords,
-  competitorDomains,
+  domains,
   fetchedAt,
 }: {
   keywords: string[];
-  competitorDomains: string[];
+  domains: ExposureDomainEntry[];
   fetchedAt: string;
 }) {
-  const result = await settle(() => getDashboardExposure(keywords, competitorDomains));
-  if (!result.ok) return <PanelError title="경쟁업체 블로그 노출 순위" />;
-  return (
-    <CompetitorExposurePanel
-      results={result.value}
-      competitors={competitorDomains}
-      fetchedAt={fetchedAt}
-    />
+  const result = await settle(() =>
+    getDashboardExposure(keywords, domains.map((d) => d.domain))
   );
+  if (!result.ok) return <PanelError title="블로그 노출 순위" />;
+  return <CompetitorExposurePanel results={result.value} domains={domains} fetchedAt={fetchedAt} />;
+}
+
+async function LocalExposureSection({
+  keywords,
+  businessName,
+  fetchedAt,
+}: {
+  keywords: string[];
+  businessName: string | null;
+  fetchedAt: string;
+}) {
+  const result = await settle(() => getDashboardLocalExposure(keywords, businessName));
+  if (!result.ok) return <PanelError title="지역·플레이스 노출 순위" />;
+  return <LocalExposurePanel results={result.value} businessName={businessName} fetchedAt={fetchedAt} />;
 }
 
 async function KeywordClusterSection({
@@ -217,6 +228,11 @@ export default async function BlogScoreResultPage({
     isMine: r.isMine,
   }));
 
+  const exposureDomains: ExposureDomainEntry[] = [
+    ...(session.myBlogDomain ? [{ domain: session.myBlogDomain, isMine: true }] : []),
+    ...session.competitorDomains.map((domain) => ({ domain, isMine: false })),
+  ];
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
       <div className="flex flex-col gap-1">
@@ -266,10 +282,17 @@ export default async function BlogScoreResultPage({
                 <Suspense fallback={<PanelSkeleton title="블로그·카페 언급량" />}>
                   <MentionVolumeSection keywords={session.keywords} fetchedAt={session.searchedAt} />
                 </Suspense>
-                <Suspense fallback={<PanelSkeleton title="경쟁업체 블로그 노출 순위" />}>
+                <Suspense fallback={<PanelSkeleton title="블로그 노출 순위" />}>
                   <CompetitorExposureSection
                     keywords={session.keywords}
-                    competitorDomains={session.competitorDomains}
+                    domains={exposureDomains}
+                    fetchedAt={session.searchedAt}
+                  />
+                </Suspense>
+                <Suspense fallback={<PanelSkeleton title="지역·플레이스 노출 순위" />}>
+                  <LocalExposureSection
+                    keywords={session.keywords}
+                    businessName={session.businessName}
                     fetchedAt={session.searchedAt}
                   />
                 </Suspense>

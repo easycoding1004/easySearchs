@@ -38,6 +38,7 @@ export interface BlogScoreSession {
   keywords: string[];
   searchedAt: string;
   gaps: BlogScoreGap[];
+  businessName: string | null;
 }
 
 export interface BlogScoreRecord {

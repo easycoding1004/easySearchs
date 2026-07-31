@@ -38,11 +38,13 @@ export async function POST(request: Request) {
   let myBlogDomain: string;
   let competitors: string[];
   let keywords: string[];
+  let businessName: string | null;
   try {
     const body = await request.json();
     myBlogDomain = typeof body.myBlogDomain === "string" ? body.myBlogDomain.trim() : "";
     competitors = parseList(body.competitors, MAX_BLOG_SCORE_COMPETITORS);
     keywords = parseList(body.keywords, MAX_BLOG_SCORE_KEYWORDS);
+    businessName = typeof body.businessName === "string" && body.businessName.trim() ? body.businessName.trim() : null;
   } catch {
     return NextResponse.json({ error: "잘못된 요청 본문입니다." }, { status: 400 });
   }
@@ -119,6 +121,7 @@ export async function POST(request: Request) {
         competitorDomains: competitors,
         keywords,
         gaps,
+        businessName,
       });
 
       // "결과 저장 중..." 이후 진행률 없이 침묵하던 구간 — 경쟁사가 많으면
