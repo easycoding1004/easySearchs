@@ -5,7 +5,11 @@ import { getRecordsForBlogScoreSession } from "@/lib/notion/blogScoreRecords";
 import { getKeywordVolumes } from "@/lib/dashboard/keywordVolume";
 import { getBlogPublishStatsForKeywords } from "@/lib/naver/blogPublishStats";
 import { getMentionVolume } from "@/lib/dashboard/mentions";
-import { getDashboardExposure, getDashboardLocalExposure } from "@/lib/dashboard/dashboardExposure";
+import {
+  getDashboardExposure,
+  getDashboardLocalExposure,
+  type LocalExposureEntry,
+} from "@/lib/dashboard/dashboardExposure";
 import { getCompetitorKeywordProfiles } from "@/lib/dashboard/competitorKeywords";
 import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/lib/dashboard/keywordCluster";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
@@ -113,16 +117,16 @@ async function CompetitorExposureSection({
 
 async function LocalExposureSection({
   keywords,
-  businessName,
+  entries,
   fetchedAt,
 }: {
   keywords: string[];
-  businessName: string | null;
+  entries: LocalExposureEntry[];
   fetchedAt: string;
 }) {
-  const result = await settle(() => getDashboardLocalExposure(keywords, businessName));
-  if (!result.ok) return <PanelError title="지역·플레이스 노출 순위" />;
-  return <LocalExposurePanel results={result.value} businessName={businessName} fetchedAt={fetchedAt} />;
+  const result = await settle(() => getDashboardLocalExposure(keywords, entries));
+  if (!result.ok) return <PanelError title="지역·플레이스 진단" />;
+  return <LocalExposurePanel results={result.value} entries={entries} fetchedAt={fetchedAt} />;
 }
 
 async function KeywordClusterSection({
@@ -233,6 +237,17 @@ export default async function BlogScoreResultPage({
     ...session.competitorDomains.map((domain) => ({ domain, isMine: false })),
   ];
 
+  const localExposureEntries: LocalExposureEntry[] = [
+    ...(session.businessName
+      ? [{ businessName: session.businessName, label: session.businessName, isMine: true }]
+      : []),
+    ...session.competitorBusinessNames.map((businessName) => ({
+      businessName,
+      label: businessName,
+      isMine: false,
+    })),
+  ];
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
       <div className="flex flex-col gap-1">
@@ -268,6 +283,13 @@ export default async function BlogScoreResultPage({
                 <Suspense fallback={<PanelSkeleton title="게시글별 분석" />}>
                   <PostAnalysisSection domains={postAnalysisDomains} />
                 </Suspense>
+                <Suspense fallback={<PanelSkeleton title="지역·플레이스 진단" />}>
+                  <LocalExposureSection
+                    keywords={session.keywords}
+                    entries={localExposureEntries}
+                    fetchedAt={session.searchedAt}
+                  />
+                </Suspense>
               </>
             ),
           },
@@ -286,13 +308,6 @@ export default async function BlogScoreResultPage({
                   <CompetitorExposureSection
                     keywords={session.keywords}
                     domains={exposureDomains}
-                    fetchedAt={session.searchedAt}
-                  />
-                </Suspense>
-                <Suspense fallback={<PanelSkeleton title="지역·플레이스 노출 순위" />}>
-                  <LocalExposureSection
-                    keywords={session.keywords}
-                    businessName={session.businessName}
                     fetchedAt={session.searchedAt}
                   />
                 </Suspense>

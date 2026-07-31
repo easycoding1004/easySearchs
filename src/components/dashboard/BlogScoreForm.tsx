@@ -14,6 +14,7 @@ export default function BlogScoreForm() {
   const router = useRouter();
   const [myBlogDomain, setMyBlogDomain] = useState("");
   const [businessName, setBusinessName] = useState("");
+  const [competitorBusinessNames, setCompetitorBusinessNames] = useState("");
   const [competitors, setCompetitors] = useState("");
   const [keywords, setKeywords] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,13 @@ export default function BlogScoreForm() {
       const res = await fetch("/api/blog-score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ myBlogDomain, businessName, competitors, keywords }),
+        body: JSON.stringify({
+          myBlogDomain,
+          businessName,
+          competitorBusinessNames,
+          competitors,
+          keywords,
+        }),
       });
 
       if (!res.ok) {
@@ -93,6 +100,20 @@ export default function BlogScoreForm() {
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
           placeholder="예: 이지카페 강남점"
+          className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
+          disabled={loading}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-ink">
+          비교 업체명 (선택, 콤마로 구분, 최대 {MAX_BLOG_SCORE_COMPETITORS}개)
+        </span>
+        <input
+          type="text"
+          value={competitorBusinessNames}
+          onChange={(e) => setCompetitorBusinessNames(e.target.value)}
+          placeholder="예: 경쟁카페 강남점, 경쟁카페 역삼점"
           className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
           disabled={loading}
         />

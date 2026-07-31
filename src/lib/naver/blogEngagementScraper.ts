@@ -22,7 +22,13 @@ import { createTtlCache } from "../utils/ttlCache";
 // "공유수"(shareCount) — also confirmed present, and simpler: it's already
 // embedded in the post page's own escaped-JSON blob (scrap.shareCount),
 // extracted the same way as commentCount below, no extra request needed.
-const RECENT_POST_SAMPLE = 8;
+// 2026-07: 8→50으로 상향(사용자 요청 — "댓글·공감·공유수 축을 최근 8개가
+// 아니라 더 넓게 잡아달라"). RSS 피드가 주는 최대치가 50개라 그 이상은 못
+// 늘림. 매일 글 쓰는 활발한 블로그는 도메인당 최대 100회 순차 요청(게시물당
+// 2번×400ms 간격)이 걸려 조회 시간이 8개 때보다 훨씬 길어짐 — 사용자가 이
+// 트레이드오프를 인지하고 선택함. ANALYSIS_CACHE_TTL_MS(6시간) 캐시가 있어
+// 같은 세션 재방문·직후 재조회는 이 비용을 다시 안 냄.
+const RECENT_POST_SAMPLE = 50;
 const REQUEST_TIMEOUT_MS = 8000;
 const REQUEST_SPACING_MS = 400;
 const USER_AGENT =
