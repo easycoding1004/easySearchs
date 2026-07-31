@@ -63,18 +63,18 @@ function parseRecord(page: PageObjectResponse): BlogScoreRecord {
     isMine,
     compositeScore: num(BLOG_SCORE_RECORD_PROPS.compositeScore),
     postVolume: num(BLOG_SCORE_RECORD_PROPS.postVolume),
-    keywordCoverage: num(BLOG_SCORE_RECORD_PROPS.keywordCoverage),
-    highVolumeCoverage: num(BLOG_SCORE_RECORD_PROPS.highVolumeCoverage),
-    lowCompetitionCoverage: num(BLOG_SCORE_RECORD_PROPS.lowCompetitionCoverage),
     exposureRank: num(BLOG_SCORE_RECORD_PROPS.exposureRank),
-    freshness: num(BLOG_SCORE_RECORD_PROPS.freshness),
     engagement: num(BLOG_SCORE_RECORD_PROPS.engagement),
+    reactionScore: num(BLOG_SCORE_RECORD_PROPS.reactionScore),
+    shareScore: num(BLOG_SCORE_RECORD_PROPS.shareScore),
     category: categoryText || null,
     todayVisitor: numOrNull(BLOG_SCORE_RECORD_PROPS.todayVisitor),
     totalVisitor: numOrNull(BLOG_SCORE_RECORD_PROPS.totalVisitor),
     subscriberCount: numOrNull(BLOG_SCORE_RECORD_PROPS.subscriberCount),
     postCount: numOrNull(BLOG_SCORE_RECORD_PROPS.postCount),
     avgRecentComments: numOrNull(BLOG_SCORE_RECORD_PROPS.avgRecentComments),
+    avgRecentReactions: numOrNull(BLOG_SCORE_RECORD_PROPS.avgRecentReactions),
+    avgRecentShares: numOrNull(BLOG_SCORE_RECORD_PROPS.avgRecentShares),
     topTerms,
     checkedAt,
   };
@@ -87,18 +87,18 @@ export async function createBlogScoreRecord(input: {
   isMine: boolean;
   compositeScore: number;
   postVolume: number;
-  keywordCoverage: number;
-  highVolumeCoverage: number;
-  lowCompetitionCoverage: number;
   exposureRank: number;
-  freshness: number;
   engagement: number;
+  reactionScore: number;
+  shareScore: number;
   category: string | null;
   todayVisitor: number | null;
   totalVisitor: number | null;
   subscriberCount: number | null;
   postCount: number | null;
   avgRecentComments: number | null;
+  avgRecentReactions: number | null;
+  avgRecentShares: number | null;
   topTerms: { term: string; count: number }[];
 }): Promise<string> {
   const page = await notion.pages.create({
@@ -119,18 +119,10 @@ export async function createBlogScoreRecord(input: {
       },
       [BLOG_SCORE_RECORD_PROPS.compositeScore]: { type: "number", number: input.compositeScore },
       [BLOG_SCORE_RECORD_PROPS.postVolume]: { type: "number", number: input.postVolume },
-      [BLOG_SCORE_RECORD_PROPS.keywordCoverage]: { type: "number", number: input.keywordCoverage },
-      [BLOG_SCORE_RECORD_PROPS.highVolumeCoverage]: {
-        type: "number",
-        number: input.highVolumeCoverage,
-      },
-      [BLOG_SCORE_RECORD_PROPS.lowCompetitionCoverage]: {
-        type: "number",
-        number: input.lowCompetitionCoverage,
-      },
       [BLOG_SCORE_RECORD_PROPS.exposureRank]: { type: "number", number: input.exposureRank },
-      [BLOG_SCORE_RECORD_PROPS.freshness]: { type: "number", number: input.freshness },
       [BLOG_SCORE_RECORD_PROPS.engagement]: { type: "number", number: input.engagement },
+      [BLOG_SCORE_RECORD_PROPS.reactionScore]: { type: "number", number: input.reactionScore },
+      [BLOG_SCORE_RECORD_PROPS.shareScore]: { type: "number", number: input.shareScore },
       ...(input.topTerms.length > 0
         ? {
             [BLOG_SCORE_RECORD_PROPS.topTerms]: {
@@ -186,6 +178,22 @@ export async function createBlogScoreRecord(input: {
             [BLOG_SCORE_RECORD_PROPS.avgRecentComments]: {
               type: "number" as const,
               number: input.avgRecentComments,
+            },
+          }
+        : {}),
+      ...(input.avgRecentReactions != null
+        ? {
+            [BLOG_SCORE_RECORD_PROPS.avgRecentReactions]: {
+              type: "number" as const,
+              number: input.avgRecentReactions,
+            },
+          }
+        : {}),
+      ...(input.avgRecentShares != null
+        ? {
+            [BLOG_SCORE_RECORD_PROPS.avgRecentShares]: {
+              type: "number" as const,
+              number: input.avgRecentShares,
             },
           }
         : {}),

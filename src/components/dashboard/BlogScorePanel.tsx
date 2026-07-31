@@ -4,32 +4,19 @@ import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 type AxisKey = (typeof RADAR_AXES)[number]["key"];
 
+const HEART_PATH =
+  "M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z";
+const SHARE_PATH =
+  "M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14";
+
 const AXIS_ICONS: Record<AxisKey, React.ReactNode> = {
-  postVolume: <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v6h6" />,
-  keywordCoverage: (
-    <>
-      <path d="M20 12l-8 8-9-9V4h7l10 8z" />
-      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
-    </>
-  ),
-  highVolumeCoverage: <path d="M3 17l6-6 4 4 8-8M15 6h6v6" />,
-  lowCompetitionCoverage: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="12" cy="12" r="0.5" fill="currentColor" stroke="none" />
-    </>
-  ),
   exposureRank: <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 3M17 6h3a3 3 0 01-3 3" />,
-  freshness: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 3" />
-    </>
-  ),
+  postCount: <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v6h6M8 13h8M8 17h5" />,
   engagement: (
     <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
   ),
+  reactionScore: <path d={HEART_PATH} />,
+  shareScore: <path d={SHARE_PATH} />,
 };
 
 type ProfileField =
@@ -38,7 +25,9 @@ type ProfileField =
   | "totalVisitor"
   | "subscriber"
   | "postCount"
-  | "recentComments";
+  | "recentComments"
+  | "recentReactions"
+  | "recentShares";
 
 const PROFILE_ICONS: Record<ProfileField, React.ReactNode> = {
   category: (
@@ -64,6 +53,8 @@ const PROFILE_ICONS: Record<ProfileField, React.ReactNode> = {
   recentComments: (
     <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
   ),
+  recentReactions: <path d={HEART_PATH} />,
+  recentShares: <path d={SHARE_PATH} />,
 };
 
 interface Band {
@@ -186,12 +177,16 @@ function BlogScoreCard({
   score,
   profile,
   avgRecentComments,
+  avgRecentReactions,
+  avgRecentShares,
   terms,
   rank,
 }: {
   score: RadarScore;
   profile: BlogProfileStats | null | undefined;
   avgRecentComments: number | null | undefined;
+  avgRecentReactions: number | null | undefined;
+  avgRecentShares: number | null | undefined;
   terms: { term: string; count: number }[] | undefined;
   rank: { position: number; total: number } | null;
 }) {
@@ -232,7 +227,7 @@ function BlogScoreCard({
         <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
           블로그 프로필 (네이버 공식 API 아님 — 공개 페이지 기준)
         </p>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           <ProfileStatCard field="category" value={profile?.category ?? "비공개"} label="카테고리" />
           <ProfileStatCard
             field="todayVisitor"
@@ -258,6 +253,16 @@ function BlogScoreCard({
             field="recentComments"
             value={formatDecimalCount(avgRecentComments ?? null)}
             label="최근 게시물 평균 댓글"
+          />
+          <ProfileStatCard
+            field="recentReactions"
+            value={formatDecimalCount(avgRecentReactions ?? null)}
+            label="최근 게시물 평균 공감"
+          />
+          <ProfileStatCard
+            field="recentShares"
+            value={formatDecimalCount(avgRecentShares ?? null)}
+            label="최근 게시물 평균 공유"
           />
         </div>
       </div>
@@ -314,6 +319,8 @@ export default function BlogScorePanel({
   fetchedAt,
   profileStats,
   avgRecentComments,
+  avgRecentReactions,
+  avgRecentShares,
   topTerms,
 }: {
   scores: RadarScore[];
@@ -321,6 +328,8 @@ export default function BlogScorePanel({
   fetchedAt: string;
   profileStats: Record<string, BlogProfileStats | null>;
   avgRecentComments: Record<string, number | null>;
+  avgRecentReactions: Record<string, number | null>;
+  avgRecentShares: Record<string, number | null>;
   topTerms: Record<string, { term: string; count: number }[]>;
 }) {
   const mine = scores.find((s) => s.isMine);
@@ -370,6 +379,8 @@ export default function BlogScorePanel({
             score={mine}
             profile={profileStats[mine.domain]}
             avgRecentComments={avgRecentComments[mine.domain]}
+            avgRecentReactions={avgRecentReactions[mine.domain]}
+            avgRecentShares={avgRecentShares[mine.domain]}
             terms={topTerms[mine.domain]}
             rank={
               showRank
@@ -384,6 +395,8 @@ export default function BlogScorePanel({
             score={c}
             profile={profileStats[c.domain]}
             avgRecentComments={avgRecentComments[c.domain]}
+            avgRecentReactions={avgRecentReactions[c.domain]}
+            avgRecentShares={avgRecentShares[c.domain]}
             terms={topTerms[c.domain]}
             rank={
               showRank

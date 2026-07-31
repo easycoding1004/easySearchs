@@ -6,6 +6,8 @@ import {
   SAMPLE_FETCHED_AT,
   SAMPLE_PROFILE_STATS,
   SAMPLE_AVG_RECENT_COMMENTS,
+  SAMPLE_AVG_RECENT_REACTIONS,
+  SAMPLE_AVG_RECENT_SHARES,
   SAMPLE_TOP_TERMS,
   SAMPLE_SEED,
   SAMPLE_NODES,
@@ -40,6 +42,8 @@ export default function SampleResultPreview() {
             fetchedAt={SAMPLE_FETCHED_AT}
             profileStats={SAMPLE_PROFILE_STATS}
             avgRecentComments={SAMPLE_AVG_RECENT_COMMENTS}
+            avgRecentReactions={SAMPLE_AVG_RECENT_REACTIONS}
+            avgRecentShares={SAMPLE_AVG_RECENT_SHARES}
             topTerms={SAMPLE_TOP_TERMS}
           />
         </div>

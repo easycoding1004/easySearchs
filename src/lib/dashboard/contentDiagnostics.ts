@@ -1,11 +1,9 @@
 import { searchBlog, type BlogSearchItem } from "../naver/openApiClient";
 import { normalizeDomain } from "./exposure";
 import { countTermFrequency, type TermFrequency } from "../utils/tokenize";
-import { parseNaverPostDate } from "../utils/naverDate";
 import type { NormalizedKeywordRow, CompetitionLevel } from "../naver/types";
 
 const MAX_SCAN_KEYWORDS = 8;
-const FRESHNESS_WINDOW_DAYS = 90;
 const TOP_TERMS_PER_DOMAIN = 12;
 
 export interface DomainKeywordHit {
@@ -14,43 +12,50 @@ export interface DomainKeywordHit {
   rank: number | null; // 1-based position in the scanned result set
   volume: number; // monthlyPcQcCnt + monthlyMobileQcCnt
   compIdx: CompetitionLevel | null;
-  latestPostDate: string | null; // YYYYMMDD, most recent matching post
 }
 
 export interface DomainContentProfile {
   domain: string;
   label: string;
   isMine: boolean;
-  postsSeen: number;
   terms: TermFrequency[];
   hits: DomainKeywordHit[];
 }
 
+// 2026-07 전면 재설계 (사용자 요청): 예전엔 5개 축 전부가 "제공된 키워드로
+// 검색했을 때 얼마나 잘 걸리는지"(키워드 커버리지/고검색량 공략도/저경쟁
+// 공략도/콘텐츠 최신성) 중심이었음. 사용자가 검색 상위노출·게시글 수·댓글
+// 수·공감 수·공유수로 완전히 바꿔달라고 요청했고, 그중 조회수·개설일·(공개
+// 데이터가 있는지 실측 재확인해본) 공감·공유수 조사 결과 조회수/개설일은
+// 여전히 못 찾았지만 공감·공유수는 실제로 공개 API/데이터로 확인됨
+// (blogEngagementScraper.ts 헤더 주석 참고) — 그래서 이 5개로 확정:
+// 검색 상위노출·게시글 수·댓글 수·공감 수·공유수. "검색 상위노출"만 키워드
+// 종속적이라 여전히 getContentProfiles()가 필요하고, 나머지 4개는 키워드와
+// 무관한 소스(블로그 프로필의 실제 포스팅 수 / 최근 게시물 댓글·공감·공유
+// 평균)에서 옴.
 export interface RadarScore {
   domain: string;
   label: string;
   isMine: boolean;
-  postVolume: number; // 0-100, relative to the max across compared domains
-  keywordCoverage: number; // 0-100
-  highVolumeCoverage: number; // 0-100, search-volume-weighted
-  lowCompetitionCoverage: number; // 0-100
-  exposureRank: number; // 0-100, higher = better average rank
-  freshness: number; // 0-100
-  engagement: number; // 0-100, relative to the max avg recent-post comment count across compared domains
+  exposureRank: number; // 검색 상위노출 — 0-100, 스캔한 키워드들의 평균 노출순위 기준
+  postCount: number; // 게시글 수 — 0-100, 비교 대상 중 실제 총 포스팅 수 상대값
+  engagement: number; // 댓글 수 — 0-100, 최근 게시물 평균 댓글수 상대값
+  reactionScore: number; // 공감 수 — 0-100, 최근 게시물 평균 공감수 상대값
+  shareScore: number; // 공유수 — 0-100, 최근 게시물 평균 공유수 상대값
 }
 
 export const RADAR_AXES: { key: keyof Omit<RadarScore, "domain" | "label" | "isMine">; label: string }[] = [
-  { key: "postVolume", label: "콘텐츠량" },
-  { key: "keywordCoverage", label: "키워드 커버리지" },
-  { key: "highVolumeCoverage", label: "고검색량 공략도" },
-  { key: "lowCompetitionCoverage", label: "저경쟁 공략도" },
-  { key: "exposureRank", label: "평균 노출순위" },
-  { key: "freshness", label: "콘텐츠 최신성" },
-  { key: "engagement", label: "사용자 반응" },
+  { key: "exposureRank", label: "검색 상위노출" },
+  { key: "postCount", label: "게시글 수" },
+  { key: "engagement", label: "댓글 수" },
+  { key: "reactionScore", label: "공감 수" },
+  { key: "shareScore", label: "공유수" },
 ];
 
-// One blog search per scanned keyword, shared across every domain being
-// compared (mine + competitors) — avoids N-per-domain API calls.
+// 키워드 검색으로 각 블로그의 노출 순위·자주 쓰는 단어(제목 형태소)를 모음
+// — RADAR_AXES 중 "검색 상위노출" 축과 화면의 "자주 쓰는 단어" 섹션이 여기서
+// 나온 데이터를 씀. 나머지 4개 축은 키워드와 무관한 별도 소스에서 오므로
+// applyPostCountScores/applyPostAnalysisScores가 나중에 채운다.
 export async function getContentProfiles(
   clusterNodes: NormalizedKeywordRow[],
   myDomain: string | null,
@@ -63,10 +68,9 @@ export async function getContentProfiles(
     ...competitorDomains.map((d) => ({ domain: d, label: d, isMine: false })),
   ];
 
-  const profiles = new Map<
-    string,
-    { hits: DomainKeywordHit[]; titles: string[]; postsSeen: number }
-  >(domains.map((d) => [d.domain, { hits: [], titles: [], postsSeen: 0 }]));
+  const profiles = new Map<string, { hits: DomainKeywordHit[]; titles: string[] }>(
+    domains.map((d) => [d.domain, { hits: [], titles: [] }])
+  );
 
   for (const node of scanNodes) {
     const volume = node.monthlyPcQcCnt + node.monthlyMobileQcCnt;
@@ -88,32 +92,18 @@ export async function getContentProfiles(
       const profile = profiles.get(domain)!;
 
       if (matches.length === 0) {
-        profile.hits.push({
-          keyword: node.relKeyword,
-          matched: false,
-          rank: null,
-          volume,
-          compIdx: node.compIdx,
-          latestPostDate: null,
-        });
+        profile.hits.push({ keyword: node.relKeyword, matched: false, rank: null, volume, compIdx: node.compIdx });
         continue;
       }
 
       const firstIndex = items.indexOf(matches[0]);
-      const latestPostDate = matches
-        .map((m) => m.postdate)
-        .sort()
-        .at(-1) ?? null;
-
       profile.hits.push({
         keyword: node.relKeyword,
         matched: true,
         rank: firstIndex + 1,
         volume,
         compIdx: node.compIdx,
-        latestPostDate,
       });
-      profile.postsSeen += matches.length;
       profile.titles.push(...matches.map((m) => m.title));
     }
   }
@@ -125,7 +115,6 @@ export async function getContentProfiles(
         domain,
         label,
         isMine,
-        postsSeen: profile.postsSeen,
         terms: await countTermFrequency(profile.titles, TOP_TERMS_PER_DOMAIN),
         hits: profile.hits,
       };
@@ -133,65 +122,68 @@ export async function getContentProfiles(
   );
 }
 
-export function computeRadarScores(profiles: DomainContentProfile[]): RadarScore[] {
-  const maxPosts = Math.max(1, ...profiles.map((p) => p.postsSeen));
-  const now = Date.now();
-
+// "검색 상위노출" 축만 채운 초기 RadarScore를 만든다 — 나머지 4개 축은 0으로
+// 시작해서 applyPostCountScores/applyPostAnalysisScores가 이어서 채움
+// (예전 applyEngagementScores와 같은 레이어링 방식).
+export function computeExposureScores(profiles: DomainContentProfile[]): RadarScore[] {
   return profiles.map((profile) => {
-    const hits = profile.hits;
-    const matchedHits = hits.filter((h) => h.matched);
-    const totalVolume = hits.reduce((sum, h) => sum + h.volume, 0);
-    const matchedVolume = matchedHits.reduce((sum, h) => sum + h.volume, 0);
-    const lowCompHits = hits.filter((h) => h.compIdx === "낮음");
-    const lowCompMatched = lowCompHits.filter((h) => h.matched);
-
+    const matchedHits = profile.hits.filter((h) => h.matched);
     const ranks = matchedHits.filter((h) => h.rank != null).map((h) => h.rank!);
     const avgRank = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : null;
-
-    const freshCount = matchedHits.filter((h) => {
-      if (!h.latestPostDate) return false;
-      const date = parseNaverPostDate(h.latestPostDate);
-      if (!date) return false;
-      const ageDays = (now - date.getTime()) / (1000 * 60 * 60 * 24);
-      return ageDays <= FRESHNESS_WINDOW_DAYS;
-    }).length;
 
     return {
       domain: profile.domain,
       label: profile.label,
       isMine: profile.isMine,
-      postVolume: Math.round((100 * profile.postsSeen) / maxPosts),
-      keywordCoverage: hits.length
-        ? Math.round((100 * matchedHits.length) / hits.length)
-        : 0,
-      highVolumeCoverage: totalVolume > 0 ? Math.round((100 * matchedVolume) / totalVolume) : 0,
-      lowCompetitionCoverage: lowCompHits.length
-        ? Math.round((100 * lowCompMatched.length) / lowCompHits.length)
-        : 0,
       exposureRank: avgRank != null ? Math.round(100 * (1 - (avgRank - 1) / 99)) : 0,
-      freshness: matchedHits.length ? Math.round((100 * freshCount) / matchedHits.length) : 0,
-      // Filled in separately by applyEngagementScores() — computing it here
-      // would require this function to know about recent-post comment
-      // scraping, which is a different data source (blog RSS + post pages,
-      // not the keyword-search hits this function scans).
+      postCount: 0,
       engagement: 0,
+      reactionScore: 0,
+      shareScore: 0,
     };
   });
 }
 
-// Layers in the "사용자 반응" axis after computeRadarScores(), since it comes
-// from a separate data source (recent-post comment counts, see
-// naver/blogEngagementScraper.ts) rather than the keyword-search hits every
-// other axis is built from.
-export function applyEngagementScores(
+// "게시글 수" 축 — 키워드 매칭 개수가 아니라 블로그 프로필의 실제 총 포스팅
+// 수(src/lib/naver/blogProfileScraper.ts의 postCount) 기준으로 비교 대상
+// 중 상대값을 매긴다.
+export function applyPostCountScores(
   scores: RadarScore[],
-  avgRecentComments: Map<string, number | null>
+  postCounts: Map<string, number | null>
 ): RadarScore[] {
-  const max = Math.max(1, ...scores.map((s) => avgRecentComments.get(s.domain) ?? 0));
+  const max = Math.max(1, ...scores.map((s) => postCounts.get(s.domain) ?? 0));
   return scores.map((s) => ({
     ...s,
-    engagement: Math.round((100 * (avgRecentComments.get(s.domain) ?? 0)) / max),
+    postCount: Math.round((100 * (postCounts.get(s.domain) ?? 0)) / max),
   }));
+}
+
+export interface PostAnalysisAverages {
+  avgComments: number | null;
+  avgReactions: number | null;
+  avgShares: number | null;
+}
+
+// "댓글 수"·"공감 수"·"공유수" 축 — 셋 다 blogEngagementScraper.ts의
+// fetchPostAnalysis() 결과(같은 최근 게시물 표본의 평균)에서 나오므로 한
+// 함수에서 같이 채운다.
+export function applyPostAnalysisScores(
+  scores: RadarScore[],
+  analysisByDomain: Map<string, PostAnalysisAverages | null>
+): RadarScore[] {
+  const maxComments = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgComments ?? 0));
+  const maxReactions = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgReactions ?? 0));
+  const maxShares = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgShares ?? 0));
+
+  return scores.map((s) => {
+    const a = analysisByDomain.get(s.domain);
+    return {
+      ...s,
+      engagement: Math.round((100 * (a?.avgComments ?? 0)) / maxComments),
+      reactionScore: Math.round((100 * (a?.avgReactions ?? 0)) / maxReactions),
+      shareScore: Math.round((100 * (a?.avgShares ?? 0)) / maxShares),
+    };
+  });
 }
 
 export function compositeScore(score: RadarScore): number {
@@ -205,13 +197,11 @@ export interface GapMessage {
 }
 
 const GAP_COPY: Record<string, string> = {
-  postVolume: "게시물 수가 경쟁사보다 적어요. 관련 주제로 글을 더 발행해보세요.",
-  keywordCoverage: "다루지 않은 연관 키워드가 많아요. 클러스터의 나머지 키워드로 글감을 확장해보세요.",
-  highVolumeCoverage: "검색량이 높은 키워드를 아직 다루지 않았어요. 이런 키워드부터 글을 써보면 좋아요.",
-  lowCompetitionCoverage: "상대적으로 경쟁이 낮은 키워드도 아직 안 다뤘어요. 빠르게 순위 잡기 좋은 기회예요.",
   exposureRank: "글은 있지만 검색 노출 순위가 낮아요. 제목에 핵심 키워드를 더 앞쪽에 배치해보세요.",
-  freshness: "관련 글이 오래됐어요. 최신 정보로 업데이트하거나 새 글을 발행해보세요.",
+  postCount: "게시물 수가 경쟁사보다 적어요. 관련 주제로 글을 더 발행해보세요.",
   engagement: "최근 게시물에 댓글이 적어요. 질문을 던지거나 답글을 다는 등 이웃과의 소통을 늘려보세요.",
+  reactionScore: "최근 게시물의 공감 수가 적어요. 독자가 반응하기 쉬운 결론·요약을 글 끝에 넣어보세요.",
+  shareScore: "최근 게시물이 잘 공유되지 않고 있어요. 체크리스트·정리글처럼 공유하고 싶은 내용을 더해보세요.",
 };
 
 const GAP_THRESHOLD = 40;

@@ -19,36 +19,32 @@ export const SAMPLE_SCORES: RadarScore[] = [
     domain: MY_DOMAIN,
     label: "내 블로그",
     isMine: true,
-    postVolume: 68,
-    keywordCoverage: 72,
-    highVolumeCoverage: 55,
-    lowCompetitionCoverage: 80,
     exposureRank: 60,
-    freshness: 75,
+    postCount: 68,
     engagement: 45,
+    reactionScore: 52,
+    shareScore: 38,
   },
   {
     domain: COMPETITOR_DOMAIN,
     label: COMPETITOR_DOMAIN,
     isMine: false,
-    postVolume: 85,
-    keywordCoverage: 60,
-    highVolumeCoverage: 70,
-    lowCompetitionCoverage: 50,
     exposureRank: 78,
-    freshness: 90,
+    postCount: 85,
     engagement: 65,
+    reactionScore: 70,
+    shareScore: 60,
   },
 ];
 
 export const SAMPLE_GAPS: GapMessage[] = [
   {
-    axis: "사용자 반응",
+    axis: "댓글 수",
     message: "최근 게시물에 댓글이 적어요. 질문을 던지거나 답글을 다는 등 이웃과의 소통을 늘려보세요.",
   },
   {
-    axis: "고검색량 공략도",
-    message: "검색량이 높은 키워드를 아직 다루지 않았어요. 이런 키워드부터 글을 써보면 좋아요.",
+    axis: "공유수",
+    message: "최근 게시물이 잘 공유되지 않고 있어요. 체크리스트·정리글처럼 공유하고 싶은 내용을 더해보세요.",
   },
 ];
 
@@ -74,6 +70,16 @@ export const SAMPLE_PROFILE_STATS: Record<string, BlogProfileStats | null> = {
 export const SAMPLE_AVG_RECENT_COMMENTS: Record<string, number | null> = {
   [MY_DOMAIN]: 1.2,
   [COMPETITOR_DOMAIN]: 3.4,
+};
+
+export const SAMPLE_AVG_RECENT_REACTIONS: Record<string, number | null> = {
+  [MY_DOMAIN]: 4.8,
+  [COMPETITOR_DOMAIN]: 9.6,
+};
+
+export const SAMPLE_AVG_RECENT_SHARES: Record<string, number | null> = {
+  [MY_DOMAIN]: 0.6,
+  [COMPETITOR_DOMAIN]: 1.8,
 };
 
 export const SAMPLE_TOP_TERMS: Record<string, { term: string; count: number }[]> = {

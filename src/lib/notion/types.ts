@@ -46,19 +46,19 @@ export interface BlogScoreRecord {
   label: string;
   isMine: boolean;
   compositeScore: number;
-  postVolume: number;
-  keywordCoverage: number;
-  highVolumeCoverage: number;
-  lowCompetitionCoverage: number;
-  exposureRank: number;
-  freshness: number;
-  engagement: number;
+  postVolume: number; // "게시글 수" 축 점수(0-100) — 2026-07부터 실제 총 포스팅 수(postCount) 기준으로 재산정, 프로퍼티명은 유지
+  exposureRank: number; // "검색 상위노출" 축 점수(0-100)
+  engagement: number; // "댓글 수" 축 점수(0-100)
+  reactionScore: number; // "공감 수" 축 점수(0-100)
+  shareScore: number; // "공유수" 축 점수(0-100)
   category: string | null;
   todayVisitor: number | null;
   totalVisitor: number | null;
   subscriberCount: number | null;
   postCount: number | null;
   avgRecentComments: number | null;
+  avgRecentReactions: number | null;
+  avgRecentShares: number | null;
   topTerms: { term: string; count: number }[];
   checkedAt: string;
 }

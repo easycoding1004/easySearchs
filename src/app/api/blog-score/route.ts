@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { getKeywordVolumes } from "@/lib/dashboard/keywordVolume";
 import {
   getContentProfiles,
-  computeRadarScores,
-  applyEngagementScores,
+  computeExposureScores,
+  applyPostCountScores,
+  applyPostAnalysisScores,
   buildGapMessages,
   compositeScore,
+  type PostAnalysisAverages,
 } from "@/lib/dashboard/contentDiagnostics";
 import { fetchBlogProfileStats } from "@/lib/naver/blogProfileScraper";
-import { fetchRecentEngagement } from "@/lib/naver/blogEngagementScraper";
+import { fetchPostAnalysis } from "@/lib/naver/blogEngagementScraper";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
 import { MAX_BLOG_SCORE_COMPETITORS, MAX_BLOG_SCORE_KEYWORDS, NOTION_WRITE_CONCURRENCY } from "@/lib/constants";
 import { createBlogScoreSession } from "@/lib/notion/blogScoreSessions";
@@ -56,14 +58,15 @@ export async function POST(request: Request) {
       send({ status: "키워드 검색량 조회 중...", progress: 5 });
       const nodes = keywords.length > 0 ? await getKeywordVolumes(keywords) : [];
 
-      send({ status: "콘텐츠 진단 분석 중...", progress: 15 });
+      send({ status: "검색 노출순위 확인 중...", progress: 15 });
       const profiles = await getContentProfiles(nodes, myBlogDomain, competitors);
       const profileByDomainKey = new Map(profiles.map((p) => [p.domain, p]));
-      const baseScores = computeRadarScores(profiles);
+      let scores = computeExposureScores(profiles);
 
       const domains = [myBlogDomain, ...competitors];
       const profileStatsByDomain = new Map<string, Awaited<ReturnType<typeof fetchBlogProfileStats>>>();
-      const avgCommentsByDomain = new Map<string, number | null>();
+      const analysisByDomain = new Map<string, PostAnalysisAverages | null>();
+      const postDetailsByDomain = new Map<string, Awaited<ReturnType<typeof fetchPostAnalysis>>>();
       for (let i = 0; i < domains.length; i++) {
         const domain = domains[i];
         const stepProgress = (offset: number) =>
@@ -77,17 +80,35 @@ export async function POST(request: Request) {
           profileStatsByDomain.set(domain, null);
         }
 
-        send({ status: `"${domain}" 최근 게시물 댓글 확인 중...`, progress: stepProgress(0.5) });
+        // 최근 게시물 댓글·공감·공유수 + 게시글별 상세(글자수·이미지수 등,
+        // "게시글별 분석" 섹션이 결과 페이지에서 같은 캐시로 재사용함) — 한
+        // 번의 fetchPostAnalysis 호출이 둘 다 채움(blogEngagementScraper.ts).
+        send({ status: `"${domain}" 최근 게시물 댓글·공감·공유 확인 중...`, progress: stepProgress(0.5) });
         try {
-          const engagement = await fetchRecentEngagement(domain);
-          avgCommentsByDomain.set(domain, engagement?.avgComments ?? null);
+          const analysis = await fetchPostAnalysis(domain);
+          postDetailsByDomain.set(domain, analysis);
+          analysisByDomain.set(
+            domain,
+            analysis
+              ? {
+                  avgComments: analysis.avgComments,
+                  avgReactions: analysis.avgReactions,
+                  avgShares: analysis.avgShares,
+                }
+              : null
+          );
         } catch (err) {
-          console.error(`[POST /api/blog-score] engagement fetch failed for "${domain}":`, err);
-          avgCommentsByDomain.set(domain, null);
+          console.error(`[POST /api/blog-score] post analysis fetch failed for "${domain}":`, err);
+          postDetailsByDomain.set(domain, null);
+          analysisByDomain.set(domain, null);
         }
       }
 
-      const scores = applyEngagementScores(baseScores, avgCommentsByDomain);
+      const postCountByDomain = new Map<string, number | null>(
+        domains.map((d) => [d, profileStatsByDomain.get(d)?.postCount ?? null])
+      );
+      scores = applyPostCountScores(scores, postCountByDomain);
+      scores = applyPostAnalysisScores(scores, analysisByDomain);
       const gaps = buildGapMessages(scores);
 
       send({ status: "결과 저장 중...", progress: 92 });
@@ -105,25 +126,26 @@ export async function POST(request: Request) {
       let savedCount = 0;
       await mapWithConcurrency(scores, NOTION_WRITE_CONCURRENCY, async (score) => {
         const profile = profileStatsByDomain.get(score.domain) ?? null;
+        const analysis = analysisByDomain.get(score.domain) ?? null;
         const result = await createBlogScoreRecord({
           sessionId,
           domain: score.domain,
           label: score.label,
           isMine: score.isMine,
           compositeScore: compositeScore(score),
-          postVolume: score.postVolume,
-          keywordCoverage: score.keywordCoverage,
-          highVolumeCoverage: score.highVolumeCoverage,
-          lowCompetitionCoverage: score.lowCompetitionCoverage,
+          postVolume: score.postCount,
           exposureRank: score.exposureRank,
-          freshness: score.freshness,
           engagement: score.engagement,
+          reactionScore: score.reactionScore,
+          shareScore: score.shareScore,
           category: profile?.category ?? null,
           todayVisitor: profile?.todayVisitorCount ?? null,
           totalVisitor: profile?.totalVisitorCount ?? null,
           subscriberCount: profile?.subscriberCount ?? null,
           postCount: profile?.postCount ?? null,
-          avgRecentComments: avgCommentsByDomain.get(score.domain) ?? null,
+          avgRecentComments: analysis?.avgComments ?? null,
+          avgRecentReactions: analysis?.avgReactions ?? null,
+          avgRecentShares: analysis?.avgShares ?? null,
           topTerms: profileByDomainKey.get(score.domain)?.terms ?? [],
         });
         savedCount++;

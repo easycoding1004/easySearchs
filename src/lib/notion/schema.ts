@@ -41,6 +41,13 @@ export const BLOG_SCORE_SESSION_PROPS = {
   relatedRecords: "관련 레코드",
 } as const;
 
+// 2026-07 블로그 지수 산정 방식 전면 개편(검색 상위노출·게시글수·댓글수·
+// 공감수·공유수 5개 축) — 사용자 요청으로 예전 키워드 커버리지 중심 산정을
+// 대체함. keywordCoverage/highVolumeCoverage/lowCompetitionCoverage/
+// freshness 4개 속성은 더 이상 코드에서 안 쓰지만, Notion 쪽 기존 데이터는
+// 건드리지 않고 그대로 둠(레거시 컬럼, additive-only 마이그레이션 원칙).
+// postVolume 속성은 이름·Notion 컬럼은 그대로 두고 의미만 "키워드 매칭
+// 게시물 수"에서 "게시글 수 축 점수(실제 총 포스팅 수 기준)"로 바뀜.
 export const BLOG_SCORE_RECORD_PROPS = {
   title: "도메인",
   label: "라벨",
@@ -48,11 +55,11 @@ export const BLOG_SCORE_RECORD_PROPS = {
   session: "소속 세션",
   compositeScore: "종합점수",
   postVolume: "콘텐츠량",
-  keywordCoverage: "키워드 커버리지",
-  highVolumeCoverage: "고검색량 공략도",
-  lowCompetitionCoverage: "저경쟁 공략도",
+  keywordCoverage: "키워드 커버리지", // 레거시, 더 이상 안 씀
+  highVolumeCoverage: "고검색량 공략도", // 레거시, 더 이상 안 씀
+  lowCompetitionCoverage: "저경쟁 공략도", // 레거시, 더 이상 안 씀
   exposureRank: "평균 노출순위",
-  freshness: "콘텐츠 최신성",
+  freshness: "콘텐츠 최신성", // 레거시, 더 이상 안 씀
   engagement: "사용자 반응",
   category: "카테고리",
   todayVisitor: "최근 방문자",
@@ -60,6 +67,10 @@ export const BLOG_SCORE_RECORD_PROPS = {
   subscriberCount: "이웃 수",
   postCount: "총 포스팅",
   avgRecentComments: "최근 댓글수",
+  avgRecentReactions: "최근 공감수",
+  avgRecentShares: "최근 공유수",
+  reactionScore: "공감수 점수",
+  shareScore: "공유수 점수",
   topTerms: "자주 쓰는 단어",
   checkedAt: "조회일시",
 } as const;

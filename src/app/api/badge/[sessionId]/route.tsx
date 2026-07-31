@@ -36,13 +36,11 @@ async function getCompositeScoreForSession(sessionId: string): Promise<number | 
     domain: mine.domain,
     label: mine.label,
     isMine: mine.isMine,
-    postVolume: mine.postVolume,
-    keywordCoverage: mine.keywordCoverage,
-    highVolumeCoverage: mine.highVolumeCoverage,
-    lowCompetitionCoverage: mine.lowCompetitionCoverage,
+    postCount: mine.postVolume,
     exposureRank: mine.exposureRank,
-    freshness: mine.freshness,
     engagement: mine.engagement,
+    reactionScore: mine.reactionScore,
+    shareScore: mine.shareScore,
   };
   const composite = compositeScore(score);
   cache.set(sessionId, composite);
