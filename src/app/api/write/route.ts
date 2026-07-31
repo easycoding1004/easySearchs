@@ -19,10 +19,6 @@ const MAX_TOTAL_IMAGE_BYTES = 18 * 1024 * 1024; // 18MB
 const MAX_PROMPT_LENGTH = 500;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
-// TEMP(테스트 목적, 사용자 요청): 하루 1회 제한을 임시로 꺼둠. 복구 요청 오면
-// 이 상수를 false로 되돌리고 src/app/write/page.tsx의 같은 이름 상수도 같이 되돌릴 것.
-const TEMP_DISABLE_DAILY_LIMIT = true;
-
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -32,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
   // 유료 API 남용 방지 — 계정당 하루 1회로 제한 (CLAUDE.md §16).
-  if (!TEMP_DISABLE_DAILY_LIMIT && hasUsedToday(user)) {
+  if (hasUsedToday(user)) {
     return NextResponse.json(
       { error: "오늘은 이미 사용하셨어요. 내일 다시 시도해 주세요." },
       { status: 429 }
