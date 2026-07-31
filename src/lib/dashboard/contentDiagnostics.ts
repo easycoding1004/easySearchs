@@ -122,20 +122,44 @@ export async function getContentProfiles(
   );
 }
 
-// "검색 상위노출" 축만 채운 초기 RadarScore를 만든다 — 나머지 4개 축은 0으로
-// 시작해서 applyPostCountScores/applyPostAnalysisScores가 이어서 채움
-// (예전 applyEngagementScores와 같은 레이어링 방식).
+// 2026-07 재점검(사용자 요청 — "논리적 오류 없는지 점검") 결과 두 가지 실제
+// 결함을 발견해 고침:
+// 1) 검색 상위노출 축이 "매칭된 키워드만" 평균 내고 있었음 — 8개 중 1개만
+//    1위이고 나머지 7개는 아예 안 뜨는 블로그도 avgRank=1이 되어 만점을
+//    받는 버그. 이제 스캔한 키워드 전체를 분모로 쓰고, 안 뜬 키워드는
+//    "최하위(WORST_RANK)"로 계산에 포함시켜 누락에 페널티를 준다.
+// 2) 게시글수/댓글수/공감수/공유수 4개 축이 "이번 조회에 함께 넣은 대상 중
+//    최댓값" 기준 상대점수였음 — 비교 블로그를 안 넣으면(선택 입력이라
+//    흔함) 분모가 자기 자신이 되어 값이 있으면 무조건 100점, 없으면 0점으로
+//    이진화되는 버그였고, 화면은 "10점 만점 절대 지수"처럼 보여주면서 실제
+//    로는 그때그때 비교 대상에 따라 같은 블로그도 점수가 요동치는 구조적
+//    모순이 있었음. 아래 고정 절대 임계값(*_CAP 상수) 기준으로 전부 바꿈 —
+//    이제 비교 대상을 뭘 넣든(0곳이든 10곳이든) 같은 블로그는 같은 점수가
+//    나온다. 임계값은 실측 표본(실제 조회 테스트로 확인한 블로그 몇 곳)을
+//    참고한 초기 추정치라, 실사용 데이터가 쌓이면 재조정이 필요할 수 있음
+//    — 감으로 더 세게 조이거나 풀지 말고, 실측 분포를 다시 확인한 뒤 바꿀 것.
+
+const WORST_RANK = 101; // MAX_DISPLAY(100)보다 한 칸 아래 — "전혀 안 뜸"의 값
+
+// "검색 상위노출" 축 — 스캔한 키워드 전체(맞은 것 + 놓친 것)를 분모로 평균
+// 순위를 낸다. 놓친 키워드는 WORST_RANK로 취급해 누락에 실제로 페널티를 줌.
 export function computeExposureScores(profiles: DomainContentProfile[]): RadarScore[] {
   return profiles.map((profile) => {
-    const matchedHits = profile.hits.filter((h) => h.matched);
-    const ranks = matchedHits.filter((h) => h.rank != null).map((h) => h.rank!);
-    const avgRank = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : null;
+    const scannedCount = profile.hits.length;
+    const rankSum = profile.hits.reduce(
+      (sum, h) => sum + (h.matched && h.rank != null ? h.rank : WORST_RANK),
+      0
+    );
+    const avgRank = scannedCount > 0 ? rankSum / scannedCount : null;
 
     return {
       domain: profile.domain,
       label: profile.label,
       isMine: profile.isMine,
-      exposureRank: avgRank != null ? Math.round(100 * (1 - (avgRank - 1) / 99)) : 0,
+      exposureRank:
+        avgRank != null
+          ? Math.round(100 * Math.max(0, 1 - (avgRank - 1) / (WORST_RANK - 1)))
+          : 0,
       postCount: 0,
       engagement: 0,
       reactionScore: 0,
@@ -144,17 +168,31 @@ export function computeExposureScores(profiles: DomainContentProfile[]): RadarSc
   });
 }
 
+// 게시글 수는 몇 개~몇 만 개까지 오더가 크게 벌어질 수 있어서(신규 블로그
+// vs 수년간 운영한 대형 블로그) 선형이 아니라 로그 스케일로 환산 — POST_COUNT_LOG_CAP
+// 이상이면 만점, 그 아래는 로그 곡선으로 완만하게 채점(선형이면 대형 블로그
+// 하나 때문에 나머지가 극단적으로 낮게 눌리는 문제가 있었음).
+const POST_COUNT_LOG_CAP = 1000;
+
+function logScale(value: number, cap: number): number {
+  if (value <= 0) return 0;
+  return Math.min(100, Math.round((100 * Math.log10(value + 1)) / Math.log10(cap + 1)));
+}
+
+function linearScale(value: number, cap: number): number {
+  if (value <= 0) return 0;
+  return Math.min(100, Math.round((100 * value) / cap));
+}
+
 // "게시글 수" 축 — 키워드 매칭 개수가 아니라 블로그 프로필의 실제 총 포스팅
-// 수(src/lib/naver/blogProfileScraper.ts의 postCount) 기준으로 비교 대상
-// 중 상대값을 매긴다.
+// 수(src/lib/naver/blogProfileScraper.ts의 postCount) 기준 절대 점수.
 export function applyPostCountScores(
   scores: RadarScore[],
   postCounts: Map<string, number | null>
 ): RadarScore[] {
-  const max = Math.max(1, ...scores.map((s) => postCounts.get(s.domain) ?? 0));
   return scores.map((s) => ({
     ...s,
-    postCount: Math.round((100 * (postCounts.get(s.domain) ?? 0)) / max),
+    postCount: logScale(postCounts.get(s.domain) ?? 0, POST_COUNT_LOG_CAP),
   }));
 }
 
@@ -164,24 +202,29 @@ export interface PostAnalysisAverages {
   avgShares: number | null;
 }
 
+// 게시물당 평균 댓글/공감/공유수가 이 값 이상이면 만점 — 네이버 블로그는
+// 댓글·공유보다 공감(라이킷)이 훨씬 흔하게 눌리는 편이라(실측 확인) 캡을
+// 다르게 잡음. 댓글·공유는 실측 표본에서 활발한 블로그도 평균 0~수 개
+// 수준이라 캡을 낮게 잡았고, 공감은 그보다 여유 있게 잡음.
+const MAX_AVG_COMMENTS = 5;
+const MAX_AVG_REACTIONS = 20;
+const MAX_AVG_SHARES = 3;
+
 // "댓글 수"·"공감 수"·"공유수" 축 — 셋 다 blogEngagementScraper.ts의
-// fetchPostAnalysis() 결과(같은 최근 게시물 표본의 평균)에서 나오므로 한
-// 함수에서 같이 채운다.
+// fetchPostAnalysis() 결과(같은 최근 게시물 표본의 평균)에서 나오는 절대
+// 점수. 세 축 다 선형 스케일 — 게시글 수와 달리 값 범위가 좁아(보통 한 자리
+// ~두 자리) 로그가 필요 없음.
 export function applyPostAnalysisScores(
   scores: RadarScore[],
   analysisByDomain: Map<string, PostAnalysisAverages | null>
 ): RadarScore[] {
-  const maxComments = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgComments ?? 0));
-  const maxReactions = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgReactions ?? 0));
-  const maxShares = Math.max(1, ...scores.map((s) => analysisByDomain.get(s.domain)?.avgShares ?? 0));
-
   return scores.map((s) => {
     const a = analysisByDomain.get(s.domain);
     return {
       ...s,
-      engagement: Math.round((100 * (a?.avgComments ?? 0)) / maxComments),
-      reactionScore: Math.round((100 * (a?.avgReactions ?? 0)) / maxReactions),
-      shareScore: Math.round((100 * (a?.avgShares ?? 0)) / maxShares),
+      engagement: linearScale(a?.avgComments ?? 0, MAX_AVG_COMMENTS),
+      reactionScore: linearScale(a?.avgReactions ?? 0, MAX_AVG_REACTIONS),
+      shareScore: linearScale(a?.avgShares ?? 0, MAX_AVG_SHARES),
     };
   });
 }
