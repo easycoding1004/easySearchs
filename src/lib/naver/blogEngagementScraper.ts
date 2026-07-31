@@ -260,28 +260,41 @@ export async function fetchPostTags(link: string): Promise<string[]> {
 // 모아 반환 — /api/blog-score가 세션 생성 시 점수(댓글수/공감수/공유수 축)
 // 계산에 쓰고, 결과 페이지의 "게시글별 분석" 섹션이 같은 캐시를 라이브로
 // 재사용해 표로 보여줌(둘 다 이 함수 하나를 호출 — 중복 스크래핑 없음).
-export async function fetchPostAnalysis(domain: string): Promise<BlogPostAnalysis | null> {
+// onPostDone(선택) — 게시글 하나 처리할 때마다 호출되는 진행률 콜백. 호출
+// 빈도를 늘리지 않으면서(네이버 쪽 요청 수는 그대로) 상위 호출자가 세밀한
+// 진행 상태를 스트리밍할 수 있게 함(2026-07 추가, "게시글별 분석" 진행바용).
+export async function fetchPostAnalysis(
+  domain: string,
+  onPostDone?: (done: number, total: number) => void
+): Promise<BlogPostAnalysis | null> {
   const blogId = extractBlogId(domain);
   if (!blogId) return null;
 
   const cached = analysisCache.get(blogId);
-  if (cached) return cached;
+  if (cached) {
+    onPostDone?.(cached.postsScanned, cached.postsScanned);
+    return cached;
+  }
 
   const rssItems = await fetchRecentRssItems(blogId);
   if (rssItems.length === 0) return null;
 
   const posts: PostDetail[] = [];
   for (const item of rssItems) {
+    // 게시물 페이지(댓글·공유·본문 통계)와 라이킷 공감수는 서로 다른
+    // 호스트라 병렬로 요청해도 같은 호스트에 몰리지 않음 — 순차로 두 번
+    // sleep하던 걸 한 번으로 줄여 도메인당 소요시간을 절반 가까이 단축.
     await sleep(REQUEST_SPACING_MS);
-    const html = await fetchText(`https://m.blog.naver.com/${blogId}/${item.logNo}`);
+    const [html, reactionCount] = await Promise.all([
+      fetchText(`https://m.blog.naver.com/${blogId}/${item.logNo}`),
+      fetchReactionCount(blogId, item.logNo, item.link),
+    ]);
     const commentCount = html ? extractCommentCount(html) : null;
     const shareCount = html ? extractShareCount(html) : null;
     const contentStats = html ? extractContentStats(html, blogId) : EMPTY_CONTENT_STATS;
 
-    await sleep(REQUEST_SPACING_MS);
-    const reactionCount = await fetchReactionCount(blogId, item.logNo, item.link);
-
     posts.push({ ...item, commentCount, reactionCount, shareCount, ...contentStats });
+    onPostDone?.(posts.length, rssItems.length);
   }
 
   if (posts.length === 0) return null;

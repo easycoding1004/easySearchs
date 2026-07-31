@@ -15,7 +15,6 @@ import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/li
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 import { NAVER_OPENAPI_CONCURRENCY } from "@/lib/constants";
-import { fetchPostAnalysis } from "@/lib/naver/blogEngagementScraper";
 import type { RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 
@@ -25,18 +24,12 @@ import CompetitorExposurePanel, { type ExposureDomainEntry } from "@/components/
 import LocalExposurePanel from "@/components/dashboard/LocalExposurePanel";
 import KeywordClusterPanel from "@/components/dashboard/KeywordClusterPanel";
 import BlogScorePanel from "@/components/dashboard/BlogScorePanel";
-import PostAnalysisPanel from "@/components/dashboard/PostAnalysisPanel";
+import PostAnalysisLive from "@/components/dashboard/PostAnalysisLive";
 import PanelError from "@/components/dashboard/PanelError";
 import PanelSkeleton from "@/components/dashboard/PanelSkeleton";
 import DashboardTabs from "@/components/dashboard/DashboardTabs";
 import ExportableImage from "@/components/dashboard/ExportableImage";
 import EmbedBadgeCard from "@/components/dashboard/EmbedBadgeCard";
-
-// 게시글별 분석은 fetchPostAnalysis 도메인당 최대 16개 순차 요청(RSS +
-// 게시물당 페이지/라이킷 2회, 400ms 간격)이 걸려 도메인이 많으면 느려짐 —
-// 그렇다고 전부 병렬로 던지면 네이버 쪽에 짧은 시간에 부담을 준다는 점은
-// 경쟁사 노출 패널과 동일한 트레이드오프라, 같은 절충으로 소수 동시성만 둠.
-const POST_ANALYSIS_CONCURRENCY = 3;
 
 export const dynamic = "force-dynamic";
 
@@ -168,21 +161,6 @@ async function KeywordClusterSection({
   );
 }
 
-async function PostAnalysisSection({
-  domains,
-}: {
-  domains: { domain: string; label: string; isMine: boolean }[];
-}) {
-  const result = await settle(() =>
-    mapWithConcurrency(domains, POST_ANALYSIS_CONCURRENCY, async (d) => ({
-      ...d,
-      analysis: await fetchPostAnalysis(d.domain),
-    }))
-  );
-  if (!result.ok) return <PanelError title="게시글별 분석" />;
-  return <PostAnalysisPanel entries={result.value} />;
-}
-
 export default async function BlogScoreResultPage({
   params,
 }: {
@@ -280,9 +258,7 @@ export default async function BlogScoreResultPage({
                   />
                 </ExportableImage>
                 <EmbedBadgeCard sessionId={sessionId} />
-                <Suspense fallback={<PanelSkeleton title="게시글별 분석" />}>
-                  <PostAnalysisSection domains={postAnalysisDomains} />
-                </Suspense>
+                <PostAnalysisLive domains={postAnalysisDomains} />
                 <Suspense fallback={<PanelSkeleton title="지역·플레이스 진단" />}>
                   <LocalExposureSection
                     keywords={session.keywords}
