@@ -1,12 +1,102 @@
 "use client";
 
 import { useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { TrendDirection } from "@/lib/naver/trendDirection";
 import type { AudienceDimension } from "@/lib/naver/audienceGroups";
+import type { TrendDataPoint } from "@/lib/naver/datalabSearchClient";
 
 interface GroupResult {
   label: string;
   direction: TrendDirection | null;
+  data: TrendDataPoint[];
+}
+
+// 프로젝트에 정의된 시리즈 색상은 5개뿐(globals.css) — 연령대(6그룹)는 마지막
+// 하나가 색을 재사용하지만, 범례가 있어 식별에는 문제없음.
+const SERIES_COLORS = [
+  "var(--chart-series-pc)",
+  "var(--chart-series-mobile)",
+  "var(--chart-series-tertiary)",
+  "var(--chart-series-quaternary)",
+  "var(--chart-series-quinary)",
+];
+
+interface ChartDatum {
+  period: string;
+  [group: string]: string | number;
+}
+
+// SearchTrendPanel.tsx의 mergeResults와 같은 방식 — 그룹별 기간 데이터를
+// 하나의 recharts용 배열로 합침(period 기준으로 정렬·병합).
+function mergeGroupData(groups: GroupResult[]): ChartDatum[] {
+  const periods = [...new Set(groups.flatMap((g) => g.data.map((d) => d.period)))].sort();
+  return periods.map((period) => {
+    const datum: ChartDatum = { period };
+    for (const group of groups) {
+      const point = group.data.find((d) => d.period === period);
+      if (point) datum[group.label] = point.ratio;
+    }
+    return datum;
+  });
+}
+
+function AudienceLineChart({ groups }: { groups: GroupResult[] }) {
+  const data = mergeGroupData(groups);
+  if (data.length === 0) return null;
+
+  return (
+    <div style={{ width: "100%", height: 220 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+          <CartesianGrid vertical={false} stroke="var(--chart-gridline)" />
+          <XAxis
+            dataKey="period"
+            axisLine={{ stroke: "var(--chart-baseline)" }}
+            tickLine={false}
+            tick={{ fontSize: 11, fill: "var(--chart-text-muted)" }}
+            minTickGap={16}
+          />
+          <YAxis
+            domain={[0, 100]}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 12, fill: "var(--chart-text-muted)" }}
+            width={32}
+          />
+          <Tooltip
+            contentStyle={{
+              background: "var(--chart-surface)",
+              border: "1px solid var(--chart-gridline)",
+              borderRadius: 6,
+              fontSize: 12,
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12, color: "var(--chart-text-secondary)" }} />
+          {groups.map((group, i) => (
+            <Line
+              key={group.label}
+              type="monotone"
+              dataKey={group.label}
+              stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 type DimensionState =
@@ -110,8 +200,14 @@ export default function KeywordAudiencePanel({ keyword }: { keyword: string }) {
               {gender.status === "error" && (
                 <p className="text-sm text-error">불러오지 못했어요.</p>
               )}
-              {gender.status === "ok" &&
-                gender.groups.map((g) => <GroupRow key={g.label} group={g} />)}
+              {gender.status === "ok" && (
+                <>
+                  {gender.groups.map((g) => (
+                    <GroupRow key={g.label} group={g} />
+                  ))}
+                  <AudienceLineChart groups={gender.groups} />
+                </>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -122,8 +218,14 @@ export default function KeywordAudiencePanel({ keyword }: { keyword: string }) {
               {device.status === "error" && (
                 <p className="text-sm text-error">불러오지 못했어요.</p>
               )}
-              {device.status === "ok" &&
-                device.groups.map((g) => <GroupRow key={g.label} group={g} />)}
+              {device.status === "ok" && (
+                <>
+                  {device.groups.map((g) => (
+                    <GroupRow key={g.label} group={g} />
+                  ))}
+                  <AudienceLineChart groups={device.groups} />
+                </>
+              )}
             </div>
           </div>
 
@@ -143,11 +245,14 @@ export default function KeywordAudiencePanel({ keyword }: { keyword: string }) {
             {age.status === "loading" && <p className="text-sm text-ink-muted">불러오는 중...</p>}
             {age.status === "error" && <p className="text-sm text-error">불러오지 못했어요.</p>}
             {age.status === "ok" && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {age.groups.map((g) => (
-                  <GroupRow key={g.label} group={g} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {age.groups.map((g) => (
+                    <GroupRow key={g.label} group={g} />
+                  ))}
+                </div>
+                <AudienceLineChart groups={age.groups} />
+              </>
             )}
           </div>
         </>

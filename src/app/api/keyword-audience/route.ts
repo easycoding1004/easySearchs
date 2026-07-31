@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchSearchTrend } from "@/lib/naver/datalabSearchClient";
+import { fetchSearchTrend, type TrendDataPoint } from "@/lib/naver/datalabSearchClient";
 import { computeTrendDirection, type TrendDirection } from "@/lib/naver/trendDirection";
 import {
   groupsForDimension,
@@ -23,8 +23,12 @@ function today(): string {
 }
 
 // 성별/기기/연령 각 그룹은 자기 구간 안에서 독립적으로 0~100 재정규화되기
-// 때문에(실측 확인, audienceGroups.ts 참고) 그룹 간 크기 비교는 근거가 없다
-// — 그래서 크기가 아니라 그룹별 "최근 3개월 추세 방향"만 반환한다.
+// 때문에(실측 확인, audienceGroups.ts 참고) 그룹 간 크기 비교는 근거가 없다.
+// 방향(상승/보합/하락)과 함께 원본 기간별 지수(data)도 그대로 반환하는데,
+// 이건 KeywordAudiencePanel.tsx가 그룹별 "추세 모양"을 꺾은선 그래프로
+// 그리기 위함 — 사용자가 그룹 간 겹친 그래프로 보여달라고 명시적으로
+// 요청해서 반영함(2026-07). 정규화 특성상 그룹 간 크기 비교는 여전히
+// 근거가 없다는 점을 화면 안내 문구로 계속 명시할 것.
 export async function POST(request: Request) {
   let keyword: string;
   let dimension: AudienceDimension;
@@ -51,7 +55,9 @@ export async function POST(request: Request) {
     const results = await mapWithConcurrency(
       groups,
       NAVER_OPENAPI_CONCURRENCY,
-      async (group): Promise<{ label: string; direction: TrendDirection | null }> => {
+      async (
+        group
+      ): Promise<{ label: string; direction: TrendDirection | null; data: TrendDataPoint[] }> => {
         try {
           const trend = await fetchSearchTrend(
             [{ groupName: group.label, keywords: [keyword] }],
@@ -60,16 +66,18 @@ export async function POST(request: Request) {
             "month",
             { device: group.device, gender: group.gender, ages: group.ages }
           );
+          const data = trend.results[0]?.data ?? [];
           return {
             label: group.label,
-            direction: computeTrendDirection(trend.results[0]?.data ?? []),
+            direction: computeTrendDirection(data),
+            data,
           };
         } catch (err) {
           console.error(
             `[POST /api/keyword-audience] failed for "${keyword}" / ${group.label}:`,
             err
           );
-          return { label: group.label, direction: null };
+          return { label: group.label, direction: null, data: [] };
         }
       }
     );
