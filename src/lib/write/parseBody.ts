@@ -113,11 +113,7 @@ function renderInlineToHtml(pieces: BodyInline[]): string {
     .join("");
 }
 
-// 네이버 에디터 붙여넣기용 HTML — 굵게/소제목/목록 서식은 살아남지만(실측
-// 확인) 이미지는 <img>를 넣어도 통째로 사라지므로 아예 embed하지 않고
-// 눈에 띄는 안내 문구(mark)로만 남긴다. 소제목엔 "◆", 목록엔 원문자(①②③)나
-// "▶"를 붙여서 상위노출 블로그들이 흔히 쓰는 스타일에 가깝게 함.
-export function renderBodyToHtml(blocks: BodyBlock[]): string {
+function renderBlocksToHtml(blocks: BodyBlock[], renderInline: (pieces: BodyInline[]) => string): string {
   return blocks
     .map((block) => {
       if (block.type === "heading") {
@@ -127,13 +123,52 @@ export function renderBodyToHtml(blocks: BodyBlock[]): string {
         return block.items
           .map((item, i) => {
             const marker = block.ordered ? (CIRCLED_DIGITS[i] ?? `${i + 1}.`) : "▶";
-            return `<p style="margin:0 0 8px;line-height:1.7;"><span style="color:#c2410c;font-weight:700;margin-right:6px;">${marker}</span>${renderInlineToHtml(item)}</p>`;
+            return `<p style="margin:0 0 8px;line-height:1.7;"><span style="color:#c2410c;font-weight:700;margin-right:6px;">${marker}</span>${renderInline(item)}</p>`;
           })
           .join("\n");
       }
-      return `<p style="margin:0 0 14px;line-height:1.7;">${renderInlineToHtml(block.inline)}</p>`;
+      return `<p style="margin:0 0 14px;line-height:1.7;">${renderInline(block.inline)}</p>`;
     })
     .join("\n");
+}
+
+// 네이버 에디터 붙여넣기용 HTML — 굵게/소제목/목록 서식은 살아남지만(실측
+// 확인) 이미지는 <img>를 넣어도 통째로 사라지므로 아예 embed하지 않고
+// 눈에 띄는 안내 문구(mark)로만 남긴다. 소제목엔 "◆", 목록엔 원문자(①②③)나
+// "▶"를 붙여서 상위노출 블로그들이 흔히 쓰는 스타일에 가깝게 함.
+export function renderBodyToHtml(blocks: BodyBlock[]): string {
+  return renderBlocksToHtml(blocks, renderInlineToHtml);
+}
+
+function renderInlineToHtmlForExtension(pieces: BodyInline[]): string {
+  return pieces
+    .map((piece) => {
+      if (piece.type === "text") return escapeHtmlText(piece.text);
+      if (piece.type === "em") {
+        return `<strong style="background:#fed7aa;color:#9a3412;font-weight:700;padding:0 3px;border-radius:3px;">${escapeHtmlText(piece.text)}</strong>`;
+      }
+      // 2026-08: 크롬 확장이 사진/AI이미지는 네이버 업로드 API로 재업로드한
+      // 뒤 진짜 CDN URL로 이 자리를 치환함(§CLAUDE.md 17.5) — 그래서 여기선
+      // src 없는 <img data-ezzsearch-token>만 남겨두고, content-editor.js가
+      // 토큰을 보고 실제 src를 채워 넣는다. 스톡이미지는 아직 재업로드 대상이
+      // 아니라서(Pixabay 원격 URL이라 그대로 두면 네이버가 걸러낼 가능성이
+      // 높음 — 실측 안 함, 범위 밖) 기존과 동일한 안내 문구로 남김.
+      const isAutoInsertable = /^(사진\d+|AI이미지\d+)$/.test(piece.token);
+      if (isAutoInsertable) {
+        const alt = piece.caption ? escapeHtmlText(piece.caption) : escapeHtmlText(piece.token);
+        return `<img data-ezzsearch-token="${escapeHtmlText(piece.token)}" alt="${alt}" style="max-width:100%;" />`;
+      }
+      const label = describeImageToken(piece.token) + (piece.caption ? ` — ${piece.caption}` : "");
+      return `<mark style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리 (사진을 직접 끼워 넣어주세요)</mark>`;
+    })
+    .join("");
+}
+
+// renderBodyToHtml의 변형 — "확장으로 보내기"에서만 씀. 사진/AI이미지 자리를
+// 안내 문구가 아니라 (아직 src 없는) <img data-ezzsearch-token> 플레이스홀더로
+// 렌더링해서, 크롬 확장이 실제 업로드 URL로 치환한 뒤 붙여넣을 수 있게 함.
+export function renderBodyToHtmlForExtension(blocks: BodyBlock[]): string {
+  return renderBlocksToHtml(blocks, renderInlineToHtmlForExtension);
 }
 
 export interface ResolvedImage {

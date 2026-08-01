@@ -91,16 +91,92 @@ function stripHtmlToText(html) {
   return div.textContent || "";
 }
 
+// data:image/...;base64,XXXX → Blob. 확장이 /write에서 받은 사진·AI이미지는
+// chrome.storage에 넣으려고 base64 문자열로 와 있어서(파일 객체는 직접
+// 저장 못 함), 실제 업로드하려면 바이너리로 되돌려야 함.
+function dataUrlToBlob(dataUrl) {
+  const [meta, data] = dataUrl.split(",");
+  const mime = meta.match(/data:(.*?);base64/)?.[1] || "image/png";
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+function getUploadUrl() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "GET_UPLOAD_URL" }, (response) => resolve(response?.url ?? null));
+  });
+}
+
+// ⚠️ 미검증 코드 — §CLAUDE.md 17.5 참고. 네이버 blog.upphoto.naver.com의
+// simpleUpload 엔드포인트는 공식 문서가 없는 비공개 API라, 실제 캡처한
+// 요청 하나(multipart/form-data, 필드명 "image")를 그대로 흉내 냄. 응답은
+// XML이고 <url> 태그가 CDN 절대경로가 아니라 blogfiles.pstatic.net 기준
+// 상대경로만 줌(실측 확인) — 그래서 여기서 도메인을 직접 붙임. ?type=s2 같은
+// 쿼리를 안 붙여야 원본 크기로 붙여넣기된다는 것도 실측으로 확인함.
+async function uploadImageToNaver(uploadUrl, dataUrl, filename) {
+  const blob = dataUrlToBlob(dataUrl);
+  const formData = new FormData();
+  formData.append("image", blob, filename);
+  const res = await fetch(uploadUrl, { method: "POST", body: formData });
+  if (!res.ok) throw new Error(`업로드 실패 (HTTP ${res.status})`);
+  const xmlText = await res.text();
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  const path = doc.querySelector("url")?.textContent;
+  if (!path) throw new Error("업로드 응답에서 이미지 경로를 찾지 못함");
+  return `https://blogfiles.pstatic.net${path}`;
+}
+
+// draft.html에 있는 <img data-ezzsearch-token="사진1"> 같은 플레이스홀더를
+// 실제 네이버 CDN 이미지로 채워 넣는다 — 재업로드할 이미지가 있는데 아직 이
+// 세션에서 네이버 업로드 URL을 못 봤으면(사용자가 이 에디터에서 사진을 한
+// 번도 안 올려봤으면), 그 URL 자체를 모르니 사진 자리는 그대로 두고 텍스트
+// 안내만 남김 — 사용자가 사진 1장을 수동으로 올리고 나면 다음 시도부터는
+// 자동으로 됨(§CLAUDE.md 17.5의 "세션당 1회 수동 업로드 필요" 제약).
+async function resolveImagePlaceholders(html, images) {
+  const tokens = Object.keys(images || {});
+  if (tokens.length === 0) return { html, uploadedCount: 0, needsManualUploadFirst: false };
+
+  const uploadUrl = await getUploadUrl();
+  if (!uploadUrl) {
+    return { html, uploadedCount: 0, needsManualUploadFirst: true };
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  let uploadedCount = 0;
+  for (const token of tokens) {
+    const imgEl = container.querySelector(`img[data-ezzsearch-token="${CSS.escape(token)}"]`);
+    if (!imgEl) continue;
+    try {
+      const src = await uploadImageToNaver(uploadUrl, images[token], `${token}.png`);
+      imgEl.setAttribute("src", src);
+      imgEl.removeAttribute("data-ezzsearch-token");
+      uploadedCount++;
+    } catch (err) {
+      console.warn(`[ezzsearch] image upload failed for ${token}:`, err);
+      imgEl.replaceWith(document.createTextNode(`[${token} 자동 업로드 실패 — 직접 넣어주세요]`));
+    }
+  }
+  return { html: container.innerHTML, uploadedCount, needsManualUploadFirst: false };
+}
+
 async function insertDraft(draft) {
   const titleEl = findFirst(SELECTORS.title);
   const bodyEl = findFirst(SELECTORS.body);
+
+  const { html, uploadedCount, needsManualUploadFirst } = await resolveImagePlaceholders(
+    draft.html,
+    draft.images
+  );
 
   if (!titleEl && !bodyEl) {
     showToast(
       "에디터 입력창을 찾지 못했어요 — 클립보드에는 복사해뒀으니 Ctrl+V로 직접 붙여넣어 주세요.",
       true
     );
-    await copyToRealClipboard(draft.html, `${draft.title}\n\n${stripHtmlToText(draft.html)}`);
+    await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
     return;
   }
 
@@ -113,13 +189,23 @@ async function insertDraft(draft) {
     }
   }
   if (bodyEl) {
-    simulatePaste(bodyEl, draft.html, stripHtmlToText(draft.html));
+    simulatePaste(bodyEl, html, stripHtmlToText(html));
   }
-  await copyToRealClipboard(draft.html, `${draft.title}\n\n${stripHtmlToText(draft.html)}`);
+  await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
 
-  showToast(
-    "제목·본문을 넣어봤어요 — 반영이 안 됐다면 Ctrl+V로 직접 붙여넣어 주세요(클립보드에도 복사해뒀어요). 사진은 직접 업로드해주세요."
-  );
+  if (needsManualUploadFirst) {
+    showToast(
+      "제목·본문을 넣어봤어요. 사진은 이 에디터에서 아직 업로드 이력이 없어 자동으로 못 넣었어요 — 사진 1장을 직접 한 번 업로드하시면, 그다음부터는 이지서치가 자동으로 올려드려요."
+    );
+  } else if (uploadedCount > 0) {
+    showToast(
+      `제목·본문에 사진 ${uploadedCount}장까지 자동으로 넣어봤어요 — 반영이 안 됐다면 Ctrl+V로 직접 붙여넣어 주세요(클립보드에도 복사해뒀어요).`
+    );
+  } else {
+    showToast(
+      "제목·본문을 넣어봤어요 — 반영이 안 됐다면 Ctrl+V로 직접 붙여넣어 주세요(클립보드에도 복사해뒀어요)."
+    );
+  }
   chrome.storage.local.remove(DRAFT_KEY);
   removeInsertButton();
 }

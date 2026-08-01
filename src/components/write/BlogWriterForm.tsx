@@ -7,6 +7,7 @@ import {
   parseBody,
   stripBodyMarkup,
   renderBodyToHtml,
+  renderBodyToHtmlForExtension,
   createImageResolver,
   escapeHtmlText,
   CIRCLED_DIGITS,
@@ -319,17 +320,49 @@ export default function BlogWriterForm({
     }
   }
 
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
   // 크롬 확장(2026-08 추가)으로 초안을 넘겨서, 네이버 블로그 에디터 탭에서
   // 자동 붙여넣기 버튼이 뜨게 함 — window.postMessage로만 통신하고 확장
   // ID를 이 코드가 알 필요는 없음(확장이 설치돼 있으면 write 페이지에 심어둔
   // content script가 이 메시지를 받아 자기 background로 중계함). 확장이 없으면
   // 아무도 안 받으니, 짧은 시간 안에 ACK가 안 오면 "설치 안 된 것 같다"고
-  // 안내함 — handleCopyRich와 같은 html(renderBodyToHtml)을 그대로 재사용해서
-  // 붙여넣기 결과가 "서식 포함 복사"와 항상 같도록 함.
-  function handleSendToExtension() {
+  // 안내함.
+  //
+  // html은 renderBodyToHtml(서식 포함 복사와 동일)이 아니라
+  // renderBodyToHtmlForExtension을 씀 — 사진/AI이미지 자리가 안내 문구
+  // 대신 <img data-ezzsearch-token> 플레이스홀더로 남아서, 확장이 실제
+  // 네이버 CDN에 재업로드한 뒤 그 자리를 채워 넣을 수 있게 함(§CLAUDE.md
+  // 17.5). 사진은 File을 base64로 읽어서 같이 보냄 — blob: URL은 이
+  // 탭에서만 유효해서 확장(다른 탭)에 그대로 못 넘김. 스톡이미지는 이번
+  // 범위에서 자동 삽입 대상이 아니라 images에 안 담음(기존처럼 안내
+  // 문구로 남음).
+  async function handleSendToExtension() {
     if (!result) return;
     const blocks = parseBody(result.body);
-    const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks)}`;
+    const bodyHtml = renderBodyToHtmlForExtension(blocks);
+    const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${bodyHtml}`;
+
+    const images: Record<string, string> = {};
+    await Promise.all(
+      files.map(async (file, i) => {
+        try {
+          images[`사진${i + 1}`] = await readFileAsDataUrl(file);
+        } catch {
+          // 이 사진 하나만 자동 삽입에서 빠짐 — 나머지는 계속 진행.
+        }
+      })
+    );
+    result.aiImages.forEach((img, i) => {
+      if (img) images[`AI이미지${i + 1}`] = img.dataUrl;
+    });
 
     function onAck(event: MessageEvent) {
       if (event.source !== window) return;
@@ -350,7 +383,7 @@ export default function BlogWriterForm({
       {
         source: "ezzsearch-write",
         type: "SEND_DRAFT",
-        payload: { title: result.title, html, tags: result.tags },
+        payload: { title: result.title, html, tags: result.tags, images },
       },
       window.location.origin
     );
