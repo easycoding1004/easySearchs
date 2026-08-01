@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>이지서치</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="../icons/icon32.png" alt="" />
+      <h1>이지서치</h1>
+    </header>
+
+    <form id="search-form">
+      <input id="keyword-input" type="text" placeholder="키워드를 입력하세요" autocomplete="off" />
+      <button type="submit">조회</button>
+    </form>
+
+    <div id="status" class="status" hidden></div>
+
+    <section id="result" class="result" hidden>
+      <div class="result-header">
+        <span id="result-keyword" class="result-keyword"></span>
+        <button id="favorite-toggle" class="star-btn" type="button" title="즐겨찾기">☆</button>
+      </div>
+      <div class="result-counts">
+        <div><span class="label">PC</span><span id="result-pc" class="value"></span></div>
+        <div><span class="label">모바일</span><span id="result-mobile" class="value"></span></div>
+        <div><span class="label">합계</span><span id="result-total" class="value"></span></div>
+      </div>
+      <ul id="result-related" class="related-list"></ul>
+    </section>
+
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" data-tab="recent">최근 검색</button>
+      <button type="button" class="tab-btn" data-tab="favorites">즐겨찾기</button>
+    </nav>
+    <ul id="recent-list" class="item-list"></ul>
+    <ul id="favorites-list" class="item-list" hidden></ul>
+
+    <footer>
+      <a id="open-site" href="https://ezzsearch.com" target="_blank" rel="noopener noreferrer"
+        >이지서치에서 더 보기 ↗</a
+      >
+    </footer>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
