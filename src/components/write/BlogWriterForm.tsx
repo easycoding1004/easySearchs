@@ -144,6 +144,7 @@ export default function BlogWriterForm({
   const [richCopied, setRichCopied] = useState(false);
   const [plainCopied, setPlainCopied] = useState(false);
   const [copiedTagIndex, setCopiedTagIndex] = useState<number | null>(null);
+  const [extensionStatus, setExtensionStatus] = useState<"idle" | "sent" | "not-found">("idle");
 
   // 생성된 글에 대한 수정 요청 — 새 원본 생성(handleSubmit)마다 0으로 초기화됨.
   const [revisionInstruction, setRevisionInstruction] = useState("");
@@ -318,6 +319,43 @@ export default function BlogWriterForm({
     }
   }
 
+  // 크롬 확장(2026-08 추가)으로 초안을 넘겨서, 네이버 블로그 에디터 탭에서
+  // 자동 붙여넣기 버튼이 뜨게 함 — window.postMessage로만 통신하고 확장
+  // ID를 이 코드가 알 필요는 없음(확장이 설치돼 있으면 write 페이지에 심어둔
+  // content script가 이 메시지를 받아 자기 background로 중계함). 확장이 없으면
+  // 아무도 안 받으니, 짧은 시간 안에 ACK가 안 오면 "설치 안 된 것 같다"고
+  // 안내함 — handleCopyRich와 같은 html(renderBodyToHtml)을 그대로 재사용해서
+  // 붙여넣기 결과가 "서식 포함 복사"와 항상 같도록 함.
+  function handleSendToExtension() {
+    if (!result) return;
+    const blocks = parseBody(result.body);
+    const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks)}`;
+
+    function onAck(event: MessageEvent) {
+      if (event.source !== window) return;
+      if (event.data?.source !== "ezzsearch-extension" || event.data?.type !== "DRAFT_ACK") return;
+      window.removeEventListener("message", onAck);
+      clearTimeout(timeoutId);
+      setExtensionStatus("sent");
+      setTimeout(() => setExtensionStatus("idle"), 3000);
+    }
+    window.addEventListener("message", onAck);
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener("message", onAck);
+      setExtensionStatus("not-found");
+      setTimeout(() => setExtensionStatus("idle"), 4000);
+    }, 800);
+
+    window.postMessage(
+      {
+        source: "ezzsearch-write",
+        type: "SEND_DRAFT",
+        payload: { title: result.title, html, tags: result.tags },
+      },
+      window.location.origin
+    );
+  }
+
   // 태그는 한 번에 여러 개를 붙여넣을 수 없음 — 네이버 태그 입력창은 쉼표나
   // Enter 키 입력 이벤트로만 태그를 분리 인식하고, 붙여넣기로 들어온 텍스트는
   // 쉼표까지 포함해서 통째로 태그 하나로 인식됨(사용자 실측 확인). 그래서
@@ -475,8 +513,20 @@ export default function BlogWriterForm({
               >
                 {richCopied ? "복사됐어요" : "서식 포함 복사"}
               </button>
+              <button
+                type="button"
+                onClick={handleSendToExtension}
+                className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
+              >
+                {extensionStatus === "sent" ? "확장으로 보냈어요" : "확장으로 보내기"}
+              </button>
             </div>
           </div>
+          {extensionStatus === "not-found" && (
+            <p className="text-xs text-error">
+              확장 프로그램이 설치되어 있지 않은 것 같아요 — 설치 후 이 페이지를 새로고침해 주세요.
+            </p>
+          )}
           <p className="text-xs text-ink-muted">
             사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
             저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.

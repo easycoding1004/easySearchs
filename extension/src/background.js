@@ -2,9 +2,22 @@ import { API_BASE_URL } from "./config.js";
 
 const CONTEXT_MENU_ID = "ezzsearch-lookup";
 const RECENT_KEY = "recentSearches";
-const FAVORITES_KEY = "favorites";
+const DRAFT_KEY = "pendingDraft"; // 2026-08: /write에서 넘겨받은 초안(제목/HTML/태그)
 const MAX_RECENT = 20;
 const NOTIFICATION_URL_MAP = {}; // notificationId -> url, for onClicked routing
+
+// content-write-bridge.js가 중계하는 초안 저장 — 네이버 에디터 탭의
+// content-editor.js가 storage.onChanged로 이 값을 감지해서 "붙여넣기" 버튼을
+// 띄움. savedAt을 같이 저장해서, 너무 오래된 초안(예: 며칠 전 것)이 뜬금없이
+// 다시 뜨는 걸 에디터 쪽에서 걸러낼 수 있게 함.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "STORE_DRAFT") return;
+  chrome.storage.local.set(
+    { [DRAFT_KEY]: { ...message.payload, savedAt: Date.now() } },
+    () => sendResponse({ ok: true })
+  );
+  return true; // sendResponse가 비동기로 불릴 것임을 알림
+});
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
