@@ -69,6 +69,21 @@ function findFirst(selectors) {
   return null;
 }
 
+// 2026-08 실측 확인 — 제목·본문 모두 focus()를 걸어도 "focus did not
+// stick"으로 매번 실패하는 게 확인됨. SELECTORS로 찾은 요소가 실제로는
+// contenteditable이 걸린 진짜 편집 지점이 아니라 그걸 감싸는 바깥 컨테이너일
+// 가능성이 높음(§CLAUDE.md 17.4 — contenteditable 속성 확인은 애초에 실측
+// 범위 밖이었음, 실제 DOM 캡처 스크린샷도 class만 보여줬지 이 속성 자체는
+// 안 보임). 자기 자신이 contenteditable이 아니면 그 안에서 진짜
+// contenteditable 요소를 찾아 그걸 실제 대상으로 쓴다 — 못 찾으면 원래
+// 요소라도 그대로 반환(기존 동작 유지, 새로운 실패 경로를 안 만듦).
+function resolveEditableTarget(el) {
+  if (!el) return null;
+  if (el.getAttribute("contenteditable") === "true") return el;
+  const inner = el.querySelector('[contenteditable="true"]');
+  return inner || el;
+}
+
 function showToast(message, isError = false) {
   const toast = document.createElement("div");
   toast.textContent = message;
@@ -329,6 +344,15 @@ async function insertDraft(draft) {
   const titleEl = findFirst(SELECTORS.title);
   const bodyEl = findFirst(SELECTORS.body);
   log("insertDraft: titleEl=", !!titleEl, "bodyEl=", !!bodyEl);
+  // SELECTORS로 찾은 요소가 실제 편집 가능한(contenteditable) 지점이
+  // 아니라 그걸 감싸는 컨테이너일 수 있음 — focus()가 안 먹히는 원인으로
+  // 실측 확인됨(resolveEditableTarget 정의부 주석 참고). 이후 모든
+  // 포커스·삽입 시도는 이 "진짜 대상"을 씀.
+  const titleTarget = resolveEditableTarget(titleEl);
+  const bodyTarget = resolveEditableTarget(bodyEl);
+  if (titleTarget !== titleEl || bodyTarget !== bodyEl) {
+    log("insertDraft: resolved inner editable target", "title changed=", titleTarget !== titleEl, "body changed=", bodyTarget !== bodyEl);
+  }
 
   const { html, uploadedCount, needsManualUploadFirst } = await resolveImagePlaceholders(
     draft.html,
@@ -347,34 +371,34 @@ async function insertDraft(draft) {
   let titleInserted = false;
   let bodyInserted = false;
 
-  if (titleEl) {
-    if ("value" in titleEl) {
-      titleEl.value = draft.title;
-      titleEl.dispatchEvent(new Event("input", { bubbles: true }));
+  if (titleTarget) {
+    if ("value" in titleTarget) {
+      titleTarget.value = draft.title;
+      titleTarget.dispatchEvent(new Event("input", { bubbles: true }));
       titleInserted = true;
     } else {
-      titleInserted = await insertViaDebugger(titleEl, draft.title);
+      titleInserted = await insertViaDebugger(titleTarget, draft.title);
       log("title insertViaDebugger=", titleInserted);
       if (!titleInserted) {
-        titleInserted = insertViaExecCommand(titleEl, draft.title, null);
+        titleInserted = insertViaExecCommand(titleTarget, draft.title, null);
         log("title insertViaExecCommand=", titleInserted);
       }
-      if (!titleInserted) simulatePaste(titleEl, draft.title, draft.title);
+      if (!titleInserted) simulatePaste(titleTarget, draft.title, draft.title);
     }
   }
-  if (bodyEl) {
+  if (bodyTarget) {
     // CDP Input.insertText는 평문만 넣을 수 있어(서식 없음) — 자동 삽입
     // 성공을 우선하기로 했으므로(사용자 요청) 평문으로라도 자동으로 들어가는
     // 쪽을 먼저 시도하고, 실패하면 서식이 남아있는 execCommand(insertHTML)로
     // 폴백한다. 어느 쪽이든 서식 포함 버전은 클립보드에 항상 같이 복사해두므로
     // (아래 copyToRealClipboard) 필요하면 사용자가 직접 다시 붙여넣을 수 있음.
-    bodyInserted = await insertViaDebugger(bodyEl, stripHtmlToText(html));
+    bodyInserted = await insertViaDebugger(bodyTarget, stripHtmlToText(html));
     log("body insertViaDebugger=", bodyInserted);
     if (!bodyInserted) {
-      bodyInserted = insertViaExecCommand(bodyEl, stripHtmlToText(html), html);
+      bodyInserted = insertViaExecCommand(bodyTarget, stripHtmlToText(html), html);
       log("body insertViaExecCommand=", bodyInserted);
     }
-    if (!bodyInserted) simulatePaste(bodyEl, html, stripHtmlToText(html));
+    if (!bodyInserted) simulatePaste(bodyTarget, html, stripHtmlToText(html));
   }
 
   const tagInputEl = findFirst(SELECTORS.tagInput);
@@ -400,13 +424,13 @@ async function insertDraft(draft) {
   // 진짜로 성공) "Ctrl+V를 눌러달라"는 안내를 하지 않음 — 이미 채워진 곳에
   // 또 붙여넣으면 내용이 중복되기 때문. 실패한 필드에만 커서를 옮겨주고
   // Ctrl+V를 안내한다.
-  if (titleEl && !titleInserted) {
-    titleEl.focus();
-    if (bodyEl && !bodyInserted) {
-      titleEl.addEventListener("input", () => bodyEl.focus(), { once: true });
+  if (titleTarget && !titleInserted) {
+    titleTarget.focus();
+    if (bodyTarget && !bodyInserted) {
+      titleTarget.addEventListener("input", () => bodyTarget.focus(), { once: true });
     }
-  } else if (bodyEl && !bodyInserted) {
-    bodyEl.focus();
+  } else if (bodyTarget && !bodyInserted) {
+    bodyTarget.focus();
   }
 
   if (needsManualUploadFirst) {
