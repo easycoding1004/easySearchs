@@ -176,29 +176,37 @@ function cdpInsertText(text) {
   });
 }
 
-// 2026-08 실측 확인 — 제목에 넣으려던 텍스트가 본문에 들어가는 사고가
-// 발생함. focus()를 호출한 직후 chrome.runtime.sendMessage→attach→
-// Input.insertText까지 비동기 왕복(수십~수백ms)이 걸리는데, 그 사이
-// SmartEditor가 자체적으로 포커스를 다른 곳(예: 본문)으로 되돌리는 것으로
-// 추정됨(제목 입력 후 자동으로 본문으로 포커스를 넘기는 게 SmartEditor의
-// 기본 동작일 수 있음) — CDP의 Input.insertText는 "그 순간 포커스된 곳"에
-// 무조건 텍스트를 넣으므로, 포커스가 바뀐 걸 모르고 보내면 엉뚱한 요소에
-// 들어감. 그래서 실제로 보내기 직전에 다시 focus()를 걸고,
-// document.activeElement로 포커스가 진짜 대상에 있는지 확인한 뒤에만 CDP를
-// 호출한다 — 확인이 안 되면 엉뚱한 곳에 넣느니 그냥 실패로 처리하고
-// execCommand/Ctrl+V 안내로 폴백한다.
+// 2026-08 — `document.activeElement === target` 사전 검증 방식을 폐기함.
+// 실측 콘솔 로그(Chrome이 자체적으로 띄운 "Blocked aria-hidden on a <body>
+// element..." 경고)로 확인된 사실: 제목·본문의 진짜 키 입력 캡처 지점은
+// SmartEditor가 IME(한글 조합) 처리를 위해 화면 밖으로 회전시켜(rotateX)
+// 숨겨둔 별도의 `<body contenteditable="true">`이고, 우리가 보이는
+// title/body 요소에 focus()를 걸어도 SmartEditor가 즉시 그 숨은 캡처
+// 지점으로 포커스를 되돌린다 — 즉 `document.activeElement`가 우리 target과
+// 같아지는 경우 자체가 없음, 지금까지의 "focus did not stick" 실패는 이
+// 방식이 애초에 틀린 전제(단순 contenteditable focus 유지)로 검증하고
+// 있었던 것. 그래서 이 사전 검증은 버리고, 대신: (1) focus()+click()으로
+// SmartEditor에게 "이 필드가 활성"이라는 내부 상태를 만들어줄 시간을 충분히
+// 준 뒤(300ms — 예전 80ms보다 늘림, 이 지연 부족이 title↔body 오삽입 사고의
+// 원인 중 하나로 의심됨) CDP를 보내고, (2) 보낸 뒤 실제로 화면(textContent)이
+// 바뀌었는지 사후 비교로 성공 여부를 판단한다 — 포커스 위치를 추측하는 대신
+// 결과를 직접 확인하는 더 확실한 신호.
 async function insertViaDebugger(target, text) {
   if (!target) return false;
+  const before = target.textContent || "";
   target.focus();
-  await new Promise((resolve) => setTimeout(resolve, 80));
-  target.focus(); // 위 대기 중 포커스가 다른 곳으로 옮겨갔을 수 있어 다시 한번
-  if (document.activeElement !== target) {
-    log("insertViaDebugger: focus did not stick on target, aborting to avoid wrong-field insertion");
+  target.click?.();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const result = await cdpInsertText(text);
+  if (!result.ok) {
+    console.warn("[ezzsearch] cdpInsertText failed:", result.error);
     return false;
   }
-  const result = await cdpInsertText(text);
-  if (!result.ok) console.warn("[ezzsearch] cdpInsertText failed:", result.error);
-  return result.ok;
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const after = target.textContent || "";
+  const landed = after !== before && after.length > before.length;
+  log("insertViaDebugger: landed=", landed, "before.len=", before.length, "after.len=", after.length);
+  return landed;
 }
 
 function cdpInsertTags(tags) {
@@ -225,13 +233,13 @@ function cdpInsertTags(tags) {
 // 클릭해서 복사" 수동 흐름(웹사이트 쪽)이 그대로 남아있어 손해가 없음.
 async function insertTagsViaDebugger(target, tags) {
   if (!target || !tags || tags.length === 0) return false;
+  // 위 insertViaDebugger와 같은 이유로 activeElement 사전 검증을 없애고
+  // focus()+click() 후 충분히 기다렸다가 CDP를 보낸다 — 태그 입력창은
+  // 성공 시 자기 자신을 비우는 UI라 title/body처럼 사후 textContent
+  // 비교로 검증할 수 없어서, CDP 명령 자체의 성공 여부(result.ok)만 신뢰한다.
   target.focus();
-  await new Promise((resolve) => setTimeout(resolve, 80));
-  target.focus();
-  if (document.activeElement !== target) {
-    log("insertTagsViaDebugger: focus did not stick on tag input, aborting");
-    return false;
-  }
+  target.click?.();
+  await new Promise((resolve) => setTimeout(resolve, 300));
   const result = await cdpInsertTags(tags);
   if (!result.ok) console.warn("[ezzsearch] cdpInsertTags failed:", result.error);
   return result.ok;
