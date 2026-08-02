@@ -646,7 +646,13 @@ export default function BlogWriterForm({
       window.removeEventListener("message", onAck);
       setExtensionStatus("not-found");
       setTimeout(() => setExtensionStatus("idle"), 4000);
-      editorTab?.close(); // 확장이 없으면 미리 열어둔 빈 탭을 정리
+      // 2026-08 사용자 신고("새 창이 열리다가 꺼진다") — 여기서 editorTab을
+      // 직접 닫아주던 게 원인이었음: ACK가 타임아웃(2500ms)보다 아주 조금만
+      // 늦게 와도(정상적으로 확장이 설치돼 있는데도) 이미 열어둔 탭을 강제로
+      // 닫아버려서, 사용자 눈엔 "새 탭이 열리자마자 닫히는" 것처럼 보였음.
+      // 확장이 실제로 없는 경우에도 탭을 억지로 닫는 것보다는 빈 탭 하나
+      // 남는 게(사용자가 직접 닫으면 됨) 훨씬 덜 disruptive하므로, 더 이상
+      // 여기서 탭을 닫지 않음.
     }, 2500);
 
     window.postMessage(
