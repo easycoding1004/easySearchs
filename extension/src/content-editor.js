@@ -285,13 +285,30 @@ async function checkPendingDraft() {
   tryAutoInsert(draft);
 }
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !changes[DRAFT_KEY]) return;
-  if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
-  else removeInsertButton();
-});
+// 2026-08(사용자 신고 — "확장으로 보내기가 잘 안되는듯") — 이 content
+// script는 manifest.json의 all_frames:true 때문에 SmartEditor 페이지 안의
+// 모든 iframe에서 각자 독립적으로 실행됨. 자동 삽입/플로팅 버튼 로직을
+// 프레임마다 따로 돌리면, 프레임마다 각자 클립보드에 쓰고(서로 덮어씀) 각자
+// 토스트를 띄우는 등 서로 경쟁하면서 "됐다 안 됐다" 하는 것처럼 보일 수
+// 있음 — 실제 SmartEditor의 프레임 구조를 이 환경에서는 확인할 방법이
+// 없어서(§CLAUDE.md 17.4), 일단 최상위 프레임에서만 자동 삽입/플로팅
+// 버튼을 다루도록 보수적으로 제한함(태그 입력창 배지는 프레임별로 독립
+// 동작해도 서로 부딪힐 일이 없어 그대로 둠). 만약 제목·본문 입력창이 실제로
+// iframe 안에 있다면 이 제한 때문에 자동 삽입이 아예 안 될 수 있는데, 그
+// 경우 이 IS_TOP_FRAME 체크를 지우고 다시 all_frames 그대로 두는 실험이
+// 필요함 — 실제 브라우저 개발자 도구로 SmartEditor의 iframe 구조를 확인한
+// 뒤에 결정할 것.
+const IS_TOP_FRAME = window.top === window.self;
 
-checkPendingDraft();
+if (IS_TOP_FRAME) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes[DRAFT_KEY]) return;
+    if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
+    else removeInsertButton();
+  });
+
+  checkPendingDraft();
+}
 
 // --- 태그 입력창 옆 검색량 배지(원본 아이디어 ①의 "에디터에서 태그 입력 시
 // 검색량 표시" 부분만 우선 구현 — 검색결과 페이지 오버레이는 이번 범위 밖,

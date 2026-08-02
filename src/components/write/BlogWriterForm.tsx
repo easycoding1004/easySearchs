@@ -388,6 +388,12 @@ export default function BlogWriterForm({
   // 계속 만들어내던 걸 방지(메모리 누수는 아니지만 낭비였음).
   const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   const selectedMeta = category ? getBlogCategoryMeta(category) : null;
+  const selectedTheme = category ? getBlogTheme(category) : null;
+  // 예시 미리보기용 — 아직 사진을 업로드하기 전(유형 선택 단계)이라 이미지
+  // 자리는 없음(sampleBody가 SLOT/GALLERY를 안 씀), 그래도 resolver 타입은
+  // 맞춰줘야 해서 빈 값으로 생성.
+  const sampleResolveImage = createImageResolver({ photoSrcs: [], stockImages: [], aiImages: [] });
+  const sampleBlocks = selectedMeta ? parseBody(selectedMeta.sampleBody) : [];
 
   // 사용자 신고(2026-08) — "AI가 작성한 블로그 글이 갑자기 화면에서
   // 사라지는" 버그의 원인: 사진 입력을 다시 클릭할 때마다(수정 요청을 위해
@@ -788,12 +794,19 @@ export default function BlogWriterForm({
               )}
             </div>
 
-            <div className="flex flex-col gap-1 rounded-md border border-dashed border-hairline bg-bg p-3 text-xs">
+            <div className="flex flex-col gap-2 rounded-md border border-dashed border-hairline bg-bg p-3 text-xs">
               <span className="font-semibold text-ink-muted">예시 미리보기</span>
-              {selectedMeta ? (
-                <p className="whitespace-pre-wrap leading-relaxed text-ink">{selectedMeta.sample}</p>
+              {selectedMeta && selectedTheme ? (
+                <div className="rounded-md border border-hairline bg-surface p-3">
+                  <p className="text-sm font-bold text-ink" style={{ fontFamily: selectedTheme.headingFont }}>
+                    {selectedMeta.sampleTitle}
+                  </p>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {renderPreviewBlocks(sampleBlocks, sampleResolveImage, selectedTheme)}
+                  </div>
+                </div>
               ) : (
-                <p className="text-ink-muted">글 유형을 선택하면 어떤 식으로 쓰이는지 예시를 보여드려요.</p>
+                <p className="text-ink-muted">글 유형을 선택하면 실제 이런 느낌으로 쓰이는지 미리 보여드려요.</p>
               )}
             </div>
           </div>
