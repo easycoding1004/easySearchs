@@ -25,6 +25,15 @@ const API_BASE_URL = "https://ezzsearch.com";
 const SELECTORS = {
   // 후보를 순서대로 시도 — 첫 번째로 매치되는 요소를 씀.
   title: [
+    // 2026-08 — 본문(`[data-a11y-title="본문"]`)은 CDP로 실제 삽입에 성공했는데
+    // (before.len=33→after.len=2193, 실측 확인) 제목은 매번 before/after가
+    // 동일하게 실패함 — 본문 셀렉터는 요소 자기 자신이 바로 contenteditable="true"
+    // 라서 resolveEditableTarget이 드릴다운할 필요조차 없었던 반면, 아래
+    // `.se-module-text.se-title-text`는 자기 자신도 contenteditable이 아니고
+    // 그 안에도 contenteditable 후손이 없었을 가능성이 높음(진짜 입력 지점이
+    // 형제 요소일 수 있음) — 그래서 검색 범위를 `.se-section-documentTitle`
+    // 섹션 전체로 넓힌 후보를 최우선으로 추가함.
+    ".se-section-documentTitle [contenteditable='true']",
     ".se-section-documentTitle .se-module-text.se-title-text",
     ".se-title-text[contenteditable='true']",
     'textarea[name="documentTitle"]',
@@ -232,9 +241,16 @@ async function insertViaDebugger(target, text) {
   const clickResult = await cdpClick(x, y);
   if (!clickResult.ok) console.warn("[ezzsearch] cdpClick failed:", clickResult.error);
   await new Promise((resolve) => setTimeout(resolve, 300));
-  const result = await cdpInsertText(text);
+  // 2026-08 실측 확인 — 본문 CDP 삽입이 처음으로 성공했지만(before.len=33→
+  // after.len=2193) Input.insertText는 평문만 넣어서 문단 사이 \n\n이
+  // contenteditable에서 시각적 줄바꿈으로 안 그려짐. 문단이 여러 개면(제목은
+  // 항상 한 줄이라 이 분기를 안 탐) 문단마다 나눠 넣고 사이에 진짜 Enter
+  // 키 입력(cdpInsertParagraphs, 태그 자동 삽입에 쓰던 것과 같은 기법)을
+  // 끼워 넣어 실제 문단 구분이 남게 한다.
+  const paragraphs = text.split(/\n\n+/).filter((p) => p.length > 0);
+  const result = paragraphs.length > 1 ? await cdpInsertParagraphs(paragraphs) : await cdpInsertText(text);
   if (!result.ok) {
-    console.warn("[ezzsearch] cdpInsertText failed:", result.error);
+    console.warn("[ezzsearch] CDP insert failed:", result.error);
     return false;
   }
   await new Promise((resolve) => setTimeout(resolve, 200));
@@ -242,6 +258,18 @@ async function insertViaDebugger(target, text) {
   const landed = after !== before && after.length > before.length;
   log("insertViaDebugger: landed=", landed, "before.len=", before.length, "after.len=", after.length);
   return landed;
+}
+
+function cdpInsertParagraphs(paragraphs) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "CDP_INSERT_PARAGRAPHS", paragraphs }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: "no response" });
+    });
+  });
 }
 
 function cdpInsertTags(tags) {

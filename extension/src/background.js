@@ -161,6 +161,38 @@ async function cdpInsertTags(tabId, tags) {
   });
 }
 
+// 2026-08 — 본문 CDP 자동 삽입이 처음으로 실제 성공함(실측: before.len=33 →
+// after.len=2193)을 확인했으나, `Input.insertText`는 평문만 넣을 수 있어
+// 문단 사이 `\n\n` 문자가 contenteditable에서 시각적 줄바꿈으로 렌더링되지
+// 않는 문제가 남음(§CLAUDE.md 16의 "문단 사이 빈 줄이 안 보임" 문제와 같은
+// 근본 원인 — 브라우저가 bare `\n`을 기본적으로 줄바꿈으로 안 그림). 태그
+// 자동 삽입에서 이미 검증된 `Input.dispatchKeyEvent`로 진짜 Enter 키 입력을
+// 흉내 내는 방식을 재사용 — 문단 텍스트를 하나씩 insertText로 넣고 사이사이
+// Enter를 두 번(빈 줄 하나) 보내면, SmartEditor 입장에서는 실제 Enter
+// 키보드 입력과 구분이 안 되므로 진짜 새 문단으로 반영될 가능성이 높음.
+async function cdpInsertParagraphs(tabId, paragraphs) {
+  return withDebugger(tabId, async (debuggee) => {
+    for (let i = 0; i < paragraphs.length; i++) {
+      if (paragraphs[i]) {
+        await sendDebuggerCommand(debuggee, "Input.insertText", { text: paragraphs[i] });
+      }
+      if (i < paragraphs.length - 1) {
+        for (let enterCount = 0; enterCount < 2; enterCount++) {
+          for (const type of ["keyDown", "keyUp"]) {
+            await sendDebuggerCommand(debuggee, "Input.dispatchKeyEvent", {
+              type,
+              windowsVirtualKeyCode: 13,
+              key: "Enter",
+              code: "Enter",
+            });
+          }
+        }
+      }
+    }
+    return { ok: true };
+  });
+}
+
 // content-write-bridge.js가 중계하는 초안 저장 — 네이버 에디터 탭의
 // content-editor.js가 storage.onChanged로 이 값을 감지해서 "붙여넣기" 버튼을
 // 띄움. savedAt을 같이 저장해서, 너무 오래된 초안(예: 며칠 전 것)이 뜬금없이
@@ -196,6 +228,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
     cdpInsertTags(tabId, Array.isArray(message.tags) ? message.tags : []).then(sendResponse);
+    return true; // sendResponse가 비동기로 불릴 것임을 알림
+  }
+  if (message?.type === "CDP_INSERT_PARAGRAPHS") {
+    const tabId = sender.tab?.id;
+    if (tabId == null) {
+      sendResponse({ ok: false, error: "tabId 없음" });
+      return false;
+    }
+    cdpInsertParagraphs(tabId, Array.isArray(message.paragraphs) ? message.paragraphs : []).then(sendResponse);
     return true; // sendResponse가 비동기로 불릴 것임을 알림
   }
   if (message?.type === "CDP_CLICK") {
