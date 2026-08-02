@@ -300,9 +300,28 @@ let autoInsertedSavedAt = null; // 같은 초안을 중복 자동삽입하지 �
 async function autoInsertWithRetry(draft, attempt = 0) {
   const ready = findFirst(SELECTORS.title) || findFirst(SELECTORS.body);
   log("autoInsertWithRetry: attempt=", attempt, "ready=", !!ready);
-  if (!ready && attempt < AUTO_INSERT_MAX_ATTEMPTS) {
+  if (ready) {
+    await insertDraft(draft);
+    return;
+  }
+  if (attempt < AUTO_INSERT_MAX_ATTEMPTS) {
     await new Promise((resolve) => setTimeout(resolve, AUTO_INSERT_RETRY_MS));
     return autoInsertWithRetry(draft, attempt + 1);
+  }
+  // 2026-08 실측으로 발견한 문제: SmartEditor는 mainFrame이라는 iframe 안에
+  // 있어서(제목·본문이 그 iframe에만 존재), all_frames:true인 이 스크립트는
+  // 최상위 페이지에서도 별도로 실행되는데 그 프레임엔 애초에 제목·본문이
+  // 없어 절대 못 찾음 — 그런데도 10번을 다 재시도한 뒤 여기 도달해서
+  // insertDraft를 부르면 "찾지 못했다" 토스트를 띄워버림. mainFrame 쪽은
+  // 보통 훨씬 빨리(1~2초 안에) 성공하므로, 이 프레임이 10초를 다 채웠을
+  // 즈음엔 이미 mainFrame이 성공해서 DRAFT_KEY를 지웠을 가능성이 높음 —
+  // 그 경우 굳이 이 프레임에서 또 실패 토스트를 띄워 성공 메시지를 덮어쓸
+  // 필요가 없으므로, 스토리지에 초안이 남아있는지 먼저 확인하고 이미
+  // 없으면(다른 프레임이 처리 완료) 조용히 넘어간다.
+  const store = await chrome.storage.local.get(DRAFT_KEY);
+  if (!store[DRAFT_KEY]) {
+    log("autoInsertWithRetry: draft already consumed by another frame, skipping insertDraft/toast");
+    return;
   }
   await insertDraft(draft);
 }
