@@ -646,7 +646,8 @@ export default function BlogWriterForm({
       if (event.source !== window) return;
       if (event.data?.source !== "ezzsearch-extension" || event.data?.type !== "DRAFT_ACK") return;
       window.removeEventListener("message", onAck);
-      clearTimeout(timeoutId);
+      clearTimeout(softTimeoutId);
+      clearTimeout(hardTimeoutId);
       setExtensionStatus("sent");
       setTimeout(() => setExtensionStatus("idle"), 3000);
       if (editorTab && naverBlogId) {
@@ -654,23 +655,28 @@ export default function BlogWriterForm({
       }
     }
     window.addEventListener("message", onAck);
-    // 사용자 실사용 신고(2026-08): 거의 항상 "설치 안 된 것 같다"고 뜸 —
-    // MV3 서비스워커(background.js)가 유휴 상태에서 깨어나는 데 800ms보다
-    // 오래 걸릴 수 있어서(콜드스타트) 실제로는 확장이 정상 설치돼 있어도
-    // ACK가 타임아웃보다 늦게 도착해 오탐이 났을 가능성이 높음 — 여유 있게
-    // 2500ms로 늘림.
-    const timeoutId = setTimeout(() => {
-      window.removeEventListener("message", onAck);
+    // 사용자 실사용 신고(2026-08): 반복 사용 시(특히 두 번째 시도부터)
+    // "설치 안 된 것 같다"는 경고가 뜨고 방금 연 탭이 about:blank로 남아있는
+    // 사례가 계속 보고됨 — MV3 서비스워커가 이전 요청(CDP 작업 등) 직후라
+    // ACK 응답이 2500ms를 넘기는 경우가 실제로 있는 것으로 보임. 그렇다고
+    // 무작정 타임아웃만 늘리면 진짜 미설치 상태에서 사용자가 오래 기다리게
+    // 되므로, 두 단계로 나눔: 소프트 타임아웃(2500ms)에서는 "설치 안 된 것
+    // 같다" 안내만 보여주고 리스너는 안 지움 — 그 뒤에라도 ACK가 오면
+    // onAck이 정상 처리하고 상태를 "sent"로 되돌림(탭도 정상 이동). 리스너
+    // 자체는 하드 타임아웃(8000ms)까지 살려둠 — 정말 그때까지도 안 오면
+    // 그제서야 포기하고 정리함.
+    const softTimeoutId = setTimeout(() => {
       setExtensionStatus("not-found");
       setTimeout(() => setExtensionStatus("idle"), 4000);
-      // 2026-08 사용자 신고("새 창이 열리다가 꺼진다") — 여기서 editorTab을
-      // 직접 닫아주던 게 원인이었음: ACK가 타임아웃(2500ms)보다 아주 조금만
-      // 늦게 와도(정상적으로 확장이 설치돼 있는데도) 이미 열어둔 탭을 강제로
-      // 닫아버려서, 사용자 눈엔 "새 탭이 열리자마자 닫히는" 것처럼 보였음.
-      // 확장이 실제로 없는 경우에도 탭을 억지로 닫는 것보다는 빈 탭 하나
-      // 남는 게(사용자가 직접 닫으면 됨) 훨씬 덜 disruptive하므로, 더 이상
-      // 여기서 탭을 닫지 않음.
     }, 2500);
+    const hardTimeoutId = setTimeout(() => {
+      window.removeEventListener("message", onAck);
+      // 2026-08 사용자 신고("새 창이 열리다가 꺼진다") — 여기서 editorTab을
+      // 직접 닫아주던 게 원인이었음(그 버그는 고침). 확장이 실제로 없는
+      // 경우에도 탭을 억지로 닫는 것보다는 빈 탭 하나 남는 게(사용자가
+      // 직접 닫으면 됨) 훨씬 덜 disruptive해서, 더 이상 여기서 탭을 닫지
+      // 않음.
+    }, 8000);
 
     window.postMessage(
       {
