@@ -455,10 +455,28 @@ async function insertDraft(draft) {
     log("insertDraft: resolved inner editable target", "title changed=", titleTarget !== titleEl, "body changed=", bodyTarget !== bodyEl);
   }
 
-  const { html, uploadedCount, needsManualUploadFirst } = await resolveImagePlaceholders(
-    draft.html,
-    draft.images
-  );
+  // 2026-08 — 제목은 코드 순서상 항상 먼저 시도되는데 매번 실패하고, 본문은
+  // 나중에 시도되는데도 성공한 비대칭이 반복됨 — "이 페이지에서 숨겨진 입력
+  // 캡처 프레임(iframe#input_buffer, §CLAUDE.md 17.4)으로의 첫 클릭/라우팅
+  // 자체가 아직 초기화가 덜 끝나 불안정하고, 그 뒤부터는 안정적으로
+  // 동작하는" 워밍업 문제일 가능성을 의심함 — 실제 삽입을 시도하기 전에
+  // 버려지는 클릭을 아무 필드에나 한 번 먼저 보내고 충분히 기다린다.
+  // resolveImagePlaceholders(이미지 업로드 네트워크 호출이라 몇백ms~수초
+  // 걸릴 수 있음)와 병렬로 겹쳐서 순수 대기시간 낭비를 줄임.
+  const warmupTarget = bodyTarget || titleTarget;
+  const warmupPromise = warmupTarget
+    ? (async () => {
+        const { x, y } = getAbsoluteCenter(warmupTarget);
+        const warmupClick = await cdpClick(x, y);
+        log("insertDraft: warmup click ok=", warmupClick.ok);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      })()
+    : Promise.resolve();
+
+  const [{ html, uploadedCount, needsManualUploadFirst }] = await Promise.all([
+    resolveImagePlaceholders(draft.html, draft.images),
+    warmupPromise,
+  ]);
   // html은 <h2>제목</h2>\n${본문}처럼 제목까지 포함한 "문서 전체" — 본문
   // 필드 전용 삽입 시도에는 제목 헤딩을 뗀 이 버전을 써야 제목이 본문에
   // 중복으로 안 들어감(바로 아래 bodyTarget 블록 참고).
