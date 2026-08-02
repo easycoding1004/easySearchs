@@ -75,6 +75,7 @@
 | `notifications` | 조회한 키워드의 검색량 결과를 데스크톱 알림으로 보여주기 위해 사용 |
 | `webRequest` | 네이버 블로그 에디터의 이미지 업로드 요청 주소를 관찰(요청 차단·변경 없음)해서, 사용자가 올린 사진을 같은 방식으로 자동 업로드하기 위해 사용 |
 | `unlimitedStorage` | 여러 장의 사진을 base64로 임시 저장할 때 기본 저장 용량(5MB)을 넘을 수 있어 사용 |
+| `debugger` | 네이버 블로그 에디터가 스크립트로 만든 입력(합성 이벤트)은 받아들이지 않아서(실측 확인), Chrome DevTools Protocol로 제목·본문 텍스트를 자동으로 입력하기 위해 사용 — 사용하는 동안 브라우저에 "디버깅 중" 표시가 뜸(v0.5.0, 2026-08 추가) |
 | `host_permissions: ezzsearch.com` | 자체 API(`/api/extension/keyword-lookup` 등)를 호출해 검색량을 조회하기 위해 사용 |
 | `host_permissions: blog.upphoto.naver.com, blogfiles.pstatic.net` | 네이버 블로그 에디터에 사진을 자동 업로드하기 위해 사용 |
 | `host_permissions: blog.naver.com` | 네이버 블로그 에디터 페이지에 초안 붙여넣기 버튼과 태그 검색량 배지를 표시하기 위해 사용 |
