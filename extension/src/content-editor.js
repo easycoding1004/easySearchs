@@ -137,35 +137,14 @@ function insertViaExecCommand(target, plainText, html) {
   }
 }
 
-// 2026-08(사용자 요청 — "복사 붙여넣기가 아니라 진짜 자동으로 처리했으면") —
-// execCommand/simulatePaste 둘 다 SmartEditor에서 실제로는 안 먹히는 걸
-// 실측 확인함(§CLAUDE.md 17.4) — 둘 다 페이지 스크립트가 만드는 이벤트라
-// `isTrusted: false`를 절대 벗어날 수 없기 때문으로 추정. background.js가
-// chrome.debugger(Chrome DevTools Protocol)로 브라우저 엔진 차원에서 텍스트를
-// 주입하는 `CDP_INSERT_TEXT`를 새로 추가함 — 여기서는 대상 요소에 focus만
-// 걸고 실제 삽입은 background에 위임한다(chrome.debugger는 background에서만
-// 쓸 수 있음). DevTools가 이미 열려 있는 탭이면 attach 자체가 실패할 수
-// 있음(크롬이 동시 디버깅 세션을 허용 안 함) — 그 경우 반환값이 false라
-// 호출부가 execCommand로 자동 폴백한다.
-function cdpInsertText(text) {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "CDP_INSERT_TEXT", text }, (response) => {
-      if (chrome.runtime.lastError) {
-        resolve({ ok: false, error: chrome.runtime.lastError.message });
-        return;
-      }
-      resolve(response || { ok: false, error: "no response" });
-    });
-  });
-}
-
-async function insertViaDebugger(target, text) {
-  if (!target) return false;
-  target.focus();
-  const result = await cdpInsertText(text);
-  if (!result.ok) console.warn("[ezzsearch] cdpInsertText failed:", result.error);
-  return result.ok;
-}
+// 2026-08 — chrome.debugger(CDP `Input.insertText`)로 진짜 자동 입력을
+// 시도해봤으나(v0.5.0), 사용한 직후 브라우저가 반복적으로 꺼지는 심각한
+// 문제가 실사용에서 보고돼 안정성 문제로 완전히 되돌림(v0.5.1) — 원인은
+// 특정 못함(디버거 attach/detach 자체의 문제인지, 다른 상호작용인지
+// 불명), 그래서 이 접근 자체를 다시 시도하지 말 것. `manifest.json`의
+// `debugger` 권한도 제거했음. 아래 execCommand/simulatePaste 조합이
+// 안전하게 시도할 수 있는 현재 최선이고, 그마저 안 되면 Ctrl+V 최소화
+// 흐름(이 파일 아래쪽 insertDraft 끝부분)으로 폴백한다.
 
 async function copyToRealClipboard(html, text) {
   try {
@@ -286,44 +265,30 @@ async function insertDraft(draft) {
       titleEl.dispatchEvent(new Event("input", { bubbles: true }));
       titleInserted = true;
     } else {
-      titleInserted = await insertViaDebugger(titleEl, draft.title);
-      log("title insertViaDebugger=", titleInserted);
-      if (!titleInserted) {
-        titleInserted = insertViaExecCommand(titleEl, draft.title, null);
-        log("title insertViaExecCommand=", titleInserted);
-      }
+      titleInserted = insertViaExecCommand(titleEl, draft.title, null);
+      log("title insertViaExecCommand=", titleInserted);
       if (!titleInserted) simulatePaste(titleEl, draft.title, draft.title);
     }
   }
   if (bodyEl) {
-    // CDP Input.insertText는 평문만 넣을 수 있어(서식 없음) — 자동 삽입
-    // 성공을 우선하기로 했으므로(사용자 요청) 평문으로라도 자동으로 들어가는
-    // 쪽을 먼저 시도하고, 실패하면 서식이 남아있는 execCommand(insertHTML)로
-    // 폴백한다. 어느 쪽이든 서식 포함 버전은 클립보드에 항상 같이 복사해두므로
-    // (아래 copyToRealClipboard) 필요하면 사용자가 직접 다시 붙여넣을 수 있음.
-    bodyInserted = await insertViaDebugger(bodyEl, stripHtmlToText(html));
-    log("body insertViaDebugger=", bodyInserted);
-    if (!bodyInserted) {
-      bodyInserted = insertViaExecCommand(bodyEl, stripHtmlToText(html), html);
-      log("body insertViaExecCommand=", bodyInserted);
-    }
+    bodyInserted = insertViaExecCommand(bodyEl, stripHtmlToText(html), html);
+    log("body insertViaExecCommand=", bodyInserted);
     if (!bodyInserted) simulatePaste(bodyEl, html, stripHtmlToText(html));
   }
   await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
 
-  // 2026-08 실측 확인 — execCommand/simulatePaste는 SmartEditor에서 실제로는
-  // 텍스트를 안 넣는 것으로 확인됨(수동 Ctrl+V는 정상 동작) — 그래서
-  // chrome.debugger(CDP)로 브라우저 엔진 차원에서 입력을 주입하는
-  // insertViaDebugger를 1차로 추가함(위 참고). 그게 성공했으면(titleInserted/
-  // bodyInserted가 true) 이제 정말 자동으로 들어간 것이므로 "Ctrl+V를
-  // 눌러달라"는 안내를 하면 안 됨 — 이미 채워진 곳에 또 붙여넣으면 내용이
-  // 중복됨. 실패한 필드에 대해서만 커서를 옮겨주고 Ctrl+V를 안내한다.
-  if (titleEl && !titleInserted) {
+  // 2026-08 실측 확인 — execCommand의 반환값(titleInserted/bodyInserted)은
+  // "브라우저가 명령을 인식했는지"만 알려줄 뿐 SmartEditor가 실제로 반영했는지는
+  // 보장 못 함(반환값이 true여도 화면엔 안 들어간 사례 확인됨) — 그래서 이
+  // 값을 믿고 안내를 생략하지 않고, 항상 제목란에 커서를 갖다두고 Ctrl+V를
+  // 안내한다(자동으로 이미 들어가 있었다면 Ctrl+V 시 중복될 수 있으니, 먼저
+  // 비어있는지 확인 후 눌러달라고 문구에 명시).
+  if (titleEl) {
     titleEl.focus();
-    if (bodyEl && !bodyInserted) {
+    if (bodyEl) {
       titleEl.addEventListener("input", () => bodyEl.focus(), { once: true });
     }
-  } else if (bodyEl && !bodyInserted) {
+  } else if (bodyEl) {
     bodyEl.focus();
   }
 
@@ -331,16 +296,13 @@ async function insertDraft(draft) {
     showToast(
       "제목·본문을 넣어봤어요. 사진은 이 에디터에서 아직 업로드 이력이 없어 자동으로 못 넣었어요 — 사진 1장을 직접 한 번 업로드하시면, 그다음부터는 이지서치가 자동으로 올려드려요."
     );
-  } else if (titleInserted && bodyInserted) {
-    showToast(`제목·본문에 자동으로 넣었어요${uploadedCount > 0 ? ` (사진 ${uploadedCount}장도 함께)` : ""}!`);
-  } else if (titleInserted || bodyInserted) {
-    const failedField = titleInserted ? "본문" : "제목";
+  } else if (uploadedCount > 0) {
     showToast(
-      `${titleInserted ? "제목" : "본문"}은 자동으로 넣었는데 ${failedField}은 안 됐어요 — ${failedField}란에 커서를 놔뒀으니 Ctrl+V를 눌러주세요(클립보드에 이미 복사해뒀어요).`
+      `사진 ${uploadedCount}장은 올려뒀어요. 제목란에 커서를 놔뒀으니 비어있다면 Ctrl+V, 본문은 그다음 자동으로 커서가 넘어가요(클립보드에 이미 복사해뒀어요).`
     );
   } else {
     showToast(
-      "자동 삽입이 안 됐어요 — 제목란에 커서를 놔뒀으니 Ctrl+V, 그다음 본문에서 Ctrl+V 한 번 더 눌러주세요(클립보드에 이미 복사해뒀어요, 제목에 붙여넣으면 커서가 본문으로 자동으로 넘어가요)."
+      "제목란에 커서를 놔뒀어요 — 비어있다면 Ctrl+V, 그다음 본문에서 Ctrl+V 한 번 더 눌러주세요(클립보드에 이미 복사해뒀어요, 제목에 붙여넣으면 커서가 본문으로 자동으로 넘어가요)."
     );
   }
   chrome.storage.local.remove(DRAFT_KEY);
