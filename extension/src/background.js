@@ -60,6 +60,14 @@ function sendDebuggerCommand(debuggee, method, params) {
 // attach→fn(debuggee)→detach를 묶어주는 헬퍼 — cdpInsertText/cdpInsertTags가
 // 공유. fn 안에서 실패하면(reject) ok:false로 변환하고, 성공하면 fn의 반환값을
 // 그대로 통과시킴(현재는 둘 다 { ok: true }만 반환하지만 확장 여지를 둠).
+//
+// 2026-08 사용자 신고("이번엔 또 자동 삽입이 안 됨", 태그 기능 추가 직후) —
+// detach()를 콜백 완료를 기다리지 않고 fire-and-forget으로 호출하고
+// 있었음(finally 블록이 await 없이 바로 반환). 제목→본문 2번뿐일 때는
+// 우연히 안 부딪혔을 수 있는데, 태그가 추가되며 attach/detach가 3번(제목,
+// 본문, 태그)으로 늘면서 이전 detach가 채 끝나기 전에 다음 attach가
+// 시작되는 경쟁이 더 자주 발생했을 가능성이 높음 — detach도 완료될 때까지
+// 기다리도록 고침(성공이든 실패든 detach 완료 후에만 반환).
 async function withDebugger(tabId, fn) {
   const debuggee = { tabId };
   try {
@@ -73,13 +81,19 @@ async function withDebugger(tabId, fn) {
     return { ok: false, error: `attach 실패: ${err.message}` };
   }
 
+  let result;
   try {
-    return await fn(debuggee);
+    result = await fn(debuggee);
   } catch (err) {
-    return { ok: false, error: err.message };
-  } finally {
-    chrome.debugger.detach(debuggee, () => void chrome.runtime.lastError);
+    result = { ok: false, error: err.message };
   }
+  await new Promise((resolve) => {
+    chrome.debugger.detach(debuggee, () => {
+      void chrome.runtime.lastError; // 이미 detach된 상태 등은 무시 — 다음 attach를 막을 필요 없음
+      resolve();
+    });
+  });
+  return result;
 }
 
 async function cdpInsertText(tabId, text) {

@@ -888,6 +888,10 @@ export default function BlogWriterForm({
                 </button>
               ))}
             </div>
+            <p className="text-xs text-ink-muted">
+              둥근 고딕·손글씨풍·굵은 임팩트는 그 폰트가 설치된 기기에서만 그 모양대로 보이고, 없으면 기본
+              서체로 자연스럽게 대체돼요.
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-sm">

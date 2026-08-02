@@ -18,6 +18,9 @@ import type { BlogCategory } from "./blogCategories";
 // 폴백된다.
 const SANS_STACK = "'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
 const SERIF_STACK = "'Nanum Myeongjo', 'Noto Serif KR', serif";
+const ROUNDED_STACK = "'Nanum Gothic', 'Malgun Gothic', sans-serif";
+const HANDWRITING_STACK = "'Nanum Pen Script', 'Gaegu', cursive";
+const IMPACT_STACK = "'Black Han Sans', 'Malgun Gothic', sans-serif";
 
 export type HeadingStyle = "underline" | "boxed" | "sideBar" | "plain";
 export type QuoteStyle = "border" | "serif" | "highlight";
@@ -253,23 +256,43 @@ export function getBlogTheme(category: BlogCategory): BlogTheme {
 // type="color">로 별도 처리.
 export const ACCENT_PRESETS: { label: string; value: string }[] = [
   { label: "블루", value: "#2563eb" },
-  { label: "틸", value: "#0d9488" },
-  { label: "인디고", value: "#4338ca" },
-  { label: "코랄", value: "#ea580c" },
-  { label: "핑크", value: "#db2777" },
-  { label: "앰버", value: "#b45309" },
-  { label: "그린", value: "#15803d" },
-  { label: "로즈", value: "#e11d48" },
-  { label: "슬레이트", value: "#475569" },
-  { label: "바이올렛", value: "#7c3aed" },
-  { label: "레드", value: "#dc2626" },
+  { label: "네이비", value: "#1e3a8a" },
   { label: "스카이", value: "#0369a1" },
+  { label: "틸", value: "#0d9488" },
+  { label: "민트", value: "#059669" },
+  { label: "그린", value: "#15803d" },
+  { label: "라임", value: "#65a30d" },
+  { label: "올리브", value: "#4d7c0f" },
+  { label: "머스타드", value: "#ca8a04" },
+  { label: "앰버", value: "#b45309" },
+  { label: "브라운", value: "#78350f" },
+  { label: "코랄", value: "#ea580c" },
+  { label: "피치", value: "#f97316" },
+  { label: "레드", value: "#dc2626" },
+  { label: "로즈", value: "#e11d48" },
+  { label: "핑크", value: "#db2777" },
+  { label: "마젠타", value: "#c026d3" },
+  { label: "바이올렛", value: "#7c3aed" },
+  { label: "라벤더", value: "#8b5cf6" },
+  { label: "인디고", value: "#4338ca" },
+  { label: "슬레이트", value: "#475569" },
+  { label: "차콜", value: "#1f2937" },
 ];
 
-export type FontChoice = "sans" | "serif";
+// 2026-08 확대(사용자 요청 — "글 폰트 종류는 더 많았으면 해") — 처음엔
+// 산세리프/세리프 2종뿐이었는데, 둥근 고딕(친근한 느낌)·손글씨풍(캐주얼한
+// 에세이 느낌)·굵은 임팩트(홍보·CTA 느낌)를 추가함. 뒤 세 개는 대부분
+// 기기에 기본 설치돼 있지 않은 폰트라(웹폰트 로딩 불가 제약은 위 주석 참고)
+// 그 폰트가 실제로 깔려 있는 기기에서만 의도한 모양이 보이고, 없으면
+// 각자의 대체 키워드(sans-serif/cursive)로 자연스럽게 폴백됨 — 이 폴백
+// 특성은 UI에서 사용자에게 짧게 안내함.
+export type FontChoice = "sans" | "serif" | "rounded" | "handwriting" | "impact";
 export const FONT_OPTIONS: { label: string; value: FontChoice; stack: string }[] = [
   { label: "깔끔한 산세리프", value: "sans", stack: SANS_STACK },
   { label: "부드러운 세리프", value: "serif", stack: SERIF_STACK },
+  { label: "둥근 고딕", value: "rounded", stack: ROUNDED_STACK },
+  { label: "손글씨풍", value: "handwriting", stack: HANDWRITING_STACK },
+  { label: "굵은 임팩트", value: "impact", stack: IMPACT_STACK },
 ];
 
 // hex(#rrggbb)를 흰색과 섞어 옅은 배경 톤을 만든다 — 16개 사전 정의 테마는
