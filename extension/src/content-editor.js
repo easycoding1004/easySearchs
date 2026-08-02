@@ -186,6 +186,42 @@ async function insertViaDebugger(target, text) {
   return result.ok;
 }
 
+function cdpInsertTags(tags) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "CDP_INSERT_TAGS", tags }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: "no response" });
+    });
+  });
+}
+
+// 2026-08(사용자 요청 — "태그도 자동으로 삽입이 어려운가") — 네이버 태그
+// 입력창은 붙여넣기로 들어온 텍스트 뭉치에서 쉼표를 구분자가 아니라 글자로
+// 인식해서 여러 태그가 하나로 뭉치는 것으로 실측 확인됨(§CLAUDE.md 16) —
+// Enter/쉼표 "키 입력 이벤트"로만 태그를 분리하기 때문. background.js의
+// cdpInsertTags가 태그마다 Input.insertText로 글자를 넣고 Input.dispatchKeyEvent로
+// Enter 키다운·키업을 보내 하나씩 확정시킴. **`SELECTORS.tagInput`은
+// 제목·본문과 달리 아직 실측 미확정**(`#fake-input`이 tabindex=-1·
+// aria-hidden=true라 진짜 타이핑 대상이 아닐 수 있음, §CLAUDE.md 17.4) —
+// 그래서 이 함수는 순수 보너스 시도로 두고, 실패해도 기존 "태그 하나씩
+// 클릭해서 복사" 수동 흐름(웹사이트 쪽)이 그대로 남아있어 손해가 없음.
+async function insertTagsViaDebugger(target, tags) {
+  if (!target || !tags || tags.length === 0) return false;
+  target.focus();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  target.focus();
+  if (document.activeElement !== target) {
+    log("insertTagsViaDebugger: focus did not stick on tag input, aborting");
+    return false;
+  }
+  const result = await cdpInsertTags(tags);
+  if (!result.ok) console.warn("[ezzsearch] cdpInsertTags failed:", result.error);
+  return result.ok;
+}
+
 async function copyToRealClipboard(html, text) {
   try {
     if (typeof ClipboardItem !== "undefined") {
@@ -340,6 +376,20 @@ async function insertDraft(draft) {
     }
     if (!bodyInserted) simulatePaste(bodyEl, html, stripHtmlToText(html));
   }
+
+  const tagInputEl = findFirst(SELECTORS.tagInput);
+  let tagsInserted = false;
+  if (tagInputEl && Array.isArray(draft.tags) && draft.tags.length > 0) {
+    tagsInserted = await insertTagsViaDebugger(tagInputEl, draft.tags);
+    log("tags insertTagsViaDebugger=", tagsInserted);
+  }
+  const tagsNote =
+    tagInputEl && draft.tags?.length > 0
+      ? tagsInserted
+        ? ` 태그 ${draft.tags.length}개도 자동으로 넣었어요.`
+        : " 태그는 자동으로 안 됐어요 — 결과 화면에서 태그를 하나씩 클릭해 복사한 뒤 붙여넣어 주세요."
+      : "";
+
   await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
 
   // 2026-08 — CDP(insertViaDebugger)의 성공 여부는 브라우저 프로토콜 응답
@@ -361,18 +411,18 @@ async function insertDraft(draft) {
 
   if (needsManualUploadFirst) {
     showToast(
-      "제목·본문을 넣어봤어요. 사진은 이 에디터에서 아직 업로드 이력이 없어 자동으로 못 넣었어요 — 사진 1장을 직접 한 번 업로드하시면, 그다음부터는 이지서치가 자동으로 올려드려요."
+      `제목·본문을 넣어봤어요. 사진은 이 에디터에서 아직 업로드 이력이 없어 자동으로 못 넣었어요 — 사진 1장을 직접 한 번 업로드하시면, 그다음부터는 이지서치가 자동으로 올려드려요.${tagsNote}`
     );
   } else if (titleInserted && bodyInserted) {
-    showToast(`제목·본문에 자동으로 넣었어요${uploadedCount > 0 ? ` (사진 ${uploadedCount}장도 함께)` : ""}!`);
+    showToast(`제목·본문에 자동으로 넣었어요${uploadedCount > 0 ? ` (사진 ${uploadedCount}장도 함께)` : ""}!${tagsNote}`);
   } else if (titleInserted || bodyInserted) {
     const failedField = titleInserted ? "본문" : "제목";
     showToast(
-      `${titleInserted ? "제목" : "본문"}은 자동으로 넣었는데 ${failedField}은 안 됐어요 — ${failedField}란에 커서를 놔뒀으니 Ctrl+V를 눌러주세요(클립보드에 이미 복사해뒀어요).`
+      `${titleInserted ? "제목" : "본문"}은 자동으로 넣었는데 ${failedField}은 안 됐어요 — ${failedField}란에 커서를 놔뒀으니 Ctrl+V를 눌러주세요(클립보드에 이미 복사해뒀어요).${tagsNote}`
     );
   } else {
     showToast(
-      "자동 삽입이 안 됐어요 — 제목란에 커서를 놔뒀으니 Ctrl+V, 그다음 본문에서 Ctrl+V 한 번 더 눌러주세요(클립보드에 이미 복사해뒀어요, 제목에 붙여넣으면 커서가 본문으로 자동으로 넘어가요)."
+      `자동 삽입이 안 됐어요 — 제목란에 커서를 놔뒀으니 Ctrl+V, 그다음 본문에서 Ctrl+V 한 번 더 눌러주세요(클립보드에 이미 복사해뒀어요, 제목에 붙여넣으면 커서가 본문으로 자동으로 넘어가요).${tagsNote}`
     );
   }
   chrome.storage.local.remove(DRAFT_KEY);

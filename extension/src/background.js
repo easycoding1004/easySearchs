@@ -48,7 +48,19 @@ chrome.tabs.onRemoved.addListener((tabId) => uploadUrlByTab.delete(tabId));
 // 본문 1번) 상태를 프레임 간에 공유할 필요가 없어 훨씬 단순함. DevTools가
 // 이미 열려 있는 탭이면 attach가 실패함(크롬이 동시 디버깅 세션을 허용 안
 // 함) — 그 경우 content-editor.js가 기존 execCommand/simulatePaste로 폴백함.
-async function cdpInsertText(tabId, text) {
+function sendDebuggerCommand(debuggee, method, params) {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.sendCommand(debuggee, method, params, () => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
+}
+
+// attach→fn(debuggee)→detach를 묶어주는 헬퍼 — cdpInsertText/cdpInsertTags가
+// 공유. fn 안에서 실패하면(reject) ok:false로 변환하고, 성공하면 fn의 반환값을
+// 그대로 통과시킴(현재는 둘 다 { ok: true }만 반환하지만 확장 여지를 둠).
+async function withDebugger(tabId, fn) {
   const debuggee = { tabId };
   try {
     await new Promise((resolve, reject) => {
@@ -62,18 +74,45 @@ async function cdpInsertText(tabId, text) {
   }
 
   try {
-    await new Promise((resolve, reject) => {
-      chrome.debugger.sendCommand(debuggee, "Input.insertText", { text }, () => {
-        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-        else resolve();
-      });
-    });
-    return { ok: true };
+    return await fn(debuggee);
   } catch (err) {
-    return { ok: false, error: `Input.insertText 실패: ${err.message}` };
+    return { ok: false, error: err.message };
   } finally {
     chrome.debugger.detach(debuggee, () => void chrome.runtime.lastError);
   }
+}
+
+async function cdpInsertText(tabId, text) {
+  return withDebugger(tabId, async (debuggee) => {
+    await sendDebuggerCommand(debuggee, "Input.insertText", { text });
+    return { ok: true };
+  });
+}
+
+// 2026-08(사용자 요청 — "태그도 자동으로 삽입이 어려운가") — 네이버 태그
+// 입력창은 붙여넣은 텍스트 뭉치에서는 쉼표를 "구분자"가 아니라 "글자"로
+// 인식해서 여러 태그가 하나로 뭉쳐버리는 것으로 실측 확인됨(§CLAUDE.md 16) —
+// 그 입력창이 Enter/쉼표 "키 입력 이벤트"로만 태그를 분리하기 때문. CDP는
+// 텍스트 삽입뿐 아니라 `Input.dispatchKeyEvent`로 실제 키보드 입력과 구분 안
+// 되는 키 이벤트도 보낼 수 있어서, 태그마다 `Input.insertText`로 글자를 넣고
+// 바로 Enter 키다운·키업을 보내 하나씩 확정시킴 — 여러 태그를 한 번의
+// attach/detach 세션 안에서 순서대로 처리(태그마다 배너가 깜빡이면 번거로우니
+// 세션 하나로 묶음).
+async function cdpInsertTags(tabId, tags) {
+  return withDebugger(tabId, async (debuggee) => {
+    for (const tag of tags) {
+      await sendDebuggerCommand(debuggee, "Input.insertText", { text: tag });
+      for (const type of ["keyDown", "keyUp"]) {
+        await sendDebuggerCommand(debuggee, "Input.dispatchKeyEvent", {
+          type,
+          windowsVirtualKeyCode: 13,
+          key: "Enter",
+          code: "Enter",
+        });
+      }
+    }
+    return { ok: true };
+  });
 }
 
 // content-write-bridge.js가 중계하는 초안 저장 — 네이버 에디터 탭의
@@ -102,6 +141,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
     cdpInsertText(tabId, message.text || "").then(sendResponse);
+    return true; // sendResponse가 비동기로 불릴 것임을 알림
+  }
+  if (message?.type === "CDP_INSERT_TAGS") {
+    const tabId = sender.tab?.id;
+    if (tabId == null) {
+      sendResponse({ ok: false, error: "tabId 없음" });
+      return false;
+    }
+    cdpInsertTags(tabId, Array.isArray(message.tags) ? message.tags : []).then(sendResponse);
     return true; // sendResponse가 비동기로 불릴 것임을 알림
   }
 });
