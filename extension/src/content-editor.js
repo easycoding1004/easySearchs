@@ -25,14 +25,22 @@ const API_BASE_URL = "https://ezzsearch.com";
 const SELECTORS = {
   // 후보를 순서대로 시도 — 첫 번째로 매치되는 요소를 씀.
   title: [
-    // 2026-08 — 본문(`[data-a11y-title="본문"]`)은 CDP로 실제 삽입에 성공했는데
-    // (before.len=33→after.len=2193, 실측 확인) 제목은 매번 before/after가
-    // 동일하게 실패함 — 본문 셀렉터는 요소 자기 자신이 바로 contenteditable="true"
-    // 라서 resolveEditableTarget이 드릴다운할 필요조차 없었던 반면, 아래
-    // `.se-module-text.se-title-text`는 자기 자신도 contenteditable이 아니고
-    // 그 안에도 contenteditable 후손이 없었을 가능성이 높음(진짜 입력 지점이
-    // 형제 요소일 수 있음) — 그래서 검색 범위를 `.se-section-documentTitle`
-    // 섹션 전체로 넓힌 후보를 최우선으로 추가함.
+    // 2026-08 실측 확인(사용자가 개발자 도구 Elements 패널로 제목 DOM 전체를
+    // 직접 캡처해줌) — 제목 섹션(`.se-section-documentTitle`) 안에는
+    // `contenteditable` 속성이 있는 요소가 **아예 하나도 없음**. 실제 구조는
+    // `.se-module-text.se-title-text` div 안에 `<p class="se-text-paragraph
+    // se-text-paragraph-align-left">`가 있을 뿐 — 즉 제목은 DOM 레벨에서
+    // "편집 가능한 요소"가 아니라, SmartEditor가 클릭 이벤트를 감지해서 화면
+    // 밖에 숨겨둔 입력 캡처 프레임(`iframe#input_buffer...`, 진짜 타이핑은
+    // 전부 여기서 받음 — body도 마찬가지)의 라우팅 대상을 "제목"으로
+    // 프로그램적으로 바꿔주는 방식으로 동작하는 것으로 보임. 그래서 클릭
+    // 좌표가 정확히 어디를 때리는지가 중요한데, 지금까지는 `.se-module-text.
+    // se-title-text`(IE 호환용 `min-height-for-ie` 클래스가 붙어 있어 실제
+    // 텍스트 줄보다 세로로 더 큰 상자일 수 있음)의 중심 좌표를 썼음 — 그
+    // 여백 때문에 클릭이 실제 텍스트 줄(`<p>`)을 벗어났을 가능성이 있어,
+    // 이 `<p class="se-text-paragraph">` 자체를 직접 타겟하는 후보를
+    // 최우선으로 추가함.
+    ".se-section-documentTitle p.se-text-paragraph",
     ".se-section-documentTitle [contenteditable='true']",
     ".se-section-documentTitle .se-module-text.se-title-text",
     ".se-title-text[contenteditable='true']",
