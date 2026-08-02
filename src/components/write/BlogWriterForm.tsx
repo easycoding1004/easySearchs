@@ -22,7 +22,14 @@ import {
   type SlotBlock,
   type GalleryBlock,
 } from "@/lib/write/parseBody";
-import { getBlogTheme, type BlogTheme } from "@/lib/write/blogTheme";
+import {
+  getBlogTheme,
+  applyThemeOverrides,
+  ACCENT_PRESETS,
+  FONT_OPTIONS,
+  type BlogTheme,
+  type FontChoice,
+} from "@/lib/write/blogTheme";
 
 // 2026-08 v2 개편(§CLAUDE.md 16.2) — GALLERY가 최대 50장까지 한 번에 요구할
 // 수 있어 서버(route.ts)와 동일하게 상한을 올림. 원본 업로드 용량 sanity cap도
@@ -361,6 +368,16 @@ export default function BlogWriterForm({
   const [group, setGroup] = useState<BlogGroup | null>(null);
   const [category, setCategory] = useState<BlogCategory | null>(null);
   const [sponsored, setSponsored] = useState(false);
+  // 2026-08 추가 — 유형 선택과 별개로 색상·폰트를 직접 고를 수 있는 선택
+  // 사항. null이면 유형 기본값을 그대로 씀. 순수 렌더링 설정이라(Claude에
+  // 보내는 프롬프트와 무관) 결과가 이미 생성된 뒤에 바꿔도 재생성 없이
+  // 바로 미리보기에 반영됨.
+  const [customAccent, setCustomAccent] = useState<string | null>(null);
+  const [customFont, setCustomFont] = useState<FontChoice | null>(null);
+
+  function resolveTheme(cat: BlogCategory): BlogTheme {
+    return applyThemeOverrides(getBlogTheme(cat), { accent: customAccent, font: customFont });
+  }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WriteResult | null>(null);
@@ -388,7 +405,7 @@ export default function BlogWriterForm({
   // 계속 만들어내던 걸 방지(메모리 누수는 아니지만 낭비였음).
   const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   const selectedMeta = category ? getBlogCategoryMeta(category) : null;
-  const selectedTheme = category ? getBlogTheme(category) : null;
+  const selectedTheme = category ? resolveTheme(category) : null;
   // 예시 미리보기용 — 아직 사진을 업로드하기 전(유형 선택 단계)이라 이미지
   // 자리는 없음(sampleBody가 SLOT/GALLERY를 안 씀), 그래도 resolver 타입은
   // 맞춰줘야 해서 빈 값으로 생성.
@@ -545,7 +562,7 @@ export default function BlogWriterForm({
   async function handleCopyRich() {
     if (!result) return;
     try {
-      const theme = getBlogTheme(result.category);
+      const theme = resolveTheme(result.category);
       const blocks = parseBody(result.body);
       const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks, theme)}`;
       const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}`;
@@ -606,7 +623,7 @@ export default function BlogWriterForm({
     if (!result) return;
     const editorTab = naverBlogId ? window.open("about:blank", "_blank") : null;
 
-    const theme = getBlogTheme(result.category);
+    const theme = resolveTheme(result.category);
     const blocks = parseBody(result.body);
     const bodyHtml = renderBodyToHtmlForExtension(blocks, theme);
     const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${bodyHtml}`;
@@ -682,7 +699,7 @@ export default function BlogWriterForm({
 
   const resultBlocks = result ? parseBody(result.body) : [];
   const resultMeta = result ? getBlogCategoryMeta(result.category) : null;
-  const resultTheme = result ? getBlogTheme(result.category) : null;
+  const resultTheme = result ? resolveTheme(result.category) : null;
   const resultResolveImage = result
     ? createImageResolver({ photoSrcs: previews, stockImages: insertedStockImages, aiImages: result.aiImages })
     : null;
@@ -814,6 +831,62 @@ export default function BlogWriterForm({
               ) : (
                 <p className="text-ink-muted">글 유형을 선택하면 실제 이런 느낌으로 쓰이는지 미리 보여드려요.</p>
               )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-ink">테마 색상·폰트 (선택 사항 — 비워두면 유형별 기본값 사용)</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ACCENT_PRESETS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setCustomAccent(p.value)}
+                  disabled={loading}
+                  aria-label={p.label}
+                  title={p.label}
+                  className={`h-6 w-6 rounded-full border-2 transition ${
+                    customAccent === p.value ? "border-ink" : "border-transparent"
+                  }`}
+                  style={{ background: p.value }}
+                />
+              ))}
+              <input
+                type="color"
+                value={customAccent ?? "#e06b3d"}
+                onChange={(e) => setCustomAccent(e.target.value)}
+                disabled={loading}
+                title="직접 선택"
+                className="h-6 w-6 cursor-pointer rounded border border-hairline bg-transparent p-0"
+              />
+              {customAccent && (
+                <button
+                  type="button"
+                  onClick={() => setCustomAccent(null)}
+                  disabled={loading}
+                  className="text-xs font-semibold text-ink-muted hover:text-primary"
+                >
+                  기본값으로
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {FONT_OPTIONS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setCustomFont((cur) => (cur === f.value ? null : f.value))}
+                  disabled={loading}
+                  style={{ fontFamily: f.stack }}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    customFont === f.value
+                      ? "border-primary bg-primary text-white"
+                      : "border-hairline text-ink-muted hover:bg-bg"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
 

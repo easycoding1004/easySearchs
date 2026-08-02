@@ -244,3 +244,69 @@ export const BLOG_THEMES: Record<BlogCategory, BlogTheme> = {
 export function getBlogTheme(category: BlogCategory): BlogTheme {
   return BLOG_THEMES[category];
 }
+
+// 2026-08 추가(사용자 요청 — "16가지 유형 선택과 별개로 색깔·글꼴을 선택
+// 사항으로 추가해달라") — 16개 유형은 각자 어울리는 색/폰트가 자동으로
+// 정해지지만, 사용자가 원하면 그 위에 색상·폰트만 따로 바꿀 수 있게 함.
+// 프리셋은 16개 테마에서 이미 쓰인 색상들 중 대표적인 것들을 모음(새 색을
+// 발명하지 않고 검증된 팔레트 재사용) — "직접 입력"은 UI에서 <input
+// type="color">로 별도 처리.
+export const ACCENT_PRESETS: { label: string; value: string }[] = [
+  { label: "블루", value: "#2563eb" },
+  { label: "틸", value: "#0d9488" },
+  { label: "인디고", value: "#4338ca" },
+  { label: "코랄", value: "#ea580c" },
+  { label: "핑크", value: "#db2777" },
+  { label: "앰버", value: "#b45309" },
+  { label: "그린", value: "#15803d" },
+  { label: "로즈", value: "#e11d48" },
+  { label: "슬레이트", value: "#475569" },
+  { label: "바이올렛", value: "#7c3aed" },
+  { label: "레드", value: "#dc2626" },
+  { label: "스카이", value: "#0369a1" },
+];
+
+export type FontChoice = "sans" | "serif";
+export const FONT_OPTIONS: { label: string; value: FontChoice; stack: string }[] = [
+  { label: "깔끔한 산세리프", value: "sans", stack: SANS_STACK },
+  { label: "부드러운 세리프", value: "serif", stack: SERIF_STACK },
+];
+
+// hex(#rrggbb)를 흰색과 섞어 옅은 배경 톤을 만든다 — 16개 사전 정의 테마는
+// accent/accentSoft를 손으로 직접 짝지어뒀지만, 사용자가 직접 고른 임의의
+// accent 색상은 accentSoft를 실시간으로 계산해야 어울리는 배경 톤이 나옴.
+export function lightenHex(hex: string, ratio = 0.85): string {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return hex;
+  const num = parseInt(match[1], 16);
+  const r = (num >> 16) & 0xff;
+  const g = (num >> 8) & 0xff;
+  const b = num & 0xff;
+  const mix = (channel: number) => Math.round(channel + (255 - channel) * ratio);
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+}
+
+export interface ThemeOverrides {
+  accent?: string | null; // hex — null/undefined이면 유형 기본 색상 사용
+  font?: FontChoice | null; // null/undefined이면 유형 기본 폰트 사용
+}
+
+// 유형 기본 테마 위에 사용자가 고른 색상·폰트를 얹는다 — 유형별 헤딩
+// 스타일/인용구 스타일/목록 마커 등 "구조"는 그대로 유지하고 색·폰트만
+// 바뀌므로, 유형 특유의 개성은 남으면서 색감만 취향대로 바뀜.
+export function applyThemeOverrides(base: BlogTheme, overrides: ThemeOverrides): BlogTheme {
+  const theme = { ...base };
+  if (overrides.accent) {
+    theme.accent = overrides.accent;
+    theme.accentSoft = lightenHex(overrides.accent);
+  }
+  if (overrides.font) {
+    const stack = FONT_OPTIONS.find((f) => f.value === overrides.font)?.stack;
+    if (stack) {
+      theme.bodyFont = stack;
+      theme.headingFont = stack;
+    }
+  }
+  return theme;
+}

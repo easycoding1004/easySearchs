@@ -200,10 +200,22 @@ async function copyToRealClipboard(html, text) {
   }
 }
 
+// 2026-08 사용자 신고("단락 사이 빈 줄이 없다") — 예전엔 innerHTML을 파싱한
+// 뒤 .textContent만 읽었는데, textContent는 <p>/<h3>/<blockquote> 같은
+// 블록 요소 경계를 무시하고 텍스트를 그냥 다 이어붙임 — CDP/execCommand로
+// 평문을 넣을 때(§CLAUDE.md 17.5) 문단 구분이 통째로 사라지는 원인이었음.
+// renderBodyToHtmlForExtension()이 최상위 블록 요소들을 평평하게(중첩 없이)
+// 나열하는 구조라, 최상위 자식 요소마다 텍스트를 따로 뽑아 빈 줄(\n\n)로
+// 이어붙이면 문단 구분이 살아남는다.
 function stripHtmlToText(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
-  return div.textContent || "";
+  const parts = [];
+  for (const child of div.children) {
+    const text = child.textContent?.trim();
+    if (text) parts.push(text);
+  }
+  return parts.length > 0 ? parts.join("\n\n") : div.textContent || "";
 }
 
 // data:image/...;base64,XXXX → Blob. 확장이 /write에서 받은 사진·AI이미지는
