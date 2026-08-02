@@ -112,6 +112,31 @@ function simulatePaste(target, html, text) {
   }
 }
 
+// 2026-08 실측 확인 — simulatePaste(합성 paste 이벤트)가 SmartEditor에서
+// 요소를 찾는 데는 성공해도(titleEl/bodyEl 둘 다 true) 실제로 텍스트가
+// 안 들어가는 걸 사용자가 직접 확인해줌. 합성 ClipboardEvent는
+// `isTrusted: false`라 SmartEditor의 paste 핸들러가 이를 무시하는 것으로
+// 보임(추정 — SmartEditor 내부 로직을 직접 볼 방법은 없음). `execCommand`는
+// 표준에서 deprecated로 표시돼 있지만 Chrome이 아직 지원하고, 브라우저의
+// 실제 텍스트 편집 파이프라인을 타기 때문에 순수 합성 이벤트보다 에디터가
+// "진짜 입력"으로 인식할 가능성이 더 높음 — 그래서 이걸 1차 시도로 두고,
+// 실패하면(반환값 false) simulatePaste로 폴백한다. 본문은 서식을 살리려고
+// `insertHTML`을 먼저 시도하고, 그게 안 먹으면(반환값 false) `insertText`로
+// 평문만이라도 넣는다.
+function insertViaExecCommand(target, plainText, html) {
+  if (!target) return false;
+  target.focus();
+  try {
+    if (html) {
+      if (document.execCommand("insertHTML", false, html)) return true;
+    }
+    return document.execCommand("insertText", false, plainText);
+  } catch (err) {
+    console.warn("[ezzsearch] execCommand insert failed:", err);
+    return false;
+  }
+}
+
 async function copyToRealClipboard(html, text) {
   try {
     if (typeof ClipboardItem !== "undefined") {
@@ -227,11 +252,15 @@ async function insertDraft(draft) {
       titleEl.value = draft.title;
       titleEl.dispatchEvent(new Event("input", { bubbles: true }));
     } else {
-      simulatePaste(titleEl, draft.title, draft.title);
+      const inserted = insertViaExecCommand(titleEl, draft.title, null);
+      log("title insertViaExecCommand=", inserted);
+      if (!inserted) simulatePaste(titleEl, draft.title, draft.title);
     }
   }
   if (bodyEl) {
-    simulatePaste(bodyEl, html, stripHtmlToText(html));
+    const inserted = insertViaExecCommand(bodyEl, stripHtmlToText(html), html);
+    log("body insertViaExecCommand=", inserted);
+    if (!inserted) simulatePaste(bodyEl, html, stripHtmlToText(html));
   }
   await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
 
