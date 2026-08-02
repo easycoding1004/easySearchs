@@ -115,13 +115,26 @@ interface MediaCounters {
   AI이미지: number;
 }
 
+// Claude가 "AI이미지"를 "AI 이미지"처럼 띄어서 쓰는 경우가 실제로 있었음
+// (2026-08 사용자 신고 — "AI 이미지 생성이 안 된다" 버그의 원인. 공백이
+// 섞인 채로 그대로 MediaKind로 캐스팅되면 이후 모든 "AI이미지" 리터럴 비교가
+// 전부 실패해서, mediaIndex가 안 매겨지고 이미지가 실제로 생성돼도 절대
+// 화면에 매칭이 안 됨). 내부 공백을 지우고 대소문자를 정규화해서 매칭한다.
+function normalizeMediaKind(raw: string): MediaKind {
+  const compact = raw.replace(/\s+/g, "");
+  if (compact === "영상") return "영상";
+  if (compact === "스톡이미지") return "스톡이미지";
+  if (/^ai이미지$/i.test(compact)) return "AI이미지";
+  return "이미지"; // 알 수 없는 값은 가장 흔한 경우로 안전하게 폴백
+}
+
 function parseSlotOrGallery(
   tag: "SLOT" | "GALLERY",
   content: string,
   counters: MediaCounters
 ): SlotBlock | GalleryBlock | null {
   const segments = splitPipeSegments(content);
-  const kind = segments[0] as MediaKind;
+  const kind = normalizeMediaKind(segments[0] ?? "");
   const attrs = parseAttrsFromSegments(segments.slice(1));
   const count = Number(attrs["개수"]) || 0;
   const hint = attrs["힌트"] || "";

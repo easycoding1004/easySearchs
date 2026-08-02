@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   BLOG_GROUPS,
@@ -384,13 +384,21 @@ export default function BlogWriterForm({
   const [blogIdDraft, setBlogIdDraft] = useState(initialNaverBlogId);
   const [savingBlogId, setSavingBlogId] = useState(false);
 
-  const previews = files.map((f) => URL.createObjectURL(f));
+  // files가 그대로면 재사용 — 매 렌더(프롬프트 타이핑 등)마다 새 blob URL을
+  // 계속 만들어내던 걸 방지(메모리 누수는 아니지만 낭비였음).
+  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   const selectedMeta = category ? getBlogCategoryMeta(category) : null;
 
+  // 사용자 신고(2026-08) — "AI가 작성한 블로그 글이 갑자기 화면에서
+  // 사라지는" 버그의 원인: 사진 입력을 다시 클릭할 때마다(수정 요청을 위해
+  // 사진을 추가/변경하려는 경우 등) result를 무조건 null로 지워버리고
+  // 있었음 — 이미 생성된 글을 보고 있는 도중에 파일 입력을 건드리면 아무
+  // 경고 없이 결과 전체가 사라짐. 새 글 생성은 handleSubmit이, 수정
+  // 반영은 handleRevise가 각자 책임지고 result를 갱신하므로, 여기서는
+  // 더 이상 결과를 지우지 않는다.
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []).slice(0, MAX_IMAGES);
     setFiles(selected);
-    setResult(null);
   }
 
   async function handleLogout() {
@@ -562,12 +570,23 @@ export default function BlogWriterForm({
     });
   }
 
-  // 크롬 확장(2026-08 추가)으로 초안을 넘겨서, 네이버 블로그 에디터 탭에서
-  // 자동 붙여넣기 버튼이 뜨게 함 — window.postMessage로만 통신하고 확장
-  // ID를 이 코드가 알 필요는 없음(확장이 설치돼 있으면 write 페이지에 심어둔
-  // content script가 이 메시지를 받아 자기 background로 중계함). 확장이 없으면
-  // 아무도 안 받으니, 짧은 시간 안에 ACK가 안 오면 "설치 안 된 것 같다"고
-  // 안내함.
+  // 크롬 확장(2026-08 추가, 2026-08 자동화 강화)으로 초안을 넘겨서, 네이버
+  // 블로그 에디터 탭에 자동으로 붙여넣기가 되게 함 — window.postMessage로만
+  // 통신하고 확장 ID를 이 코드가 알 필요는 없음(확장이 설치돼 있으면 write
+  // 페이지에 심어둔 content script가 이 메시지를 받아 자기 background로
+  // 중계함). 확장이 없으면 아무도 안 받으니, 짧은 시간 안에 ACK가 안 오면
+  // "설치 안 된 것 같다"고 안내함.
+  //
+  // 사용자 요청("로그인 사용자에 대해 자동으로 블로그 에디터에 복사
+  // 붙여넣기가 되었으면") — 예전엔 이 버튼을 누른 뒤 사용자가 직접
+  // "네이버 블로그 글쓰기 열기"를 따로 눌러야 했는데, naverBlogId가 저장돼
+  // 있으면 이 버튼 하나로 에디터 탭까지 자동으로 열어줌(그 탭 안에서
+  // 실제 삽입은 content-editor.js가 자동으로 시도함). **탭은 반드시
+  // await 이전, 클릭 핸들러 맨 앞에서 동기적으로 열어야 함** — ACK를 받은
+  // 뒤(비동기) window.open을 호출하면 사용자 제스처 컨텍스트를 벗어나서
+  // 브라우저 팝업 차단에 걸리기 쉬움. 그래서 일단 빈 탭을 열어두고, 실제
+  // 이동은 ACK 성공 시(onAck)에, 확장이 없으면(타임아웃) 그 빈 탭을 다시
+  // 닫아서 쓸모없는 빈 탭이 안 남게 함.
   //
   // html은 renderBodyToHtml(서식 포함 복사와 동일)이 아니라
   // renderBodyToHtmlForExtension을 씀 — 사진/AI이미지 자리가 안내 문구
@@ -579,6 +598,8 @@ export default function BlogWriterForm({
   // 문구로 남음).
   async function handleSendToExtension() {
     if (!result) return;
+    const editorTab = naverBlogId ? window.open("about:blank", "_blank") : null;
+
     const theme = getBlogTheme(result.category);
     const blocks = parseBody(result.body);
     const bodyHtml = renderBodyToHtmlForExtension(blocks, theme);
@@ -605,6 +626,9 @@ export default function BlogWriterForm({
       clearTimeout(timeoutId);
       setExtensionStatus("sent");
       setTimeout(() => setExtensionStatus("idle"), 3000);
+      if (editorTab && naverBlogId) {
+        editorTab.location.href = `https://blog.naver.com/${naverBlogId}?Redirect=Write&`;
+      }
     }
     window.addEventListener("message", onAck);
     // 사용자 실사용 신고(2026-08): 거의 항상 "설치 안 된 것 같다"고 뜸 —
@@ -616,6 +640,7 @@ export default function BlogWriterForm({
       window.removeEventListener("message", onAck);
       setExtensionStatus("not-found");
       setTimeout(() => setExtensionStatus("idle"), 4000);
+      editorTab?.close(); // 확장이 없으면 미리 열어둔 빈 탭을 정리
     }, 2500);
 
     window.postMessage(
@@ -869,6 +894,12 @@ export default function BlogWriterForm({
           {extensionStatus === "not-found" && (
             <p className="text-xs text-error">
               확장 프로그램이 설치되어 있지 않은 것 같아요 — 설치 후 이 페이지를 새로고침해 주세요.
+            </p>
+          )}
+          {!naverBlogId && (
+            <p className="text-xs text-ink-muted">
+              네이버 블로그 아이디를 위에서 설정해두면 &ldquo;확장으로 보내기&rdquo; 클릭 한 번으로 에디터 탭까지
+              자동으로 열리고 붙여넣기까지 시도해요.
             </p>
           )}
           <p className="text-xs text-ink-muted">

@@ -241,6 +241,39 @@ function showInsertButton(draft) {
   insertButtonEl = btn;
 }
 
+// 2026-08 사용자 요청("로그인 사용자에 대해 자동으로 붙여넣기가 되었으면") —
+// 예전엔 초안이 도착해도 사람이 플로팅 버튼을 눌러야만 삽입을 시도했는데,
+// 이제 초안이 감지되면 곧바로 자동으로 삽입을 시도한다. SmartEditor가 아직
+// 안 떴을 수 있어(방금 탭을 열었거나 페이지 전환 직후) 제목/본문 입력창이
+// 나타날 때까지 최대 AUTO_INSERT_MAX_ATTEMPTS번, AUTO_INSERT_RETRY_MS
+// 간격으로 재시도한 뒤 insertDraft를 호출한다. 자동 삽입이 실패해도(선택자가
+// §CLAUDE.md 17.4 기준 여전히 미검증이라 안 먹을 수 있음) 클립보드에는
+// 항상 복사해두고(insertDraft 내부), 초안이 스토리지에 그대로 남아있으면
+// 수동 재시도용 플로팅 버튼을 띄운다 — 자동 삽입이 항상 보장은 아니라는
+// 뜻이라 완전히 무음 실패로 두지 않기 위함.
+const AUTO_INSERT_RETRY_MS = 1000;
+const AUTO_INSERT_MAX_ATTEMPTS = 10; // 최대 약 10초간 에디터가 뜨길 기다림
+let autoInsertedSavedAt = null; // 같은 초안을 중복 자동삽입하지 않기 위한 가드
+
+async function autoInsertWithRetry(draft, attempt = 0) {
+  const ready = findFirst(SELECTORS.title) || findFirst(SELECTORS.body);
+  if (!ready && attempt < AUTO_INSERT_MAX_ATTEMPTS) {
+    await new Promise((resolve) => setTimeout(resolve, AUTO_INSERT_RETRY_MS));
+    return autoInsertWithRetry(draft, attempt + 1);
+  }
+  await insertDraft(draft);
+}
+
+async function tryAutoInsert(draft) {
+  if (!draft || draft.savedAt === autoInsertedSavedAt) return;
+  autoInsertedSavedAt = draft.savedAt;
+  await autoInsertWithRetry(draft);
+  // insertDraft가 성공하면 DRAFT_KEY를 지우고 끝남 — 그대로 남아있다면
+  // 자동 삽입이 안 된 것이므로(선택자 미검증 등) 수동 재시도 버튼을 띄움.
+  const store = await chrome.storage.local.get(DRAFT_KEY);
+  if (store[DRAFT_KEY]) showInsertButton(draft);
+}
+
 async function checkPendingDraft() {
   const store = await chrome.storage.local.get(DRAFT_KEY);
   const draft = store[DRAFT_KEY];
@@ -249,12 +282,12 @@ async function checkPendingDraft() {
     chrome.storage.local.remove(DRAFT_KEY);
     return;
   }
-  showInsertButton(draft);
+  tryAutoInsert(draft);
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[DRAFT_KEY]) return;
-  if (changes[DRAFT_KEY].newValue) showInsertButton(changes[DRAFT_KEY].newValue);
+  if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
   else removeInsertButton();
 });
 
