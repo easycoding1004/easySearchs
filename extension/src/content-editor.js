@@ -50,6 +50,17 @@ const DRAFT_KEY = "pendingDraft";
 const DRAFT_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2시간 지난 초안은 안 띄움(엉뚱한 글에 옛날 초안이 뜨는 걸 방지)
 const TAG_LOOKUP_DEBOUNCE_MS = 500;
 
+// 2026-08 디버그 로그(사용자 신고 — "확장으로 보내기가 여전히 안 됨") — 선택자는
+// mainFrame 컨텍스트에서 실측으로 맞는 걸 확인했는데도 계속 실패해서, 이 content
+// script가 실제로 어느 프레임에서 실행되고 어디까지 진행되는지 눈으로 보기 위해
+// 추가함. Console 패널은 기본적으로 모든 프레임의 로그를 한 곳에 모아서 보여주므로
+// (프레임을 따로 선택할 필요 없음), "[ezzsearch]"로 필터링해서 보면 전체 흐름을
+// 한눈에 볼 수 있음 — 원인이 확인되면 다시 지울 것.
+function log(...args) {
+  console.log("[ezzsearch]", `frame=${location.href.slice(0, 60)}`, ...args);
+}
+log("content-editor.js loaded");
+
 function findFirst(selectors) {
   for (const sel of selectors) {
     const el = document.querySelector(sel);
@@ -195,6 +206,7 @@ async function resolveImagePlaceholders(html, images) {
 async function insertDraft(draft) {
   const titleEl = findFirst(SELECTORS.title);
   const bodyEl = findFirst(SELECTORS.body);
+  log("insertDraft: titleEl=", !!titleEl, "bodyEl=", !!bodyEl);
 
   const { html, uploadedCount, needsManualUploadFirst } = await resolveImagePlaceholders(
     draft.html,
@@ -287,6 +299,7 @@ let autoInsertedSavedAt = null; // 같은 초안을 중복 자동삽입하지 �
 
 async function autoInsertWithRetry(draft, attempt = 0) {
   const ready = findFirst(SELECTORS.title) || findFirst(SELECTORS.body);
+  log("autoInsertWithRetry: attempt=", attempt, "ready=", !!ready);
   if (!ready && attempt < AUTO_INSERT_MAX_ATTEMPTS) {
     await new Promise((resolve) => setTimeout(resolve, AUTO_INSERT_RETRY_MS));
     return autoInsertWithRetry(draft, attempt + 1);
@@ -295,6 +308,7 @@ async function autoInsertWithRetry(draft, attempt = 0) {
 }
 
 async function tryAutoInsert(draft) {
+  log("tryAutoInsert called, savedAt=", draft?.savedAt, "alreadyHandled=", draft?.savedAt === autoInsertedSavedAt);
   if (!draft || draft.savedAt === autoInsertedSavedAt) return;
   autoInsertedSavedAt = draft.savedAt;
   await autoInsertWithRetry(draft);
@@ -307,6 +321,7 @@ async function tryAutoInsert(draft) {
 async function checkPendingDraft() {
   const store = await chrome.storage.local.get(DRAFT_KEY);
   const draft = store[DRAFT_KEY];
+  log("checkPendingDraft: found=", !!draft);
   if (!draft) return;
   if (Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
     chrome.storage.local.remove(DRAFT_KEY);
@@ -329,6 +344,7 @@ async function checkPendingDraft() {
 // 그냥 아무것도 못 찾고 조용히 넘어갈 뿐이라 실질적인 충돌 위험은 낮음.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[DRAFT_KEY]) return;
+  log("storage.onChanged fired, hasNewValue=", !!changes[DRAFT_KEY].newValue);
   if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
   else removeInsertButton();
 });
