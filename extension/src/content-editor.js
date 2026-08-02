@@ -264,17 +264,34 @@ async function insertDraft(draft) {
   }
   await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
 
+  // 2026-08 실측 확인 — execCommand/simulatePaste 둘 다 SmartEditor에서
+  // 실제로는 텍스트를 안 넣는 것으로 확인됨(수동 Ctrl+V는 정상 동작) —
+  // SmartEditor가 스크립트가 만든(비신뢰) 입력은 다 걸러내고 사람이 직접
+  // 누른 Ctrl+V만 받아들이는 것으로 보임(이 이상은 브라우저 보안 구조상
+  // 확장이 우회하기 어려운 영역일 가능성이 높음). 그래서 "자동 삽입"
+  // 자체보다 "수동 Ctrl+V를 최대한 빠르게" 쪽으로 보완함 — 제목란에
+  // 커서를 미리 갖다두고, 제목에 입력이 감지되면(Ctrl+V 포함) 커서를
+  // 자동으로 본문란으로 옮겨줘서, 클릭 없이 Ctrl+V 두 번만 누르면 끝나게.
+  if (titleEl) {
+    titleEl.focus();
+    if (bodyEl) {
+      titleEl.addEventListener("input", () => bodyEl.focus(), { once: true });
+    }
+  } else if (bodyEl) {
+    bodyEl.focus();
+  }
+
   if (needsManualUploadFirst) {
     showToast(
       "제목·본문을 넣어봤어요. 사진은 이 에디터에서 아직 업로드 이력이 없어 자동으로 못 넣었어요 — 사진 1장을 직접 한 번 업로드하시면, 그다음부터는 이지서치가 자동으로 올려드려요."
     );
   } else if (uploadedCount > 0) {
     showToast(
-      `제목·본문에 사진 ${uploadedCount}장까지 자동으로 넣어봤어요 — 반영이 안 됐다면 Ctrl+V로 직접 붙여넣어 주세요(클립보드에도 복사해뒀어요).`
+      `사진 ${uploadedCount}장은 올려뒀어요. 제목란에 커서를 놔뒀으니 비어있다면 Ctrl+V, 본문은 그다음 자동으로 커서가 넘어가요(클립보드에 이미 복사해뒀어요).`
     );
   } else {
     showToast(
-      "제목·본문을 넣어봤어요 — 반영이 안 됐다면 Ctrl+V로 직접 붙여넣어 주세요(클립보드에도 복사해뒀어요)."
+      "제목란에 커서를 놔뒀어요 — 비어있다면 Ctrl+V, 그다음 본문에서 Ctrl+V 한 번 더 눌러주세요(클립보드에 이미 복사해뒀어요, 제목에 붙여넣으면 커서가 본문으로 자동으로 넘어가요)."
     );
   }
   chrome.storage.local.remove(DRAFT_KEY);
