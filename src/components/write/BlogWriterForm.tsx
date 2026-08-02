@@ -547,7 +547,7 @@ export default function BlogWriterForm({
     : null;
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-6">
+    <div className="flex w-full max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between text-sm text-ink-muted">
         <span>{email}로 로그인됨</span>
         <button type="button" onClick={handleLogout} className="hover:text-primary">
@@ -607,55 +607,66 @@ export default function BlogWriterForm({
           onSubmit={handleSubmit}
           className="flex flex-col gap-3 rounded-lg border-2 border-hairline bg-surface p-4 shadow-sm transition-colors focus-within:border-primary sm:p-5"
         >
-          <div className="flex flex-col gap-2 text-sm">
-            <span className="font-medium text-ink">글 유형</span>
-            <div className="flex flex-wrap gap-1.5">
-              {BLOG_GROUPS.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => {
-                    setGroup(g.id);
-                    setCategory(null);
-                  }}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
-                    group === g.id
-                      ? "border-primary bg-primary text-white"
-                      : "border-hairline text-ink-muted hover:bg-bg"
-                  }`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
-            {group && (
-              <select
-                value={category ?? ""}
-                onChange={(e) => setCategory(e.target.value as BlogCategory)}
-                disabled={loading}
-                className="rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none disabled:opacity-50"
-              >
-                <option value="" disabled>
-                  세부 유형을 골라주세요
-                </option>
-                {BLOG_CATEGORIES.filter((c) => c.group === group).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-2 text-sm">
+              <span className="font-medium text-ink">글 유형</span>
+              <div className="flex flex-wrap gap-1.5">
+                {BLOG_GROUPS.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setGroup(g.id);
+                      setCategory(null);
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                      group === g.id
+                        ? "border-primary bg-primary text-white"
+                        : "border-hairline text-ink-muted hover:bg-bg"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
                 ))}
-              </select>
-            )}
-            {selectedMeta && (
-              <div className="rounded-md bg-bg px-3 py-2 text-xs text-ink-muted">
-                <p>{selectedMeta.description}</p>
-                <p className="mt-1">
-                  사진 {selectedMeta.imageHint}
-                  {selectedMeta.videoHint !== "-" && ` · 영상 ${selectedMeta.videoHint}`} · 특징:{" "}
-                  {selectedMeta.markupHint}
-                </p>
               </div>
-            )}
+              {group && (
+                <select
+                  value={category ?? ""}
+                  onChange={(e) => setCategory(e.target.value as BlogCategory)}
+                  disabled={loading}
+                  className="rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none disabled:opacity-50"
+                >
+                  <option value="" disabled>
+                    세부 유형을 골라주세요
+                  </option>
+                  {BLOG_CATEGORIES.filter((c) => c.group === group).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedMeta && (
+                <div className="rounded-md bg-bg px-3 py-2 text-xs text-ink-muted">
+                  <p>{selectedMeta.description}</p>
+                  <p className="mt-1">
+                    사진 {selectedMeta.imageHint}
+                    {selectedMeta.videoHint !== "-" && ` · 영상 ${selectedMeta.videoHint}`} · 특징:{" "}
+                    {selectedMeta.markupHint}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 rounded-md border border-dashed border-hairline bg-bg p-3 text-xs">
+              <span className="font-semibold text-ink-muted">예시 미리보기</span>
+              {selectedMeta ? (
+                <p className="whitespace-pre-wrap leading-relaxed text-ink">{selectedMeta.sample}</p>
+              ) : (
+                <p className="text-ink-muted">글 유형을 선택하면 어떤 식으로 쓰이는지 예시를 보여드려요.</p>
+              )}
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
