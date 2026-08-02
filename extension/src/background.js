@@ -103,6 +103,38 @@ async function cdpInsertText(tabId, text) {
   });
 }
 
+// 2026-08 — CDP Input.insertText 자체는 정상 동작하는데도(브라우저 엔진
+// 차원의 신뢰된 입력) 제목·본문에 매번 아무 변화가 없는 게 사후 검증
+// (content-editor.js의 insertViaDebugger `landed` 비교)으로 확인됨. 지금까지
+// SmartEditor에게 "이 필드가 활성"이라고 알려주려고 쓴 `target.focus()`/
+// `target.click()`은 전부 페이지 스크립트가 만든 이벤트라 `isTrusted:false` —
+// 이 세션 내내 "isTrusted가 아닌 건 SmartEditor가 무시한다"는 패턴이 계속
+// 반복됐는데(paste 이벤트, execCommand 모두 이 이유로 실패), 필드를 전환하는
+// 클릭 자체도 같은 이유로 무시되고 있었을 가능성이 높음 — 그래서 텍스트
+// 삽입뿐 아니라 "필드를 활성화하는 클릭"도 CDP(Input.dispatchMouseEvent, 실제
+// 하드웨어 입력과 같은 신뢰 등급)로 보내도록 함. content-editor.js가 대상
+// 요소의 화면 좌표(중첩 iframe 오프셋까지 합산한 최상위 페이지 기준 절대
+// 좌표)를 계산해서 넘겨준다.
+async function cdpClick(tabId, x, y) {
+  return withDebugger(tabId, async (debuggee) => {
+    await sendDebuggerCommand(debuggee, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    await sendDebuggerCommand(debuggee, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+    return { ok: true };
+  });
+}
+
 // 2026-08(사용자 요청 — "태그도 자동으로 삽입이 어려운가") — 네이버 태그
 // 입력창은 붙여넣은 텍스트 뭉치에서는 쉼표를 "구분자"가 아니라 "글자"로
 // 인식해서 여러 태그가 하나로 뭉쳐버리는 것으로 실측 확인됨(§CLAUDE.md 16) —
@@ -164,6 +196,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
     cdpInsertTags(tabId, Array.isArray(message.tags) ? message.tags : []).then(sendResponse);
+    return true; // sendResponse가 비동기로 불릴 것임을 알림
+  }
+  if (message?.type === "CDP_CLICK") {
+    const tabId = sender.tab?.id;
+    if (tabId == null || typeof message.x !== "number" || typeof message.y !== "number") {
+      sendResponse({ ok: false, error: "tabId 또는 좌표 없음" });
+      return false;
+    }
+    cdpClick(tabId, message.x, message.y).then(sendResponse);
     return true; // sendResponse가 비동기로 불릴 것임을 알림
   }
 });

@@ -84,6 +84,40 @@ function resolveEditableTarget(el) {
   return inner || el;
 }
 
+// 2026-08 — CDP `Input.dispatchMouseEvent`는 최상위 페이지(디버거가 attach된
+// 탭 전체) 기준 절대 좌표를 받는데, 이 스크립트는 중첩된 iframe(`mainFrame`)
+// 안에서 실행되므로 target.getBoundingClientRect()는 그 iframe 안에서의
+// 상대 좌표만 줌 — window.frameElement를 타고 최상위까지 올라가며 각 조상
+// 프레임의 위치를 더해 절대 좌표로 변환한다(같은 출처끼리만 접근 가능한데,
+// blog.naver.com 안의 중첩 프레임들은 전부 같은 출처라 문제 없음).
+function getAbsoluteCenter(el) {
+  const rect = el.getBoundingClientRect();
+  let x = rect.left + rect.width / 2;
+  let y = rect.top + rect.height / 2;
+  let win = window;
+  while (win !== win.top) {
+    const frameEl = win.frameElement;
+    if (!frameEl) break;
+    const frameRect = frameEl.getBoundingClientRect();
+    x += frameRect.left;
+    y += frameRect.top;
+    win = win.parent;
+  }
+  return { x, y };
+}
+
+function cdpClick(x, y) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "CDP_CLICK", x, y }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      resolve(response || { ok: false, error: "no response" });
+    });
+  });
+}
+
 function showToast(message, isError = false) {
   const toast = document.createElement("div");
   toast.textContent = message;
@@ -176,26 +210,27 @@ function cdpInsertText(text) {
   });
 }
 
-// 2026-08 — `document.activeElement === target` 사전 검증 방식을 폐기함.
-// 실측 콘솔 로그(Chrome이 자체적으로 띄운 "Blocked aria-hidden on a <body>
-// element..." 경고)로 확인된 사실: 제목·본문의 진짜 키 입력 캡처 지점은
-// SmartEditor가 IME(한글 조합) 처리를 위해 화면 밖으로 회전시켜(rotateX)
-// 숨겨둔 별도의 `<body contenteditable="true">`이고, 우리가 보이는
-// title/body 요소에 focus()를 걸어도 SmartEditor가 즉시 그 숨은 캡처
-// 지점으로 포커스를 되돌린다 — 즉 `document.activeElement`가 우리 target과
-// 같아지는 경우 자체가 없음, 지금까지의 "focus did not stick" 실패는 이
-// 방식이 애초에 틀린 전제(단순 contenteditable focus 유지)로 검증하고
-// 있었던 것. 그래서 이 사전 검증은 버리고, 대신: (1) focus()+click()으로
-// SmartEditor에게 "이 필드가 활성"이라는 내부 상태를 만들어줄 시간을 충분히
-// 준 뒤(300ms — 예전 80ms보다 늘림, 이 지연 부족이 title↔body 오삽입 사고의
-// 원인 중 하나로 의심됨) CDP를 보내고, (2) 보낸 뒤 실제로 화면(textContent)이
-// 바뀌었는지 사후 비교로 성공 여부를 판단한다 — 포커스 위치를 추측하는 대신
-// 결과를 직접 확인하는 더 확실한 신호.
+// 2026-08 — `document.activeElement === target` 사전 검증 방식을 폐기했다가
+// (v0.5.8), focus()+click()으로도 여전히 아무 변화가 없는 게 사후 검증으로
+// 확인됨(before.len === after.len). 이 세션 내내 반복된 패턴이 다시 한번
+// 확인된 것 — 페이지 스크립트가 만드는 이벤트는 `isTrusted:false`라
+// SmartEditor가 무시하는데, `target.focus()`/`target.click()`도 결국 페이지
+// 스크립트가 만드는 것이라 "필드를 활성화하는 클릭" 자체가 안 먹히고 있었을
+// 가능성이 높음(텍스트 삽입은 CDP라 신뢰됐지만, 그 직전의 필드 전환 클릭은
+// 신뢰 안 됨 → SmartEditor 내부적으로 "지금 어느 필드가 활성인지"가 그대로라
+// CDP가 텍스트를 넣을 곳 자체가 안 바뀐 것으로 추정). 그래서 필드 전환도
+// CDP(Input.dispatchMouseEvent, 실제 마우스 클릭과 같은 신뢰 등급)로 보낸다 —
+// getAbsoluteCenter로 중첩 iframe 오프셋까지 합산한 화면 좌표를 구해 진짜
+// 클릭을 흉내 낸 뒤, 텍스트를 넣고, 여전히 결과(textContent 변화)로 성공
+// 여부를 사후 확인한다.
 async function insertViaDebugger(target, text) {
   if (!target) return false;
   const before = target.textContent || "";
   target.focus();
   target.click?.();
+  const { x, y } = getAbsoluteCenter(target);
+  const clickResult = await cdpClick(x, y);
+  if (!clickResult.ok) console.warn("[ezzsearch] cdpClick failed:", clickResult.error);
   await new Promise((resolve) => setTimeout(resolve, 300));
   const result = await cdpInsertText(text);
   if (!result.ok) {
@@ -233,12 +268,15 @@ function cdpInsertTags(tags) {
 // 클릭해서 복사" 수동 흐름(웹사이트 쪽)이 그대로 남아있어 손해가 없음.
 async function insertTagsViaDebugger(target, tags) {
   if (!target || !tags || tags.length === 0) return false;
-  // 위 insertViaDebugger와 같은 이유로 activeElement 사전 검증을 없애고
-  // focus()+click() 후 충분히 기다렸다가 CDP를 보낸다 — 태그 입력창은
-  // 성공 시 자기 자신을 비우는 UI라 title/body처럼 사후 textContent
-  // 비교로 검증할 수 없어서, CDP 명령 자체의 성공 여부(result.ok)만 신뢰한다.
+  // 위 insertViaDebugger와 같은 이유로 필드 활성화도 CDP 클릭으로 함 —
+  // 태그 입력창은 성공 시 자기 자신을 비우는 UI라 title/body처럼 사후
+  // textContent 비교로 검증할 수 없어서, CDP 명령 자체의 성공 여부
+  // (result.ok)만 신뢰한다.
   target.focus();
   target.click?.();
+  const { x, y } = getAbsoluteCenter(target);
+  const clickResult = await cdpClick(x, y);
+  if (!clickResult.ok) console.warn("[ezzsearch] cdpClick failed (tags):", clickResult.error);
   await new Promise((resolve) => setTimeout(resolve, 300));
   const result = await cdpInsertTags(tags);
   if (!result.ok) console.warn("[ezzsearch] cdpInsertTags failed:", result.error);
@@ -266,6 +304,25 @@ async function copyToRealClipboard(html, text) {
 // renderBodyToHtmlForExtension()이 최상위 블록 요소들을 평평하게(중첩 없이)
 // 나열하는 구조라, 최상위 자식 요소마다 텍스트를 따로 뽑아 빈 줄(\n\n)로
 // 이어붙이면 문단 구분이 살아남는다.
+// 2026-08 실측 확인("태그 반영 없이 텍스트로만 본문에 모두 복사됨" 신고,
+// 사용자 스크린샷에 제목 문구가 본문 맨 앞에 두 번 연달아 찍혀 있었음) — 원인은
+// BlogWriterForm.tsx가 만드는 draft.html이 `<h2>제목</h2>\n${본문}` 형태로
+// 제목까지 포함하는데, insertDraft가 본문 전용 삽입 시도(execCommand/
+// simulatePaste/CDP)에 이 draft.html(=html)을 그대로 써서 본문 필드에
+// 제목이 또 한 번 들어갔고, 여기에 더해 클립보드 폴백 텍스트도
+// `${draft.title}\n\n${stripHtmlToText(html)}`처럼 제목을 앞에 한 번 더
+// 붙이고 있어(html 자체에 이미 제목이 있는데) 제목이 총 두 번 겹친 것.
+// 본문 전용 작업에는 이 함수로 맨 앞 제목 헤딩만 떼어낸 버전을 쓴다.
+function splitTitleAndBody(html) {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  const first = container.firstElementChild;
+  if (first && /^h[1-6]$/i.test(first.tagName)) {
+    first.remove();
+  }
+  return container.innerHTML;
+}
+
 function stripHtmlToText(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
@@ -366,13 +423,17 @@ async function insertDraft(draft) {
     draft.html,
     draft.images
   );
+  // html은 <h2>제목</h2>\n${본문}처럼 제목까지 포함한 "문서 전체" — 본문
+  // 필드 전용 삽입 시도에는 제목 헤딩을 뗀 이 버전을 써야 제목이 본문에
+  // 중복으로 안 들어감(바로 아래 bodyTarget 블록 참고).
+  const bodyOnlyHtml = splitTitleAndBody(html);
 
   if (!titleEl && !bodyEl) {
     showToast(
       "에디터 입력창을 찾지 못했어요 — 클립보드에는 복사해뒀으니 Ctrl+V로 직접 붙여넣어 주세요.",
       true
     );
-    await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
+    await copyToRealClipboard(html, stripHtmlToText(html));
     return;
   }
 
@@ -400,13 +461,13 @@ async function insertDraft(draft) {
     // 쪽을 먼저 시도하고, 실패하면 서식이 남아있는 execCommand(insertHTML)로
     // 폴백한다. 어느 쪽이든 서식 포함 버전은 클립보드에 항상 같이 복사해두므로
     // (아래 copyToRealClipboard) 필요하면 사용자가 직접 다시 붙여넣을 수 있음.
-    bodyInserted = await insertViaDebugger(bodyTarget, stripHtmlToText(html));
+    bodyInserted = await insertViaDebugger(bodyTarget, stripHtmlToText(bodyOnlyHtml));
     log("body insertViaDebugger=", bodyInserted);
     if (!bodyInserted) {
-      bodyInserted = insertViaExecCommand(bodyTarget, stripHtmlToText(html), html);
+      bodyInserted = insertViaExecCommand(bodyTarget, stripHtmlToText(bodyOnlyHtml), bodyOnlyHtml);
       log("body insertViaExecCommand=", bodyInserted);
     }
-    if (!bodyInserted) simulatePaste(bodyTarget, html, stripHtmlToText(html));
+    if (!bodyInserted) simulatePaste(bodyTarget, bodyOnlyHtml, stripHtmlToText(bodyOnlyHtml));
   }
 
   const tagInputEl = findFirst(SELECTORS.tagInput);
@@ -422,7 +483,7 @@ async function insertDraft(draft) {
         : " 태그는 자동으로 안 됐어요 — 결과 화면에서 태그를 하나씩 클릭해 복사한 뒤 붙여넣어 주세요."
       : "";
 
-  await copyToRealClipboard(html, `${draft.title}\n\n${stripHtmlToText(html)}`);
+  await copyToRealClipboard(html, stripHtmlToText(html));
 
   // 2026-08 — CDP(insertViaDebugger)의 성공 여부는 브라우저 프로토콜 응답
   // 기반이라 execCommand의 반환값보다 훨씬 신뢰할 수 있음(execCommand는
