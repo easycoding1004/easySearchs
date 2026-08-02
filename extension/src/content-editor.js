@@ -54,12 +54,22 @@ const SELECTORS = {
     ".se-main-container .se-text[contenteditable='true']",
     ".se-component-content [contenteditable='true']",
   ],
+  // 2026-08 실측 확인(사용자가 태그 입력창의 실제 DOM을 캡처해줌) — `#fake-input`
+  // 은 이름과 달리 진짜 더미가 맞았음(tabindex=-1, aria-hidden=true,
+  // Accessibility 패널에서 Keyboard-focusable = 🚫). 진짜 타이핑 대상은 형제인
+  // `<span class="tag_input_wrap__...">` 안의 `<input id="tag-input"
+  // class="tag_input__..." placeholder="태그 입력 (최대 30개)" role="combobox">`
+  // — Accessibility 패널에서 Keyboard-focusable = ✅로 확인됨. title/body와
+  // 달리 이건 진짜 평범한 `<input>`이라 숨겨진 입력 캡처 프레임을 거치지
+  // 않음 — 그냥 포커스 가능한 실제 입력창. `#tag-input`을 최우선으로 옮김
+  // (기존에도 후보에는 있었는데 `#fake-input`이 먼저 매치돼서 한 번도 안
+  // 쓰였던 것).
   tagInput: [
+    "#tag-input",
+    'input[placeholder*="태그"]',
+    ".tag_input",
     "#fake-input",
     '[class*="fake_input__"]',
-    'input[placeholder*="태그"]',
-    "#tag-input",
-    ".tag_input",
   ],
 };
 
