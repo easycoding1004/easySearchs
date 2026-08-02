@@ -1,3 +1,5 @@
+import type { BlogTheme } from "./blogTheme";
+
 // v2 블록 포맷(2026-08, new_blog/ezzsearch-ai-draft-block-format-v2.md) 파서 —
 // blogWriter.ts가 Claude에게 시키는 "## " 소제목, "- "/"1. " 목록, "**강조**"
 // 인라인 마크업은 v1과 동일하지만, 이미지/영상/인용구/구분선/표/장소/링크는
@@ -269,13 +271,36 @@ const CIRCLED_DIGITS = [
 ];
 export { CIRCLED_DIGITS };
 
-function renderInlineToHtml(pieces: BodyInline[]): string {
+// 16개 유형별 테마(blogTheme.ts)의 listMarker를 실제 마커 문자로 변환 —
+// 순서 있는 목록(번호가 의미 있는 튜토리얼 단계 등)은 테마와 무관하게 항상
+// 순번을 보존해야 하므로 원문자를 그대로 쓰고, 테마의 listMarker는 순서
+// 없는 목록의 불릿 모양에만 적용한다(circle 테마는 애초에 순서 있는 목록
+// 위주라 순서 없는 목록엔 기본 불릿으로 폴백).
+export function getListMarkerSymbol(theme: BlogTheme, ordered: boolean, index: number): string {
+  if (ordered) return CIRCLED_DIGITS[index] ?? `${index + 1}.`;
+  switch (theme.listMarker) {
+    case "arrow":
+      return "▶";
+    case "check":
+      return "✓";
+    case "circle":
+      return "•";
+    case "dash":
+    default:
+      return "–";
+  }
+}
+
+function renderInlineToHtml(pieces: BodyInline[], theme: BlogTheme): string {
   return pieces
-    .map((piece) =>
-      piece.type === "em"
-        ? `<strong style="background:#fed7aa;color:#9a3412;font-weight:700;padding:0 3px;border-radius:3px;">${escapeHtmlText(piece.text)}</strong>`
-        : escapeHtmlText(piece.text)
-    )
+    .map((piece) => {
+      if (piece.type !== "em") return escapeHtmlText(piece.text);
+      const text = escapeHtmlText(piece.text);
+      if (theme.emphasisStyle === "underline-accent") {
+        return `<strong style="color:${theme.accent};font-weight:700;border-bottom:2px solid ${theme.accent};padding-bottom:1px;">${text}</strong>`;
+      }
+      return `<strong style="background:${theme.accentSoft};color:${theme.accent};font-weight:700;padding:0 3px;border-radius:3px;">${text}</strong>`;
+    })
     .join("");
 }
 
@@ -296,10 +321,11 @@ function renderMediaPlaceholder(
   photoIndices: number[],
   mediaIndex: number,
   hint: string,
-  forExtension: boolean
+  forExtension: boolean,
+  theme: BlogTheme
 ): string {
   const noticeFor = (label: string) =>
-    `<mark style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리${hint ? ` — ${escapeHtmlText(hint)}` : ""} (직접 넣어주세요)</mark>`;
+    `<mark style="background:${theme.accentSoft};color:${theme.accent};padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리${hint ? ` — ${escapeHtmlText(hint)}` : ""} (직접 넣어주세요)</mark>`;
 
   if (kind === "이미지") {
     if (photoIndices.length === 0) return noticeFor("사진");
@@ -326,43 +352,76 @@ function renderMediaPlaceholder(
   return noticeFor(mediaLabel(kind));
 }
 
-function renderBlocksToHtml(blocks: BodyBlock[], forExtension: boolean): string {
+// 소제목 렌더링 — 테마의 headingStyle 4종(underline/boxed/sideBar/plain)에
+// 따라 완전히 다른 장식을 적용한다(§CLAUDE.md 16, "네이버 상위 블로그 톤을
+// 유형별로 인용" 요청). underline만 기존 "◆" 접두사를 유지하고 나머지는 각자
+// 다른 방식(박스/좌측 바/무장식 큰 글씨)으로 시선을 끌기 때문에 접두사가
+// 중복이라 뺐다.
+function renderHeadingHtml(theme: BlogTheme, text: string): string {
+  const escaped = escapeHtmlText(text);
+  const font = `font-family:${theme.headingFont};font-size:${theme.headingSize}px;`;
+  if (theme.headingStyle === "boxed") {
+    return `<h3 style="${font}font-weight:800;color:#fff;background:${theme.accent};display:inline-block;padding:6px 14px;border-radius:6px;margin:26px 0 12px;">${escaped}</h3>`;
+  }
+  if (theme.headingStyle === "sideBar") {
+    return `<h3 style="${font}font-weight:800;color:${theme.accent};border-left:5px solid ${theme.accent};padding:2px 0 2px 12px;margin:26px 0 10px;">${escaped}</h3>`;
+  }
+  if (theme.headingStyle === "plain") {
+    return `<h3 style="${font}font-weight:800;color:${theme.accent};margin:28px 0 10px;">${escaped}</h3>`;
+  }
+  return `<h3 style="${font}font-weight:800;color:${theme.accent};margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid ${theme.accentSoft};">◆ ${escaped}</h3>`;
+}
+
+// 인용구 렌더링 — 테마의 quoteStyle 3종(border/serif/highlight).
+function renderQuoteHtml(theme: BlogTheme, text: string): string {
+  const escaped = escapeHtmlText(text);
+  if (theme.quoteStyle === "serif") {
+    return `<blockquote style="margin:18px 0;padding:14px 20px;font-family:${theme.headingFont};font-style:italic;font-size:17px;color:${theme.accent};background:${theme.accentSoft};border-radius:8px;">“${escaped}”</blockquote>`;
+  }
+  if (theme.quoteStyle === "highlight") {
+    return `<blockquote style="margin:16px 0;padding:12px 16px;font-weight:700;color:#1a1a1a;background:${theme.accentSoft};border-radius:6px;border-left:6px solid ${theme.accent};">${escaped}</blockquote>`;
+  }
+  return `<blockquote style="margin:16px 0;padding:10px 16px;border-left:4px solid ${theme.accent};background:${theme.accentSoft};color:#3d2e1f;font-style:italic;">${escaped}</blockquote>`;
+}
+
+function renderBlocksToHtml(blocks: BodyBlock[], forExtension: boolean, theme: BlogTheme): string {
+  const bodyStyle = `font-family:${theme.bodyFont};line-height:${theme.lineHeight};`;
   return blocks
     .map((block) => {
       switch (block.type) {
         case "heading":
-          return `<h3 style="font-size:20px;font-weight:800;color:#c2410c;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #fed7aa;">◆ ${escapeHtmlText(block.text)}</h3>`;
+          return renderHeadingHtml(theme, block.text);
         case "list":
           return block.items
             .map((item, i) => {
-              const marker = block.ordered ? (CIRCLED_DIGITS[i] ?? `${i + 1}.`) : "▶";
-              return `<p style="margin:0 0 8px;line-height:1.7;"><span style="color:#c2410c;font-weight:700;margin-right:6px;">${marker}</span>${renderInlineToHtml(item)}</p>`;
+              const marker = getListMarkerSymbol(theme, block.ordered, i);
+              return `<p style="margin:0 0 8px;${bodyStyle}"><span style="color:${theme.accent};font-weight:700;margin-right:6px;">${marker}</span>${renderInlineToHtml(item, theme)}</p>`;
             })
             .join("\n");
         case "paragraph":
-          return `<p style="margin:0 0 14px;line-height:1.7;">${renderInlineToHtml(block.inline)}</p>`;
+          return `<p style="margin:0 0 14px;${bodyStyle}">${renderInlineToHtml(block.inline, theme)}</p>`;
         case "divider":
-          return `<hr style="border:none;border-top:2px solid #fed7aa;margin:20px 0;" />`;
+          return `<hr style="border:none;border-top:2px solid ${theme.accentSoft};margin:20px 0;" />`;
         case "quote":
-          return `<blockquote style="margin:16px 0;padding:10px 16px;border-left:4px solid #e06b3d;background:#fffbf7;color:#3d2e1f;font-style:italic;">${escapeHtmlText(block.text)}</blockquote>`;
+          return renderQuoteHtml(theme, block.text);
         case "table": {
-          const head = `<tr>${block.headers.map((h) => `<th style="border:1px solid #ede6dd;padding:6px 10px;background:#fffbf7;text-align:left;">${escapeHtmlText(h)}</th>`).join("")}</tr>`;
+          const head = `<tr>${block.headers.map((h) => `<th style="border:1px solid ${theme.accentSoft};padding:6px 10px;background:${theme.accentSoft};text-align:left;font-family:${theme.bodyFont};">${escapeHtmlText(h)}</th>`).join("")}</tr>`;
           const body = block.rows
             .map(
               (row) =>
-                `<tr>${row.map((cell) => `<td style="border:1px solid #ede6dd;padding:6px 10px;">${escapeHtmlText(cell)}</td>`).join("")}</tr>`
+                `<tr>${row.map((cell) => `<td style="border:1px solid ${theme.accentSoft};padding:6px 10px;font-family:${theme.bodyFont};">${escapeHtmlText(cell)}</td>`).join("")}</tr>`
             )
             .join("");
           return `<table style="border-collapse:collapse;width:100%;margin:14px 0;">${head}${body}</table>`;
         }
         case "place":
-          return `<p style="margin:0 0 14px;line-height:1.7;">📍 <strong>${escapeHtmlText(block.name)}</strong>${block.hint ? ` <span style="color:#8a7a6a;font-size:13px;">(${escapeHtmlText(block.hint)})</span>` : ""}</p>`;
+          return `<p style="margin:0 0 14px;${bodyStyle}">📍 <strong style="color:${theme.accent};">${escapeHtmlText(block.name)}</strong>${block.hint ? ` <span style="color:#8a7a6a;font-size:13px;">(${escapeHtmlText(block.hint)})</span>` : ""}</p>`;
         case "link":
-          return `<p style="margin:0 0 14px;line-height:1.7;">🔗 <a href="${escapeHtmlText(block.url)}" style="color:#e06b3d;font-weight:700;">${escapeHtmlText(block.description || block.url)}</a></p>`;
+          return `<p style="margin:0 0 14px;${bodyStyle}">🔗 <a href="${escapeHtmlText(block.url)}" style="color:${theme.accent};font-weight:700;">${escapeHtmlText(block.description || block.url)}</a></p>`;
         case "slot":
-          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, block.mediaIndex, block.hint, forExtension)}</p>`;
+          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, block.mediaIndex, block.hint, forExtension, theme)}</p>`;
         case "gallery":
-          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, 0, block.hint, forExtension)}</p>`;
+          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, 0, block.hint, forExtension, theme)}</p>`;
         default:
           return "";
       }
@@ -371,16 +430,17 @@ function renderBlocksToHtml(blocks: BodyBlock[], forExtension: boolean): string 
 }
 
 // 네이버 에디터 "서식 포함 복사"용 — 사진 자리는 안내 문구로만 남김(직접
-// 다운로드해 끼워 넣어야 함, §CLAUDE.md 16 참고).
-export function renderBodyToHtml(blocks: BodyBlock[]): string {
-  return renderBlocksToHtml(blocks, false);
+// 다운로드해 끼워 넣어야 함, §CLAUDE.md 16 참고). theme(blogTheme.ts)이
+// 소제목·인용구·목록·강조 스타일을 16개 유형마다 다르게 입힌다.
+export function renderBodyToHtml(blocks: BodyBlock[], theme: BlogTheme): string {
+  return renderBlocksToHtml(blocks, false, theme);
 }
 
 // 크롬 확장으로 초안을 보낼 때 쓰는 버전 — 사진/AI이미지 자리를
 // data-ezzsearch-token이 붙은 <img> 플레이스홀더로 렌더링해서, 확장이 실제
 // 업로드한 네이버 CDN URL로 치환한 뒤 붙여넣을 수 있게 함(§CLAUDE.md 17.5).
-export function renderBodyToHtmlForExtension(blocks: BodyBlock[]): string {
-  return renderBlocksToHtml(blocks, true);
+export function renderBodyToHtmlForExtension(blocks: BodyBlock[], theme: BlogTheme): string {
+  return renderBlocksToHtml(blocks, true, theme);
 }
 
 export interface ResolvedImage {

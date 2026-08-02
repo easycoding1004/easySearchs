@@ -16,12 +16,13 @@ import {
   renderBodyToHtmlForExtension,
   createImageResolver,
   escapeHtmlText,
-  CIRCLED_DIGITS,
+  getListMarkerSymbol,
   type BodyBlock,
   type BodyInline,
   type SlotBlock,
   type GalleryBlock,
 } from "@/lib/write/parseBody";
+import { getBlogTheme, type BlogTheme } from "@/lib/write/blogTheme";
 
 // 2026-08 v2 개편(§CLAUDE.md 16.2) — GALLERY가 최대 50장까지 한 번에 요구할
 // 수 있어 서버(route.ts)와 동일하게 상한을 올림. 원본 업로드 용량 sanity cap도
@@ -58,19 +59,112 @@ interface WriteResult {
 }
 
 // 텍스트/강조 인라인만 렌더링 — v2부터 이미지는 더 이상 인라인 토큰이 아니라
-// 블록 단위(SLOT/GALLERY)라 여기서는 이미지 처리를 하지 않는다.
-function renderInlineNodes(pieces: BodyInline[], keyPrefix: string) {
+// 블록 단위(SLOT/GALLERY)라 여기서는 이미지 처리를 하지 않는다. 강조(**)
+// 스타일은 테마의 emphasisStyle(하이라이트 배경 vs 밑줄)에 따라 갈림 —
+// blogTheme.ts 참고.
+function renderInlineNodes(pieces: BodyInline[], keyPrefix: string, theme: BlogTheme) {
   return pieces.map((piece, j) => {
     const key = `${keyPrefix}-${j}`;
     if (piece.type === "em") {
+      if (theme.emphasisStyle === "underline-accent") {
+        return (
+          <strong
+            key={key}
+            className="font-bold"
+            style={{ color: theme.accent, borderBottom: `2px solid ${theme.accent}` }}
+          >
+            {piece.text}
+          </strong>
+        );
+      }
       return (
-        <strong key={key} className="rounded bg-primary/15 px-1 font-bold text-primary">
+        <strong
+          key={key}
+          className="rounded px-1 font-bold"
+          style={{ background: theme.accentSoft, color: theme.accent }}
+        >
           {piece.text}
         </strong>
       );
     }
     return <span key={key}>{piece.text}</span>;
   });
+}
+
+// 소제목 4종(underline/boxed/sideBar/plain) — HTML 문자열 렌더러
+// (parseBody.ts의 renderHeadingHtml)와 같은 시각적 규칙을 React로 재현.
+function renderHeadingNode(theme: BlogTheme, text: string, key: string) {
+  const baseStyle: React.CSSProperties = {
+    fontFamily: theme.headingFont,
+    fontSize: theme.headingSize,
+    fontWeight: 800,
+    color: theme.accent,
+  };
+  if (theme.headingStyle === "boxed") {
+    return (
+      <h3
+        key={key}
+        className="mb-2 mt-3 inline-block rounded-md px-3 py-1"
+        style={{ ...baseStyle, color: "#fff", background: theme.accent }}
+      >
+        {text}
+      </h3>
+    );
+  }
+  if (theme.headingStyle === "sideBar") {
+    return (
+      <h3 key={key} className="mb-2 mt-3 pl-3" style={{ ...baseStyle, borderLeft: `4px solid ${theme.accent}` }}>
+        {text}
+      </h3>
+    );
+  }
+  if (theme.headingStyle === "plain") {
+    return (
+      <h3 key={key} className="mb-2 mt-3" style={baseStyle}>
+        {text}
+      </h3>
+    );
+  }
+  return (
+    <h3 key={key} className="mb-1 mt-2 border-b-2 pb-1" style={{ ...baseStyle, borderBottomColor: theme.accentSoft }}>
+      ◆ {text}
+    </h3>
+  );
+}
+
+// 인용구 3종(border/serif/highlight).
+function renderQuoteNode(theme: BlogTheme, text: string, key: string) {
+  if (theme.quoteStyle === "serif") {
+    return (
+      <blockquote
+        key={key}
+        className="rounded-lg px-4 py-3 text-base italic"
+        style={{ fontFamily: theme.headingFont, color: theme.accent, background: theme.accentSoft }}
+      >
+        “{text}”
+      </blockquote>
+    );
+  }
+  if (theme.quoteStyle === "highlight") {
+    return (
+      <blockquote
+        key={key}
+        className="rounded-md px-3 py-2 text-sm font-bold text-ink"
+        style={{ background: theme.accentSoft, borderLeft: `5px solid ${theme.accent}` }}
+      >
+        {text}
+      </blockquote>
+    );
+  }
+  return (
+    <blockquote
+      key={key}
+      className="px-3 py-2 text-sm italic text-ink"
+      style={{ borderLeft: `4px solid ${theme.accent}`, background: theme.accentSoft }}
+    >
+      {text}
+    </blockquote>
+  );
 }
 
 function renderPhotoTile(src: string, alt: string, keyId: string) {
@@ -152,14 +246,18 @@ function renderMediaBlock(
   return renderPhotoTile(resolved.src, resolved.alt, key);
 }
 
-function renderTableBlock(block: Extract<BodyBlock, { type: "table" }>, key: string) {
+function renderTableBlock(block: Extract<BodyBlock, { type: "table" }>, key: string, theme: BlogTheme) {
   return (
     <div key={key} className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
             {block.headers.map((h, i) => (
-              <th key={i} className="border border-hairline bg-bg px-2 py-1 text-left font-semibold text-ink">
+              <th
+                key={i}
+                className="border border-hairline px-2 py-1 text-left font-semibold text-ink"
+                style={{ background: theme.accentSoft }}
+              >
                 {h}
               </th>
             ))}
@@ -181,49 +279,46 @@ function renderTableBlock(block: Extract<BodyBlock, { type: "table" }>, key: str
   );
 }
 
-function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeof createImageResolver>) {
+function renderPreviewBlocks(
+  blocks: BodyBlock[],
+  resolveImage: ReturnType<typeof createImageResolver>,
+  theme: BlogTheme
+) {
+  const bodyStyle: React.CSSProperties = { fontFamily: theme.bodyFont, lineHeight: theme.lineHeight };
   return blocks.map((block, i) => {
     const key = `${i}`;
     switch (block.type) {
       case "heading":
-        return (
-          <h3 key={key} className="mt-2 border-b-2 border-primary/25 pb-1 text-base font-extrabold text-primary">
-            ◆ {block.text}
-          </h3>
-        );
+        return renderHeadingNode(theme, block.text, key);
       case "list":
         return (
           <div key={key} className="flex flex-col gap-1">
             {block.items.map((item, idx) => (
-              <p key={idx} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-                <span className="mr-1.5 font-bold text-primary">
-                  {block.ordered ? (CIRCLED_DIGITS[idx] ?? `${idx + 1}.`) : "▶"}
+              <p key={idx} className="whitespace-pre-wrap text-sm text-ink" style={bodyStyle}>
+                <span className="mr-1.5 font-bold" style={{ color: theme.accent }}>
+                  {getListMarkerSymbol(theme, block.ordered, idx)}
                 </span>
-                {renderInlineNodes(item, `${key}-${idx}`)}
+                {renderInlineNodes(item, `${key}-${idx}`, theme)}
               </p>
             ))}
           </div>
         );
       case "paragraph":
         return (
-          <p key={key} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-            {renderInlineNodes(block.inline, key)}
+          <p key={key} className="whitespace-pre-wrap text-sm text-ink" style={bodyStyle}>
+            {renderInlineNodes(block.inline, key, theme)}
           </p>
         );
       case "divider":
-        return <hr key={key} className="my-2 border-t-2 border-primary/20" />;
+        return <hr key={key} className="my-2 border-t-2" style={{ borderColor: theme.accentSoft }} />;
       case "quote":
-        return (
-          <blockquote key={key} className="border-l-4 border-primary bg-primary/5 px-3 py-2 text-sm italic text-ink">
-            {block.text}
-          </blockquote>
-        );
+        return renderQuoteNode(theme, block.text, key);
       case "table":
-        return renderTableBlock(block, key);
+        return renderTableBlock(block, key, theme);
       case "place":
         return (
           <p key={key} className="text-sm text-ink">
-            📍 <strong>{block.name}</strong>
+            📍 <strong style={{ color: theme.accent }}>{block.name}</strong>
             {block.hint && <span className="ml-1 text-xs text-ink-muted">({block.hint})</span>}
           </p>
         );
@@ -235,7 +330,8 @@ function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeo
               href={block.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-primary hover:underline"
+              className="font-semibold hover:underline"
+              style={{ color: theme.accent }}
             >
               {block.description || block.url}
             </a>
@@ -435,8 +531,9 @@ export default function BlogWriterForm({
   async function handleCopyRich() {
     if (!result) return;
     try {
+      const theme = getBlogTheme(result.category);
       const blocks = parseBody(result.body);
-      const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks)}`;
+      const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks, theme)}`;
       const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}`;
 
       if (typeof ClipboardItem !== "undefined") {
@@ -482,9 +579,10 @@ export default function BlogWriterForm({
   // 문구로 남음).
   async function handleSendToExtension() {
     if (!result) return;
+    const theme = getBlogTheme(result.category);
     const blocks = parseBody(result.body);
-    const bodyHtml = renderBodyToHtmlForExtension(blocks);
-    const html = `<h2 style="font-size:22px;font-weight:700;margin:0 0 14px;">${escapeHtmlText(result.title)}</h2>\n${bodyHtml}`;
+    const bodyHtml = renderBodyToHtmlForExtension(blocks, theme);
+    const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${bodyHtml}`;
 
     const images: Record<string, string> = {};
     await Promise.all(
@@ -509,11 +607,16 @@ export default function BlogWriterForm({
       setTimeout(() => setExtensionStatus("idle"), 3000);
     }
     window.addEventListener("message", onAck);
+    // 사용자 실사용 신고(2026-08): 거의 항상 "설치 안 된 것 같다"고 뜸 —
+    // MV3 서비스워커(background.js)가 유휴 상태에서 깨어나는 데 800ms보다
+    // 오래 걸릴 수 있어서(콜드스타트) 실제로는 확장이 정상 설치돼 있어도
+    // ACK가 타임아웃보다 늦게 도착해 오탐이 났을 가능성이 높음 — 여유 있게
+    // 2500ms로 늘림.
     const timeoutId = setTimeout(() => {
       window.removeEventListener("message", onAck);
       setExtensionStatus("not-found");
       setTimeout(() => setExtensionStatus("idle"), 4000);
-    }, 800);
+    }, 2500);
 
     window.postMessage(
       {
@@ -542,6 +645,7 @@ export default function BlogWriterForm({
 
   const resultBlocks = result ? parseBody(result.body) : [];
   const resultMeta = result ? getBlogCategoryMeta(result.category) : null;
+  const resultTheme = result ? getBlogTheme(result.category) : null;
   const resultResolveImage = result
     ? createImageResolver({ photoSrcs: previews, stockImages: insertedStockImages, aiImages: result.aiImages })
     : null;
@@ -734,7 +838,7 @@ export default function BlogWriterForm({
         </form>
       )}
 
-      {result && resultResolveImage && (
+      {result && resultResolveImage && resultTheme && (
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink">생성된 글</h2>
@@ -771,7 +875,7 @@ export default function BlogWriterForm({
             사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
             저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.
           </p>
-          <p className="text-lg font-bold text-ink">
+          <p className="text-lg font-bold text-ink" style={{ fontFamily: resultTheme.headingFont }}>
             {result.title}
             {result.sponsored && (
               <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-800">
@@ -779,7 +883,7 @@ export default function BlogWriterForm({
               </span>
             )}
           </p>
-          <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage)}</div>
+          <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage, resultTheme)}</div>
 
           {result.recommendedThumbnail > 0 && previews[result.recommendedThumbnail - 1] && (
             <div className="flex items-center gap-2 border-t border-hairline pt-3">
