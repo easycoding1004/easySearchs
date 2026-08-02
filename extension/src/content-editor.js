@@ -315,30 +315,25 @@ async function checkPendingDraft() {
   tryAutoInsert(draft);
 }
 
-// 2026-08(사용자 신고 — "확장으로 보내기가 잘 안되는듯") — 이 content
-// script는 manifest.json의 all_frames:true 때문에 SmartEditor 페이지 안의
-// 모든 iframe에서 각자 독립적으로 실행됨. 자동 삽입/플로팅 버튼 로직을
-// 프레임마다 따로 돌리면, 프레임마다 각자 클립보드에 쓰고(서로 덮어씀) 각자
-// 토스트를 띄우는 등 서로 경쟁하면서 "됐다 안 됐다" 하는 것처럼 보일 수
-// 있음 — 실제 SmartEditor의 프레임 구조를 이 환경에서는 확인할 방법이
-// 없어서(§CLAUDE.md 17.4), 일단 최상위 프레임에서만 자동 삽입/플로팅
-// 버튼을 다루도록 보수적으로 제한함(태그 입력창 배지는 프레임별로 독립
-// 동작해도 서로 부딪힐 일이 없어 그대로 둠). 만약 제목·본문 입력창이 실제로
-// iframe 안에 있다면 이 제한 때문에 자동 삽입이 아예 안 될 수 있는데, 그
-// 경우 이 IS_TOP_FRAME 체크를 지우고 다시 all_frames 그대로 두는 실험이
-// 필요함 — 실제 브라우저 개발자 도구로 SmartEditor의 iframe 구조를 확인한
-// 뒤에 결정할 것.
-const IS_TOP_FRAME = window.top === window.self;
+// 2026-08(사용자 신고 — "확장으로 보내기가 잘 안되는듯") — 한 번은 이걸
+// 최상위 프레임에서만 돌게 제한했었는데(프레임끼리 경쟁할까 봐), 그게
+// 오히려 진짜 원인이었음: 사용자가 개발자 도구 Console의 프레임 드롭다운으로
+// 실측 확인한 결과, 제목·본문(SmartEditor 본체)은 최상위 페이지가 아니라
+// **`mainFrame`이라는 iframe(주소 패턴 PostWriteForm.naver, blog.naver.com
+// 도메인이라 all_frames:true로 이미 스크립트는 주입되고 있었음)** 안에
+// 있었음 — 최상위 프레임 제한 때문에 정작 title/body를 찾을 수 있는 그
+// iframe 쪽 스크립트 인스턴스는 아예 시도조차 안 하고 있었던 것. 그래서
+// 그 제한을 되돌림 — 프레임마다 독립적으로 시도하되, `SELECTORS`가 충분히
+// 구체적이라(`.se-section-documentTitle...`, `[data-a11y-title="본문"]`)
+// 관련 없는 프레임(예: `mainFrame` 밑의 `input_buffer...` 프레임)에서는
+// 그냥 아무것도 못 찾고 조용히 넘어갈 뿐이라 실질적인 충돌 위험은 낮음.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[DRAFT_KEY]) return;
+  if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
+  else removeInsertButton();
+});
 
-if (IS_TOP_FRAME) {
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes[DRAFT_KEY]) return;
-    if (changes[DRAFT_KEY].newValue) tryAutoInsert(changes[DRAFT_KEY].newValue);
-    else removeInsertButton();
-  });
-
-  checkPendingDraft();
-}
+checkPendingDraft();
 
 // --- 태그 입력창 옆 검색량 배지(원본 아이디어 ①의 "에디터에서 태그 입력 시
 // 검색량 표시" 부분만 우선 구현 — 검색결과 페이지 오버레이는 이번 범위 밖,

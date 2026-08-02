@@ -17,6 +17,7 @@
 - **사진·AI이미지도 자동 삽입됨(v0.3.0)** — 사용자가 사진 업로드/AI 이미지 생성을 하면, 확장이 네이버의 실제 이미지 업로드 API로 재업로드한 뒤 그 결과 URL을 본문에 끼워 넣음(§CLAUDE.md 17.5). **단, 이 에디터에서 사진을 최소 1장은 직접 업로드해본 적이 있어야 함** — 업로드 API 주소가 글쓰기 세션마다 새로 발급되는 서명된 URL이라, 확장이 스스로 만들어낼 수 없고 실제 업로드가 한 번 일어나는 걸 관찰해서만 알아낼 수 있음. 스톡 이미지(Pixabay)는 이번 범위에 포함 안 됨 — 여전히 기존처럼 안내 문구만 남음.
 - 태그 입력창에 타이핑하면(디바운스 500ms) 옆에 월간 검색량 배지가 뜸.
 - **`extension/src/content-editor.js`의 `SELECTORS`는 2026-08에 제목·본문·태그 셋 다 실측 확인됨**(사용자가 개발자 도구로 실제 DOM 캡처) — 제목은 `.se-section-documentTitle .se-module-text.se-title-text`, 본문은 `[data-a11y-title="본문"]`, 태그는 `#fake-input`(class는 CSS Modules 해시가 있어 `[class*="fake_input__"]`로 부분일치). **다만 태그 쪽은 확실하지 않음** — `#fake-input`에 `tabindex="-1"`·`aria-hidden="true"`가 붙어 있어서 실제 타이핑 지점이 아니라 내부용 더미 input일 수 있음(옆의 `tag_input_wrap__` span 내부가 진짜일 가능성 — 캡처 화면에 안 보여서 미확정). 태그 검색량 배지가 안 뜨면 이 부분부터 다시 확인할 것. 네이버가 SmartEditor 마크업을 바꾸면 셋 다 다시 깨질 수 있으니, 또 "입력창을 찾지 못했다"는 메시지가 뜨면 같은 방식(개발자 도구로 우클릭 → 검사)으로 재확인할 것.
+- **SmartEditor 본체는 `mainFrame`이라는 iframe 안에 있음(2026-08 실측 확인)** — 최상위 페이지가 아니라 주소 패턴 `PostWriteForm.naver`(`blog.naver.com` 도메인)인 iframe 안에서 렌더링됨. `manifest.json`의 `content_scripts`가 `all_frames: true`라 그 iframe에도 스크립트는 이미 주입되지만, 자동 삽입 로직을 최상위 프레임에서만 돌게 제한했던 적이 있었는데(프레임 경쟁을 막으려던 시도) 그게 오히려 자동 삽입을 완전히 막고 있었음 — 그 제한은 되돌렸음(모든 프레임이 독립적으로 시도, `SELECTORS`가 충분히 구체적이라 관련 없는 프레임은 그냥 조용히 못 찾고 넘어감).
 
 ## 로컬에서 테스트하기
 
