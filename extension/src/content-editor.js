@@ -161,9 +161,26 @@ function cdpInsertText(text) {
   });
 }
 
+// 2026-08 실측 확인 — 제목에 넣으려던 텍스트가 본문에 들어가는 사고가
+// 발생함. focus()를 호출한 직후 chrome.runtime.sendMessage→attach→
+// Input.insertText까지 비동기 왕복(수십~수백ms)이 걸리는데, 그 사이
+// SmartEditor가 자체적으로 포커스를 다른 곳(예: 본문)으로 되돌리는 것으로
+// 추정됨(제목 입력 후 자동으로 본문으로 포커스를 넘기는 게 SmartEditor의
+// 기본 동작일 수 있음) — CDP의 Input.insertText는 "그 순간 포커스된 곳"에
+// 무조건 텍스트를 넣으므로, 포커스가 바뀐 걸 모르고 보내면 엉뚱한 요소에
+// 들어감. 그래서 실제로 보내기 직전에 다시 focus()를 걸고,
+// document.activeElement로 포커스가 진짜 대상에 있는지 확인한 뒤에만 CDP를
+// 호출한다 — 확인이 안 되면 엉뚱한 곳에 넣느니 그냥 실패로 처리하고
+// execCommand/Ctrl+V 안내로 폴백한다.
 async function insertViaDebugger(target, text) {
   if (!target) return false;
   target.focus();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  target.focus(); // 위 대기 중 포커스가 다른 곳으로 옮겨갔을 수 있어 다시 한번
+  if (document.activeElement !== target) {
+    log("insertViaDebugger: focus did not stick on target, aborting to avoid wrong-field insertion");
+    return false;
+  }
   const result = await cdpInsertText(text);
   if (!result.ok) console.warn("[ezzsearch] cdpInsertText failed:", result.error);
   return result.ok;
