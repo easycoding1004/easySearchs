@@ -3,17 +3,47 @@
 // 반드시 같이 맞출 것.
 const API_BASE_URL = "https://ezzsearch.com";
 
-// ⚠️ 미검증 코드 — 네이버 블로그 에디터(SmartEditor)의 실제 라이브 DOM을
-// 이 환경에서는 확인할 방법이 없어서(로그인 세션이 필요한 JS 렌더링 화면이라
-// 정적 fetch로는 못 봄), 아래 선택자들은 공개적으로 알려진 관례를 참고한
-// 추정치임. §CLAUDE.md 17.4 참고 — 실제 Chrome에서 에디터를 열어 개발자
-// 도구로 진짜 선택자를 확인한 뒤 이 객체만 고치면 나머지 로직은 그대로
-// 재사용 가능하도록 구조를 분리해뒀음.
+// 2026-08 사용자가 실제 브라우저 개발자 도구로 제목·본문·태그 입력창의 실제
+// DOM을 캡처해줌 — 셋 다 처음 추정한 선택자와 달랐음.
+// - 제목: `<div class="se-module se-module-text ... se-title-text ...">`
+//   (se-section-documentTitle 아래, contenteditable 속성은 캡처 범위 밖이라
+//   미확인이지만 class 조합 자체는 확실함).
+// - 본문: `<div class="se-component se-text se-l-default" data-a11y-title="본문">`
+//   — `data-a11y-title="본문"`이 클래스명(빌드마다 안 바뀐다는 보장이 없음)보다
+//   훨씬 안정적인 접근성 속성이라 이걸 최우선 후보로 둠.
+// - 태그: `<input id="fake-input" class="fake_input__Y86t_" tabindex="-1"
+//   aria-hidden="true">`가 `tag_textarea__CD7pC` 안에 있음 — **주의: id는
+//   `fake-input`이지만 tabindex=-1·aria-hidden=true라 실제 사용자가 타이핑하는
+//   요소가 아니라 내부용 더미 input일 가능성이 있음**(진짜 입력은 옆의
+//   `tag_input_wrap__zQUUR` span 안에서 일어날 수도 있는데, 캡처된 스크린샷이
+//   그 span의 자식까지는 안 보여줘서 확정 못함). class 뒤 해시(`__Y86t_` 등)는
+//   CSS Modules 빌드마다 바뀔 수 있어 접두사만 부분일치(`[class*="fake_input__"]`)
+//   시키고, id(`#fake-input`)는 해시가 없어 상대적으로 안정적이라 우선순위를 더 높임
+//   — 다만 이 셋 다 "지금 이 순간의 SmartEditor 빌드에서" 확인된 것이라 네이버가
+//   마크업을 바꾸면 다시 깨질 수 있음(§CLAUDE.md 17.4 원칙 그대로). 태그 배지가
+//   여전히 안 뜨면 이 tagInput 후보부터 재확인할 것.
 const SELECTORS = {
   // 후보를 순서대로 시도 — 첫 번째로 매치되는 요소를 씀.
-  title: ['.se-title-text[contenteditable="true"]', 'textarea[name="documentTitle"]', "#subject"],
-  body: [".se-main-container .se-text[contenteditable='true']", ".se-component-content [contenteditable='true']"],
-  tagInput: ['input[placeholder*="태그"]', "#tag-input", ".tag_input"],
+  title: [
+    ".se-section-documentTitle .se-module-text.se-title-text",
+    ".se-title-text[contenteditable='true']",
+    'textarea[name="documentTitle"]',
+    "#subject",
+  ],
+  body: [
+    '.se-component.se-text[data-a11y-title="본문"]',
+    '[data-a11y-title="본문"]',
+    ".se-component.se-text.se-l-default",
+    ".se-main-container .se-text[contenteditable='true']",
+    ".se-component-content [contenteditable='true']",
+  ],
+  tagInput: [
+    "#fake-input",
+    '[class*="fake_input__"]',
+    'input[placeholder*="태그"]',
+    "#tag-input",
+    ".tag_input",
+  ],
 };
 
 const DRAFT_KEY = "pendingDraft";
