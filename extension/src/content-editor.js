@@ -534,18 +534,31 @@ async function insertDraft(draft) {
     if (!bodyInserted) simulatePaste(bodyTarget, bodyOnlyHtml, stripHtmlToText(bodyOnlyHtml));
   }
 
+  // 2026-08 실측 확인(사용자가 태그 입력창 DOM을 캡처해준 화면이 "발행 설정"
+  // 패널 안이었음) — 태그 입력창은 처음부터 DOM에 있는 게 아니라 사용자가
+  // "발행" 버튼을 눌러 발행 설정 패널을 열어야 나타나는 것으로 보임.
+  // insertDraft()는 페이지 로드 직후(발행 패널이 열리기 한참 전)에 실행되니
+  // 그 시점엔 findFirst(SELECTORS.tagInput)가 항상 null이라 태그가 절대
+  // 자동으로 안 들어갈 수밖에 없었음(셀렉터 자체는 v0.5.13에서 고쳤어도
+  // 실행 타이밍이 안 맞았던 것). 지금 당장 시도는 해보되(패널을 미리 열어둔
+  // 특이 케이스 대비), 못 찾으면 나중에 사용자가 실제로 패널을 열 때
+  // attachTagListener의 3초 폴링 루프가 잡아서 그때 채우도록 pendingTags에
+  // 남겨둔다.
   const tagInputEl = findFirst(SELECTORS.tagInput);
   let tagsInserted = false;
-  if (tagInputEl && Array.isArray(draft.tags) && draft.tags.length > 0) {
+  const hasTags = Array.isArray(draft.tags) && draft.tags.length > 0;
+  if (tagInputEl && hasTags) {
     tagsInserted = await insertTagsViaDebugger(tagInputEl, draft.tags);
     log("tags insertTagsViaDebugger=", tagsInserted);
+  } else if (hasTags) {
+    pendingTags = draft.tags;
+    log("insertDraft: tag input not in DOM yet, deferring", draft.tags.length, "tags");
   }
-  const tagsNote =
-    tagInputEl && draft.tags?.length > 0
-      ? tagsInserted
-        ? ` 태그 ${draft.tags.length}개도 자동으로 넣었어요.`
-        : " 태그는 자동으로 안 됐어요 — 결과 화면에서 태그를 하나씩 클릭해 복사한 뒤 붙여넣어 주세요."
-      : "";
+  const tagsNote = !hasTags
+    ? ""
+    : tagsInserted
+      ? ` 태그 ${draft.tags.length}개도 자동으로 넣었어요.`
+      : " 태그는 발행 설정 패널을 여시면 자동으로 채워드릴게요(안 되면 태그를 하나씩 클릭해 복사한 뒤 붙여넣어 주세요).";
 
   await copyToRealClipboard(html, stripHtmlToText(html));
 
@@ -630,6 +643,10 @@ function showInsertButton(draft) {
 const AUTO_INSERT_RETRY_MS = 1000;
 const AUTO_INSERT_MAX_ATTEMPTS = 10; // 최대 약 10초간 에디터가 뜨길 기다림
 let autoInsertedSavedAt = null; // 같은 초안을 중복 자동삽입하지 않기 위한 가드
+// 태그 입력창은 "발행 설정" 패널을 열어야 DOM에 나타나 insertDraft() 시점엔
+// 못 채우는 경우가 흔함 — 그때 남겨두는 대기열. attachTagListener(아래,
+// 3초 폴링)가 이 패널이 실제로 열리는 걸 감지하면 여기 담긴 태그를 채운다.
+let pendingTags = null;
 
 async function autoInsertWithRetry(draft, attempt = 0) {
   const ready = findFirst(SELECTORS.title) || findFirst(SELECTORS.body);
@@ -768,6 +785,15 @@ function attachTagListener() {
     clearTimeout(tagDebounceTimer);
     tagDebounceTimer = setTimeout(() => showTagVolume(el), TAG_LOOKUP_DEBOUNCE_MS);
   });
+  // 2026-08 — insertDraft() 시점엔 발행 설정 패널이 아직 안 열려 있어 태그를
+  // 못 채웠을 수 있음(insertDraft 안의 pendingTags 주석 참고) — 이 폴링이
+  // 태그 입력창을 처음 찾은 시점(=패널이 실제로 열린 시점)에 대기 중인
+  // 태그가 있으면 그때 채운다.
+  if (pendingTags && pendingTags.length > 0) {
+    const tags = pendingTags;
+    pendingTags = null;
+    insertTagsViaDebugger(el, tags).then((ok) => log("tags (deferred) insertTagsViaDebugger=", ok));
+  }
 }
 
 // 에디터가 SPA라 태그 입력창이 나중에 DOM에 붙을 수 있어서, 주기적으로
