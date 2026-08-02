@@ -27,6 +27,55 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 chrome.tabs.onRemoved.addListener((tabId) => uploadUrlByTab.delete(tabId));
 
+// 2026-08(사용자 요청 — "복사 붙여넣기가 아니라 진짜 자동으로 처리했으면") —
+// SmartEditor는 스크립트가 만드는 paste 이벤트/execCommand 둘 다 무시하고
+// 사람이 직접 누른 Ctrl+V만 받아들이는 것으로 실측 확인됨(§CLAUDE.md 17.4).
+// 브라우저는 `document.dispatchEvent`로 만든 이벤트에 항상 `isTrusted: false`를
+// 강제해서 페이지 스크립트로는 이걸 절대 못 바꾸는데, chrome.debugger API로
+// Chrome DevTools Protocol(CDP)의 `Input.insertText`를 쓰면 브라우저 엔진
+// 차원에서 입력이 주입되어 페이지 입장에서는 실제 사용자 입력과 구분이 안 됨.
+// **한 번 시도했다가 "브라우저가 꺼진다"는 신고로 되돌렸었는데, 재조사 결과
+// 진짜 원인은 이게 아니라 BlogWriterForm.tsx가 ACK 타임아웃 시 자동으로 연
+// 탭을 직접 닫아버리던 별개의 버그였음(그 버그는 고쳤음) — 그래서 이 CDP
+// 방식을 다시 시도함.** 대가로 (1) 더 민감한 `debugger` 권한이 필요하고
+// (크롬 웹스토어 심사가 더 까다로워짐), (2) 사용하는 동안 브라우저 상단에
+// "이 확장이 페이지를 디버깅하고 있습니다" 배너가 뜸 — 사용자와 논의 후
+// 감수하기로 함. content script는 DOM 접근은 되지만 chrome.debugger를 못
+// 쓰고, 여기(background, 유일하게 chrome.debugger를 쓸 수 있는 곳)는 DOM에
+// 접근 못 하므로 역할을 나눔: content-editor.js가 대상 요소에 focus()를
+// 먼저 건 다음 이 함수를 호출하면, CDP가 "현재 포커스된 곳"에 텍스트를 넣음.
+// 호출마다 attach→삽입→detach를 하므로 배너가 짧게 깜빡이지만(제목 1번,
+// 본문 1번) 상태를 프레임 간에 공유할 필요가 없어 훨씬 단순함. DevTools가
+// 이미 열려 있는 탭이면 attach가 실패함(크롬이 동시 디버깅 세션을 허용 안
+// 함) — 그 경우 content-editor.js가 기존 execCommand/simulatePaste로 폴백함.
+async function cdpInsertText(tabId, text) {
+  const debuggee = { tabId };
+  try {
+    await new Promise((resolve, reject) => {
+      chrome.debugger.attach(debuggee, "1.3", () => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve();
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: `attach 실패: ${err.message}` };
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      chrome.debugger.sendCommand(debuggee, "Input.insertText", { text }, () => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve();
+      });
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: `Input.insertText 실패: ${err.message}` };
+  } finally {
+    chrome.debugger.detach(debuggee, () => void chrome.runtime.lastError);
+  }
+}
+
 // content-write-bridge.js가 중계하는 초안 저장 — 네이버 에디터 탭의
 // content-editor.js가 storage.onChanged로 이 값을 감지해서 "붙여넣기" 버튼을
 // 띄움. savedAt을 같이 저장해서, 너무 오래된 초안(예: 며칠 전 것)이 뜬금없이
@@ -45,6 +94,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const fresh = entry && Date.now() - entry.capturedAt < UPLOAD_URL_TTL_MS ? entry.url : null;
     sendResponse({ url: fresh });
     return false;
+  }
+  if (message?.type === "CDP_INSERT_TEXT") {
+    const tabId = sender.tab?.id;
+    if (tabId == null) {
+      sendResponse({ ok: false, error: "tabId 없음" });
+      return false;
+    }
+    cdpInsertText(tabId, message.text || "").then(sendResponse);
+    return true; // sendResponse가 비동기로 불릴 것임을 알림
   }
 });
 
