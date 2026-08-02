@@ -1,50 +1,194 @@
-// Parses the lightweight markup blogWriter.ts instructs Claude to produce in
-// "body" — "## " subheading lines, "- "/"1. " list lines, "**강조**" emphasis
-// spans, and image placement tokens ([사진N] / [스톡이미지] / [AI이미지N], each
-// with an optional ": 캡션"). Shared between the on-page preview render and
-// the rich-HTML clipboard copy in BlogWriterForm.tsx, so both stay in sync
-// with one parsing pass. No `fs`/server deps — safe to import from a client
-// component.
+// v2 블록 포맷(2026-08, new_blog/ezzsearch-ai-draft-block-format-v2.md) 파서 —
+// blogWriter.ts가 Claude에게 시키는 "## " 소제목, "- "/"1. " 목록, "**강조**"
+// 인라인 마크업은 v1과 동일하지만, 이미지/영상/인용구/구분선/표/장소/링크는
+// 더 이상 인라인 토큰([사진N] 등)이 아니라 독립된 블록 마크업
+// `[[TAG: key=value | key2="value2" | ...]]`으로 표시됨. 화면 미리보기와
+// clipboard용 HTML 렌더링(BlogWriterForm.tsx), 확장 프로그램으로 넘기는
+// HTML(handleSendToExtension) 모두 이 파서 결과를 공유해서 마크업 해석이
+// 항상 일치하게 함. No `fs`/서버 의존성 — 클라이언트 컴포넌트에서 안전하게
+// import 가능.
 
-export type BodyInline =
-  | { type: "text"; text: string }
-  | { type: "em"; text: string }
-  | { type: "image"; token: string; caption?: string }; // token: "사진1", "스톡이미지", "AI이미지1", ...
+export type BodyInline = { type: "text"; text: string } | { type: "em"; text: string };
+
+// 이미지 계열 slot/gallery의 "종류" — 이미지(실제 업로드 사진)만 count>1(GALLERY)이
+// 가능하고, 나머지는 늘 1개씩 순번이 매겨짐.
+export type MediaKind = "이미지" | "영상" | "스톡이미지" | "AI이미지";
+
+export interface SlotBlock {
+  type: "slot";
+  kind: MediaKind;
+  count: number;
+  roles: string[];
+  photoIndices: number[]; // kind가 "이미지"일 때만 의미 있음(1부터 시작하는 업로드 순서)
+  hint: string;
+  // kind가 "스톡이미지"/"AI이미지"일 때, 문서 안에서 몇 번째 스톡/AI 슬롯인지
+  // (1부터) — resolveImage가 stockImageQueries/aiImagePrompts 배열과 순서를
+  //맞추는 데 씀. 파서가 채워 넣음(파싱 시점에 순서대로 카운트).
+  mediaIndex: number;
+}
+
+export interface GalleryBlock {
+  type: "gallery";
+  kind: "이미지";
+  count: number;
+  layout: string; // 그리드 | 슬라이드 | 콜라주
+  photoIndices: number[];
+  hint: string;
+}
 
 export type BodyBlock =
   | { type: "heading"; text: string }
   | { type: "paragraph"; inline: BodyInline[] }
-  | { type: "list"; ordered: boolean; items: BodyInline[][] };
+  | { type: "list"; ordered: boolean; items: BodyInline[][] }
+  | SlotBlock
+  | GalleryBlock
+  | { type: "quote"; text: string }
+  | { type: "divider" }
+  | { type: "table"; headers: string[]; rows: string[][] }
+  | { type: "place"; name: string; hint: string }
+  | { type: "link"; url: string; description: string };
 
-// 실측 확인(2026-07): 네이버 스마트에디터 붙여넣기에서 <img>는 통째로
-// 사라짐(글자만 들어감) — 그래서 클립보드 HTML에는 이미지를 절대 embed하지
-// 않고, 대신 사용자가 화면 미리보기에서 다운로드해 직접 끼워 넣을 수 있게
-// 안내 문구만 남긴다(renderBodyToHtml 참고). 화면 미리보기(React)는 우리
-// 페이지 안에서 직접 렌더링하는 것이라 이 제약과 무관하게 실제 이미지를 보여줌.
-export const CIRCLED_DIGITS = [
-  "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩",
-  "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳",
-];
-
-const INLINE_RE = /\*\*(.+?)\*\*|\[(사진\d+|스톡이미지|AI이미지\d+)(?::\s*([^\]]+))?\]/g;
 const BULLET_RE = /^[-•]\s+/;
 const NUMBERED_RE = /^\d+\.\s+/;
+const EM_RE = /\*\*(.+?)\*\*/g;
+// 전체 청크가 통째로 `[[TAG]]` 또는 `[[TAG: ...]]` 하나뿐인지 검사 — 여러 줄
+// 힌트("...")를 감안해 [\s\S] 사용, 첫 `]]`에서 lazy하게 끊음(중첩 대괄호는
+// 안 씀을 전제).
+const BLOCK_RE = /^\[\[(\w+)(?::\s*([\s\S]*?))?\]\]$/;
 
 function tokenizeInline(text: string): BodyInline[] {
   const inline: BodyInline[] = [];
   let lastIndex = 0;
-  for (const match of text.matchAll(INLINE_RE)) {
+  for (const match of text.matchAll(EM_RE)) {
     const idx = match.index ?? 0;
     if (idx > lastIndex) inline.push({ type: "text", text: text.slice(lastIndex, idx) });
-    if (match[1] !== undefined) {
-      inline.push({ type: "em", text: match[1] });
-    } else if (match[2] !== undefined) {
-      inline.push({ type: "image", token: match[2], caption: match[3]?.trim() || undefined });
-    }
+    inline.push({ type: "em", text: match[1] });
     lastIndex = idx + match[0].length;
   }
   if (lastIndex < text.length) inline.push({ type: "text", text: text.slice(lastIndex) });
   return inline;
+}
+
+// `A | B="c,d" | C` → ['A', 'B="c,d"', 'C'] — 따옴표 안의 |는 구분자로 안 침.
+function splitPipeSegments(raw: string): string[] {
+  return (raw.match(/(?:[^|"]|"[^"]*")+/g) ?? []).map((s) => s.trim()).filter(Boolean);
+}
+
+function parseAttrsFromSegments(segments: string[]): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const seg of segments) {
+    const eq = seg.indexOf("=");
+    if (eq === -1) continue;
+    const key = seg.slice(0, eq).trim();
+    let value = seg.slice(eq + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+    attrs[key] = value;
+  }
+  return attrs;
+}
+
+// "1,2,3" 또는 "4-12"(범위) 또는 둘을 섞은 "1,2,4-6" 형식을 1부터 시작하는
+// 인덱스 배열로 변환.
+function parsePhotoIndices(raw: string | undefined): number[] {
+  if (!raw) return [];
+  const indices: number[] = [];
+  for (const part of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const rangeMatch = part.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      for (let i = start; i <= end; i++) indices.push(i);
+    } else if (/^\d+$/.test(part)) {
+      indices.push(Number(part));
+    }
+  }
+  return indices;
+}
+
+// mediaCounters — 파싱하는 동안 "스톡이미지"/"AI이미지" slot을 만날 때마다
+// 1씩 증가시키는 카운터. 파서 호출 하나(parseBody 한 번 호출)에 국한된
+// 지역 상태라 순서만 안정적이면 됨.
+interface MediaCounters {
+  스톡이미지: number;
+  AI이미지: number;
+}
+
+function parseSlotOrGallery(
+  tag: "SLOT" | "GALLERY",
+  content: string,
+  counters: MediaCounters
+): SlotBlock | GalleryBlock | null {
+  const segments = splitPipeSegments(content);
+  const kind = segments[0] as MediaKind;
+  const attrs = parseAttrsFromSegments(segments.slice(1));
+  const count = Number(attrs["개수"]) || 0;
+  const hint = attrs["힌트"] || "";
+
+  if (tag === "GALLERY") {
+    if (kind !== "이미지") return null; // GALLERY는 실제 사진 대량 배치 전용
+    return {
+      type: "gallery",
+      kind: "이미지",
+      count,
+      layout: attrs["배치"] || "그리드",
+      photoIndices: parsePhotoIndices(attrs["사진"]),
+      hint,
+    };
+  }
+
+  const roles = attrs["역할"] ? attrs["역할"].split(",").map((s) => s.trim()) : [];
+  let mediaIndex = 0;
+  if (kind === "스톡이미지") {
+    counters.스톡이미지 += 1;
+    mediaIndex = counters.스톡이미지;
+  } else if (kind === "AI이미지") {
+    counters.AI이미지 += 1;
+    mediaIndex = counters.AI이미지;
+  }
+
+  return {
+    type: "slot",
+    kind,
+    count,
+    roles,
+    photoIndices: kind === "이미지" ? parsePhotoIndices(attrs["사진"]) : [],
+    hint,
+    mediaIndex,
+  };
+}
+
+function parseSpecialBlock(tag: string, content: string, counters: MediaCounters): BodyBlock | null {
+  switch (tag.toUpperCase()) {
+    case "DIVIDER":
+      return { type: "divider" };
+    case "QUOTE": {
+      const match = content.match(/^"([\s\S]*)"$/);
+      return { type: "quote", text: (match ? match[1] : content).trim() };
+    }
+    case "SLOT":
+      return parseSlotOrGallery("SLOT", content, counters);
+    case "GALLERY":
+      return parseSlotOrGallery("GALLERY", content, counters);
+    case "TABLE": {
+      const attrs = parseAttrsFromSegments(splitPipeSegments(content));
+      const headers = (attrs["헤더"] || "").split(",").map((s) => s.trim());
+      const rowKeys = Object.keys(attrs)
+        .filter((k) => /^행\d+$/.test(k))
+        .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+      const rows = rowKeys.map((k) => attrs[k].split(",").map((s) => s.trim()));
+      return { type: "table", headers, rows };
+    }
+    case "PLACE": {
+      const attrs = parseAttrsFromSegments(splitPipeSegments(content));
+      return { type: "place", name: attrs["이름"] || "", hint: attrs["힌트"] || "" };
+    }
+    case "LINK": {
+      const attrs = parseAttrsFromSegments(splitPipeSegments(content));
+      return { type: "link", url: attrs["url"] || "", description: attrs["설명"] || "" };
+    }
+    default:
+      return null;
+  }
 }
 
 export function parseBody(body: string): BodyBlock[] {
@@ -53,37 +197,65 @@ export function parseBody(body: string): BodyBlock[] {
     .map((c) => c.trim())
     .filter(Boolean);
 
-  return chunks.map((chunk): BodyBlock => {
-    if (chunk.startsWith("## ")) {
-      return { type: "heading", text: chunk.slice(3).trim() };
+  const counters: MediaCounters = { 스톡이미지: 0, AI이미지: 0 };
+  const blocks: BodyBlock[] = [];
+
+  for (const chunk of chunks) {
+    const blockMatch = chunk.match(BLOCK_RE);
+    if (blockMatch) {
+      const special = parseSpecialBlock(blockMatch[1], blockMatch[2] ?? "", counters);
+      if (special) {
+        blocks.push(special);
+        continue;
+      }
+      // 알 수 없는 태그거나 파싱 실패 — 안전하게 일반 문단으로 폴백(마크업이
+      // 그대로 텍스트로 보이는 게, 블록을 통째로 잃어버리는 것보다 나음).
     }
 
-    const lines = chunk
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
+    if (chunk.startsWith("## ")) {
+      blocks.push({ type: "heading", text: chunk.slice(3).trim() });
+      continue;
+    }
 
+    const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length > 0 && lines.every((l) => BULLET_RE.test(l))) {
-      return { type: "list", ordered: false, items: lines.map((l) => tokenizeInline(l.replace(BULLET_RE, ""))) };
+      blocks.push({ type: "list", ordered: false, items: lines.map((l) => tokenizeInline(l.replace(BULLET_RE, ""))) });
+      continue;
     }
     if (lines.length > 0 && lines.every((l) => NUMBERED_RE.test(l))) {
-      return { type: "list", ordered: true, items: lines.map((l) => tokenizeInline(l.replace(NUMBERED_RE, ""))) };
+      blocks.push({ type: "list", ordered: true, items: lines.map((l) => tokenizeInline(l.replace(NUMBERED_RE, ""))) });
+      continue;
     }
 
-    return { type: "paragraph", inline: tokenizeInline(chunk) };
-  });
+    blocks.push({ type: "paragraph", inline: tokenizeInline(chunk) });
+  }
+
+  return blocks;
 }
 
-// "텍스트만 복사" 폴백에서 마크업 기호 없이 순수 텍스트만 필요할 때 사용.
+// "텍스트만 복사" 폴백 — 마크업 기호 없이 읽을 수 있는 텍스트만 남김.
 export function stripBodyMarkup(body: string): string {
-  return body
-    .replace(/^## /gm, "")
-    .replace(BULLET_RE, "")
-    .replace(new RegExp(BULLET_RE.source, "gm"), "")
-    .replace(new RegExp(NUMBERED_RE.source, "gm"), "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\[(사진\d+|스톡이미지|AI이미지\d+)(?::\s*[^\]]+)?\]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
+  const blocks = parseBody(body);
+  return blocks
+    .map((block) => {
+      if (block.type === "heading") return block.text;
+      if (block.type === "divider") return "───";
+      if (block.type === "quote") return `"${block.text}"`;
+      if (block.type === "table") {
+        return [block.headers.join(" | "), ...block.rows.map((r) => r.join(" | "))].join("\n");
+      }
+      if (block.type === "place") return `📍 ${block.name}`;
+      if (block.type === "link") return `🔗 ${block.description}: ${block.url}`;
+      if (block.type === "slot" || block.type === "gallery") return ""; // 이미지 자리 표시는 텍스트 버전에서 생략
+      if (block.type === "list") {
+        return block.items
+          .map((item, i) => `${block.ordered ? `${i + 1}.` : "-"} ${item.map((p) => p.text).join("")}`)
+          .join("\n");
+      }
+      return block.inline.map((p) => p.text).join("");
+    })
+    .filter(Boolean)
+    .join("\n\n")
     .trim();
 }
 
@@ -91,84 +263,124 @@ export function escapeHtmlText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function describeImageToken(token: string): string {
-  const photoMatch = token.match(/^사진(\d+)$/);
-  if (photoMatch) return `사진 ${photoMatch[1]}`;
-  if (token === "스톡이미지") return "스톡 이미지";
-  const aiMatch = token.match(/^AI이미지(\d+)$/);
-  if (aiMatch) return `AI 생성 이미지 ${aiMatch[1]}`;
-  return "이미지";
-}
+const CIRCLED_DIGITS = [
+  "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩",
+  "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳",
+];
+export { CIRCLED_DIGITS };
 
 function renderInlineToHtml(pieces: BodyInline[]): string {
   return pieces
-    .map((piece) => {
-      if (piece.type === "text") return escapeHtmlText(piece.text);
-      if (piece.type === "em") {
-        return `<strong style="background:#fed7aa;color:#9a3412;font-weight:700;padding:0 3px;border-radius:3px;">${escapeHtmlText(piece.text)}</strong>`;
-      }
-      const label = describeImageToken(piece.token) + (piece.caption ? ` — ${piece.caption}` : "");
-      return `<mark style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리 (사진을 직접 끼워 넣어주세요)</mark>`;
-    })
+    .map((piece) =>
+      piece.type === "em"
+        ? `<strong style="background:#fed7aa;color:#9a3412;font-weight:700;padding:0 3px;border-radius:3px;">${escapeHtmlText(piece.text)}</strong>`
+        : escapeHtmlText(piece.text)
+    )
     .join("");
 }
 
-function renderBlocksToHtml(blocks: BodyBlock[], renderInline: (pieces: BodyInline[]) => string): string {
+function mediaLabel(kind: MediaKind): string {
+  if (kind === "이미지") return "사진";
+  if (kind === "영상") return "영상";
+  if (kind === "스톡이미지") return "스톡 이미지";
+  return "AI 생성 이미지";
+}
+
+// 이미지 placeholder를 렌더링 — 붙여넣기(clipboard)용은 안내 문구(mark),
+// 확장 프로그램용은 data-ezzsearch-token이 붙은 <img>(§CLAUDE.md 17.5).
+// forExtension이 true면 kind가 "이미지"/"AI이미지"인 photoIndices/mediaIndex를
+// 토큰으로 노출하고(자동 업로드 대상), "영상"/"스톡이미지"는 항상 안내
+// 문구로만 남김(자동화 대상 아님).
+function renderMediaPlaceholder(
+  kind: MediaKind,
+  photoIndices: number[],
+  mediaIndex: number,
+  hint: string,
+  forExtension: boolean
+): string {
+  const noticeFor = (label: string) =>
+    `<mark style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리${hint ? ` — ${escapeHtmlText(hint)}` : ""} (직접 넣어주세요)</mark>`;
+
+  if (kind === "이미지") {
+    if (photoIndices.length === 0) return noticeFor("사진");
+    return photoIndices
+      .map((idx) => {
+        const token = `사진${idx}`;
+        if (forExtension) {
+          return `<img data-ezzsearch-token="${token}" alt="${escapeHtmlText(hint || token)}" style="max-width:100%;" />`;
+        }
+        return noticeFor(`사진${idx}`);
+      })
+      .join(" ");
+  }
+
+  if (kind === "AI이미지") {
+    const token = `AI이미지${mediaIndex}`;
+    if (forExtension) {
+      return `<img data-ezzsearch-token="${token}" alt="${escapeHtmlText(hint || token)}" style="max-width:100%;" />`;
+    }
+    return noticeFor(mediaLabel(kind));
+  }
+
+  // 영상 / 스톡이미지 — 확장에서도 자동화 대상 아님(§CLAUDE.md 17.5)
+  return noticeFor(mediaLabel(kind));
+}
+
+function renderBlocksToHtml(blocks: BodyBlock[], forExtension: boolean): string {
   return blocks
     .map((block) => {
-      if (block.type === "heading") {
-        return `<h3 style="font-size:20px;font-weight:800;color:#c2410c;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #fed7aa;">◆ ${escapeHtmlText(block.text)}</h3>`;
+      switch (block.type) {
+        case "heading":
+          return `<h3 style="font-size:20px;font-weight:800;color:#c2410c;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #fed7aa;">◆ ${escapeHtmlText(block.text)}</h3>`;
+        case "list":
+          return block.items
+            .map((item, i) => {
+              const marker = block.ordered ? (CIRCLED_DIGITS[i] ?? `${i + 1}.`) : "▶";
+              return `<p style="margin:0 0 8px;line-height:1.7;"><span style="color:#c2410c;font-weight:700;margin-right:6px;">${marker}</span>${renderInlineToHtml(item)}</p>`;
+            })
+            .join("\n");
+        case "paragraph":
+          return `<p style="margin:0 0 14px;line-height:1.7;">${renderInlineToHtml(block.inline)}</p>`;
+        case "divider":
+          return `<hr style="border:none;border-top:2px solid #fed7aa;margin:20px 0;" />`;
+        case "quote":
+          return `<blockquote style="margin:16px 0;padding:10px 16px;border-left:4px solid #e06b3d;background:#fffbf7;color:#3d2e1f;font-style:italic;">${escapeHtmlText(block.text)}</blockquote>`;
+        case "table": {
+          const head = `<tr>${block.headers.map((h) => `<th style="border:1px solid #ede6dd;padding:6px 10px;background:#fffbf7;text-align:left;">${escapeHtmlText(h)}</th>`).join("")}</tr>`;
+          const body = block.rows
+            .map(
+              (row) =>
+                `<tr>${row.map((cell) => `<td style="border:1px solid #ede6dd;padding:6px 10px;">${escapeHtmlText(cell)}</td>`).join("")}</tr>`
+            )
+            .join("");
+          return `<table style="border-collapse:collapse;width:100%;margin:14px 0;">${head}${body}</table>`;
+        }
+        case "place":
+          return `<p style="margin:0 0 14px;line-height:1.7;">📍 <strong>${escapeHtmlText(block.name)}</strong>${block.hint ? ` <span style="color:#8a7a6a;font-size:13px;">(${escapeHtmlText(block.hint)})</span>` : ""}</p>`;
+        case "link":
+          return `<p style="margin:0 0 14px;line-height:1.7;">🔗 <a href="${escapeHtmlText(block.url)}" style="color:#e06b3d;font-weight:700;">${escapeHtmlText(block.description || block.url)}</a></p>`;
+        case "slot":
+          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, block.mediaIndex, block.hint, forExtension)}</p>`;
+        case "gallery":
+          return `<p style="margin:0 0 14px;">${renderMediaPlaceholder(block.kind, block.photoIndices, 0, block.hint, forExtension)}</p>`;
+        default:
+          return "";
       }
-      if (block.type === "list") {
-        return block.items
-          .map((item, i) => {
-            const marker = block.ordered ? (CIRCLED_DIGITS[i] ?? `${i + 1}.`) : "▶";
-            return `<p style="margin:0 0 8px;line-height:1.7;"><span style="color:#c2410c;font-weight:700;margin-right:6px;">${marker}</span>${renderInline(item)}</p>`;
-          })
-          .join("\n");
-      }
-      return `<p style="margin:0 0 14px;line-height:1.7;">${renderInline(block.inline)}</p>`;
     })
     .join("\n");
 }
 
-// 네이버 에디터 붙여넣기용 HTML — 굵게/소제목/목록 서식은 살아남지만(실측
-// 확인) 이미지는 <img>를 넣어도 통째로 사라지므로 아예 embed하지 않고
-// 눈에 띄는 안내 문구(mark)로만 남긴다. 소제목엔 "◆", 목록엔 원문자(①②③)나
-// "▶"를 붙여서 상위노출 블로그들이 흔히 쓰는 스타일에 가깝게 함.
+// 네이버 에디터 "서식 포함 복사"용 — 사진 자리는 안내 문구로만 남김(직접
+// 다운로드해 끼워 넣어야 함, §CLAUDE.md 16 참고).
 export function renderBodyToHtml(blocks: BodyBlock[]): string {
-  return renderBlocksToHtml(blocks, renderInlineToHtml);
+  return renderBlocksToHtml(blocks, false);
 }
 
-function renderInlineToHtmlForExtension(pieces: BodyInline[]): string {
-  return pieces
-    .map((piece) => {
-      if (piece.type === "text") return escapeHtmlText(piece.text);
-      if (piece.type === "em") {
-        return `<strong style="background:#fed7aa;color:#9a3412;font-weight:700;padding:0 3px;border-radius:3px;">${escapeHtmlText(piece.text)}</strong>`;
-      }
-      // 2026-08: 크롬 확장이 사진/AI이미지는 네이버 업로드 API로 재업로드한
-      // 뒤 진짜 CDN URL로 이 자리를 치환함(§CLAUDE.md 17.5) — 그래서 여기선
-      // src 없는 <img data-ezzsearch-token>만 남겨두고, content-editor.js가
-      // 토큰을 보고 실제 src를 채워 넣는다. 스톡이미지는 아직 재업로드 대상이
-      // 아니라서(Pixabay 원격 URL이라 그대로 두면 네이버가 걸러낼 가능성이
-      // 높음 — 실측 안 함, 범위 밖) 기존과 동일한 안내 문구로 남김.
-      const isAutoInsertable = /^(사진\d+|AI이미지\d+)$/.test(piece.token);
-      if (isAutoInsertable) {
-        const alt = piece.caption ? escapeHtmlText(piece.caption) : escapeHtmlText(piece.token);
-        return `<img data-ezzsearch-token="${escapeHtmlText(piece.token)}" alt="${alt}" style="max-width:100%;" />`;
-      }
-      const label = describeImageToken(piece.token) + (piece.caption ? ` — ${piece.caption}` : "");
-      return `<mark style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:4px;font-weight:700;">📷 ${escapeHtmlText(label)} 자리 (사진을 직접 끼워 넣어주세요)</mark>`;
-    })
-    .join("");
-}
-
-// renderBodyToHtml의 변형 — "확장으로 보내기"에서만 씀. 사진/AI이미지 자리를
-// 안내 문구가 아니라 (아직 src 없는) <img data-ezzsearch-token> 플레이스홀더로
-// 렌더링해서, 크롬 확장이 실제 업로드 URL로 치환한 뒤 붙여넣을 수 있게 함.
+// 크롬 확장으로 초안을 보낼 때 쓰는 버전 — 사진/AI이미지 자리를
+// data-ezzsearch-token이 붙은 <img> 플레이스홀더로 렌더링해서, 확장이 실제
+// 업로드한 네이버 CDN URL로 치환한 뒤 붙여넣을 수 있게 함(§CLAUDE.md 17.5).
 export function renderBodyToHtmlForExtension(blocks: BodyBlock[]): string {
-  return renderBlocksToHtml(blocks, renderInlineToHtmlForExtension);
+  return renderBlocksToHtml(blocks, true);
 }
 
 export interface ResolvedImage {
@@ -176,39 +388,28 @@ export interface ResolvedImage {
   alt: string;
 }
 
-export type ImageResolver = (token: string) => ResolvedImage | null;
-
-// 화면 미리보기(React, 우리 페이지 안)에서 실제 이미지를 보여줄 때만 씀 —
-// 사진N은 업로드 순서로 바로 매핑되지만, 스톡이미지는 사용자가 클릭해서
-// 끼워 넣은 순서대로 문서에 나오는 [스톡이미지] 자리에 차례로 채워야 하므로
-// resolver를 함수 스코프의 mutable 카운터로 만들어 매 렌더마다 새로 생성한다.
+// 화면 미리보기(React, 우리 페이지 안)에서 실제 이미지를 보여줄 때 씀 —
+// "사진N"은 업로드 순서로 바로 매핑, "AI이미지N"/"스톡이미지N"은 파서가 매긴
+// mediaIndex 순서와 stockImageQueries/aiImagePrompts·응답 배열 순서가
+// 일치한다는 전제로 매핑한다(blogWriter.ts가 그 순서를 지켜서 응답함).
 export function createImageResolver(params: {
   photoSrcs: string[]; // index 0 = 사진1
-  insertedStockImages: { webformatURL: string; query: string }[];
+  stockImages: { webformatURL: string; query: string }[]; // index 0 = 문서상 첫 번째 스톡이미지 slot
   aiImages: ({ dataUrl: string; prompt: string } | null)[]; // index 0 = AI이미지1
-}): ImageResolver {
-  let stockCursor = 0;
-  return (token: string) => {
-    const photoMatch = token.match(/^사진(\d+)$/);
-    if (photoMatch) {
-      const idx = Number(photoMatch[1]) - 1;
-      const src = params.photoSrcs[idx];
-      return src ? { src, alt: `사진 ${photoMatch[1]}` } : null;
+}) {
+  return (kind: MediaKind, photoIndex: number | null, mediaIndex: number): ResolvedImage | null => {
+    if (kind === "이미지" && photoIndex != null) {
+      const src = params.photoSrcs[photoIndex - 1];
+      return src ? { src, alt: `사진 ${photoIndex}` } : null;
     }
-
-    if (token === "스톡이미지") {
-      const img = params.insertedStockImages[stockCursor];
-      stockCursor += 1;
+    if (kind === "스톡이미지") {
+      const img = params.stockImages[mediaIndex - 1];
       return img ? { src: img.webformatURL, alt: img.query } : null;
     }
-
-    const aiMatch = token.match(/^AI이미지(\d+)$/);
-    if (aiMatch) {
-      const idx = Number(aiMatch[1]) - 1;
-      const img = params.aiImages[idx];
+    if (kind === "AI이미지") {
+      const img = params.aiImages[mediaIndex - 1];
       return img ? { src: img.dataUrl, alt: img.prompt } : null;
     }
-
     return null;
   };
 }

@@ -13,6 +13,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+// TEMP(사용자 요청, 2026-08 — v2 블록 포맷 작업 중이라 반복 테스트 필요):
+// 하루 1회 제한 UI 표시를 임시로 꺼둠. 복구 요청 오면 이 상수를 false로
+// 되돌리고 src/app/api/write/route.ts의 같은 이름 상수도 같이 되돌릴 것.
+const TEMP_DISABLE_DAILY_LIMIT = true;
+
 export default async function WritePage() {
   const user = await getCurrentUser();
 
@@ -32,7 +37,7 @@ export default async function WritePage() {
         {user && user.emailVerified ? (
           <BlogWriterForm
             email={user.email}
-            hasUsedToday={hasUsedToday(user)}
+            hasUsedToday={!TEMP_DISABLE_DAILY_LIMIT && hasUsedToday(user)}
             naverBlogId={user.naverBlogId}
           />
         ) : (

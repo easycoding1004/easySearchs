@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BLOG_CATEGORIES, type BlogCategory } from "@/lib/write/blogCategories";
+import {
+  BLOG_GROUPS,
+  BLOG_CATEGORIES,
+  getBlogCategoryMeta,
+  type BlogGroup,
+  type BlogCategory,
+} from "@/lib/write/blogCategories";
 import {
   parseBody,
   stripBodyMarkup,
@@ -13,13 +19,16 @@ import {
   CIRCLED_DIGITS,
   type BodyBlock,
   type BodyInline,
+  type SlotBlock,
+  type GalleryBlock,
 } from "@/lib/write/parseBody";
 
-const MAX_IMAGES = 10;
-// 서버(route.ts)와 같은 값 — Claude API 요청 전체 크기 한도(32MB, base64
-// 인코딩 포함)를 넘기지 않기 위한 원본 합계 상한. 여기서도 먼저 걸러줘야
-// 사진을 다 고르고 제출한 다음에야 서버에서 거절당하는 걸 피할 수 있음.
-const MAX_TOTAL_IMAGE_BYTES = 18 * 1024 * 1024; // 18MB
+// 2026-08 v2 개편(§CLAUDE.md 16.2) — GALLERY가 최대 50장까지 한 번에 요구할
+// 수 있어 서버(route.ts)와 동일하게 상한을 올림. 원본 업로드 용량 sanity cap도
+// 서버 값과 맞춤(실제 Claude 32MB 한도는 서버의 사진 압축 후 별도 검사).
+const MAX_IMAGES = 50;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB
+const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB
 // 서버(/api/write/revise/route.ts)와 같은 값 — 수정 요청 무한 반복으로 비용이
 // 새는 걸 막는 상한. 새로 생성하면(handleSubmit) 0으로 초기화됨.
 const MAX_REVISIONS = 5;
@@ -43,21 +52,16 @@ interface WriteResult {
   thumbnailReason: string;
   tags: string[];
   category: BlogCategory;
+  sponsored: boolean;
   stockImages: StockImage[];
   aiImages: (AiImage | null)[];
 }
 
-// 본문 미리보기(우리 페이지 안 React 렌더링)에서 텍스트/강조/이미지 자리를
-// 인라인으로 그려준다. parseBody.ts의 파서 결과를 그대로 쓰므로 clipboard용
-// renderBodyToHtml과 마크업 해석 자체는 항상 같다 — 다만 이미지 표현 방식은
-// 다름(미리보기는 실제 <img>, clipboard는 안내 문구 — 네이버 에디터가
-// 붙여넣기에서 <img>를 통째로 지워버리는 걸 실측 확인했기 때문, parseBody.ts
-// 참고). 다운로드 링크를 같이 보여줘서 사용자가 이미지를 직접 저장해
-// 네이버 에디터에 끼워 넣을 수 있게 함.
-function renderInlineNodes(pieces: BodyInline[], resolveImage: ReturnType<typeof createImageResolver>, keyPrefix: string) {
+// 텍스트/강조 인라인만 렌더링 — v2부터 이미지는 더 이상 인라인 토큰이 아니라
+// 블록 단위(SLOT/GALLERY)라 여기서는 이미지 처리를 하지 않는다.
+function renderInlineNodes(pieces: BodyInline[], keyPrefix: string) {
   return pieces.map((piece, j) => {
     const key = `${keyPrefix}-${j}`;
-    if (piece.type === "text") return <span key={key}>{piece.text}</span>;
     if (piece.type === "em") {
       return (
         <strong key={key} className="rounded bg-primary/15 px-1 font-bold text-primary">
@@ -65,65 +69,184 @@ function renderInlineNodes(pieces: BodyInline[], resolveImage: ReturnType<typeof
         </strong>
       );
     }
-    const resolved = resolveImage(piece.token);
-    if (!resolved) {
-      return (
-        <span key={key} className="mx-1 inline-block rounded bg-bg px-2 py-0.5 text-xs text-ink-muted">
-          [{piece.token} 자리]
-        </span>
-      );
-    }
-    return (
-      <span key={key} className="my-2 block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={resolved.src}
-          alt={resolved.alt}
-          className="block max-h-72 w-full rounded-md border border-hairline object-cover"
-        />
-        {piece.caption && <span className="mt-1 block text-center text-xs italic text-ink-muted">{piece.caption}</span>}
-        <a
-          href={resolved.src}
-          download={`${piece.token}.png`}
-          target={resolved.src.startsWith("data:") ? undefined : "_blank"}
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-xs font-semibold text-primary hover:underline"
-        >
-          이 사진 다운로드
-        </a>
-      </span>
-    );
+    return <span key={key}>{piece.text}</span>;
   });
 }
 
-function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeof createImageResolver>) {
-  return blocks.map((block, i) => {
-    if (block.type === "heading") {
+function renderPhotoTile(src: string, alt: string, keyId: string) {
+  return (
+    <span key={keyId} className="block">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} className="block max-h-72 w-full rounded-md border border-hairline object-cover" />
+      <a
+        href={src}
+        download={`${keyId}.png`}
+        target={src.startsWith("data:") ? undefined : "_blank"}
+        rel="noopener noreferrer"
+        className="mt-1 inline-block text-xs font-semibold text-primary hover:underline"
+      >
+        이 사진 다운로드
+      </a>
+    </span>
+  );
+}
+
+// SLOT/GALLERY 블록 렌더링 — 사진 SLOT/GALLERY는 실제 업로드 사진(photoIndices)을,
+// 스톡이미지/AI이미지 SLOT은 mediaIndex로 매칭된 이미지를, 영상 SLOT은 자리
+// 표시 문구만 보여준다(이 앱은 영상 파일 업로드를 다루지 않음).
+function renderMediaBlock(
+  block: SlotBlock | GalleryBlock,
+  resolveImage: ReturnType<typeof createImageResolver>,
+  key: string
+) {
+  if (block.kind === "영상") {
+    return (
+      <div key={key} className="rounded-md bg-bg px-3 py-4 text-center text-xs text-ink-muted">
+        🎬 영상 자리{block.hint ? ` — ${block.hint}` : ""} (직접 넣어주세요)
+      </div>
+    );
+  }
+
+  if (block.kind === "이미지") {
+    if (block.photoIndices.length === 0) {
       return (
-        <h3 key={i} className="mt-2 border-b-2 border-primary/25 pb-1 text-base font-extrabold text-primary">
-          ◆ {block.text}
-        </h3>
-      );
-    }
-    if (block.type === "list") {
-      return (
-        <div key={i} className="flex flex-col gap-1">
-          {block.items.map((item, idx) => (
-            <p key={idx} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-              <span className="mr-1.5 font-bold text-primary">
-                {block.ordered ? (CIRCLED_DIGITS[idx] ?? `${idx + 1}.`) : "▶"}
-              </span>
-              {renderInlineNodes(item, resolveImage, `${i}-${idx}`)}
-            </p>
-          ))}
+        <div key={key} className="rounded-md bg-bg px-3 py-4 text-center text-xs text-ink-muted">
+          📷 사진 자리{block.hint ? ` — ${block.hint}` : ""}
         </div>
       );
     }
     return (
-      <p key={i} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-        {renderInlineNodes(block.inline, resolveImage, `${i}`)}
-      </p>
+      <div key={key} className="flex flex-col gap-2">
+        <div className={block.type === "gallery" ? "grid grid-cols-2 gap-2 sm:grid-cols-3" : "flex flex-col gap-2"}>
+          {block.photoIndices.map((idx) => {
+            const resolved = resolveImage("이미지", idx, 0);
+            if (!resolved) {
+              return (
+                <span
+                  key={`${key}-${idx}`}
+                  className="flex items-center justify-center rounded bg-bg px-2 py-4 text-center text-xs text-ink-muted"
+                >
+                  [사진{idx} 자리 — 업로드 안 됨]
+                </span>
+              );
+            }
+            return renderPhotoTile(resolved.src, resolved.alt, `${key}-${idx}`);
+          })}
+        </div>
+        {block.hint && <p className="text-center text-xs italic text-ink-muted">{block.hint}</p>}
+      </div>
     );
+  }
+
+  // 스톡이미지 / AI이미지
+  const resolved = resolveImage(block.kind, null, block.mediaIndex);
+  if (!resolved) {
+    return (
+      <div key={key} className="rounded-md bg-bg px-3 py-4 text-center text-xs text-ink-muted">
+        {block.kind === "스톡이미지"
+          ? "🖼️ 스톡 이미지 자리 — 아래 추천 목록에서 골라주세요"
+          : "✨ AI 이미지 자리 — 생성 중이거나 아직 준비되지 않았어요"}
+      </div>
+    );
+  }
+  return renderPhotoTile(resolved.src, resolved.alt, key);
+}
+
+function renderTableBlock(block: Extract<BodyBlock, { type: "table" }>, key: string) {
+  return (
+    <div key={key} className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {block.headers.map((h, i) => (
+              <th key={i} className="border border-hairline bg-bg px-2 py-1 text-left font-semibold text-ink">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, ri) => (
+            <tr key={ri}>
+              {row.map((cell, ci) => (
+                <td key={ci} className="border border-hairline px-2 py-1 text-ink">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderPreviewBlocks(blocks: BodyBlock[], resolveImage: ReturnType<typeof createImageResolver>) {
+  return blocks.map((block, i) => {
+    const key = `${i}`;
+    switch (block.type) {
+      case "heading":
+        return (
+          <h3 key={key} className="mt-2 border-b-2 border-primary/25 pb-1 text-base font-extrabold text-primary">
+            ◆ {block.text}
+          </h3>
+        );
+      case "list":
+        return (
+          <div key={key} className="flex flex-col gap-1">
+            {block.items.map((item, idx) => (
+              <p key={idx} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                <span className="mr-1.5 font-bold text-primary">
+                  {block.ordered ? (CIRCLED_DIGITS[idx] ?? `${idx + 1}.`) : "▶"}
+                </span>
+                {renderInlineNodes(item, `${key}-${idx}`)}
+              </p>
+            ))}
+          </div>
+        );
+      case "paragraph":
+        return (
+          <p key={key} className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+            {renderInlineNodes(block.inline, key)}
+          </p>
+        );
+      case "divider":
+        return <hr key={key} className="my-2 border-t-2 border-primary/20" />;
+      case "quote":
+        return (
+          <blockquote key={key} className="border-l-4 border-primary bg-primary/5 px-3 py-2 text-sm italic text-ink">
+            {block.text}
+          </blockquote>
+        );
+      case "table":
+        return renderTableBlock(block, key);
+      case "place":
+        return (
+          <p key={key} className="text-sm text-ink">
+            📍 <strong>{block.name}</strong>
+            {block.hint && <span className="ml-1 text-xs text-ink-muted">({block.hint})</span>}
+          </p>
+        );
+      case "link":
+        return (
+          <p key={key} className="text-sm text-ink">
+            🔗{" "}
+            <a
+              href={block.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-primary hover:underline"
+            >
+              {block.description || block.url}
+            </a>
+          </p>
+        );
+      case "slot":
+      case "gallery":
+        return renderMediaBlock(block, resolveImage, key);
+      default:
+        return null;
+    }
   });
 }
 
@@ -139,6 +262,9 @@ export default function BlogWriterForm({
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
+  const [group, setGroup] = useState<BlogGroup | null>(null);
+  const [category, setCategory] = useState<BlogCategory | null>(null);
+  const [sponsored, setSponsored] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WriteResult | null>(null);
@@ -153,7 +279,7 @@ export default function BlogWriterForm({
   const [revisionCount, setRevisionCount] = useState(0);
   const [revisionError, setRevisionError] = useState<string | null>(null);
 
-  // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 [스톡이미지] 자리에
+  // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 스톡이미지 SLOT 자리에
   // 끼워 넣은 것들 — 클릭한 순서대로 문서에 나오는 자리에 차례로 채워짐.
   const [insertedStockImages, setInsertedStockImages] = useState<StockImage[]>([]);
 
@@ -163,6 +289,7 @@ export default function BlogWriterForm({
   const [savingBlogId, setSavingBlogId] = useState(false);
 
   const previews = files.map((f) => URL.createObjectURL(f));
+  const selectedMeta = category ? getBlogCategoryMeta(category) : null;
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []).slice(0, MAX_IMAGES);
@@ -195,11 +322,17 @@ export default function BlogWriterForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!prompt.trim() || loading || hasUsedToday) return;
+    if (!prompt.trim() || !category || loading || hasUsedToday) return;
 
+    for (const f of files) {
+      if (f.size > MAX_IMAGE_BYTES) {
+        setError("사진 1장의 용량은 15MB를 넘을 수 없어요.");
+        return;
+      }
+    }
     const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
     if (totalBytes > MAX_TOTAL_IMAGE_BYTES) {
-      setError("사진 전체 용량이 너무 커요(총 18MB 이하). 사진을 줄이거나 압축해서 다시 시도해 주세요.");
+      setError("사진 전체 용량이 너무 커요. 사진 개수를 줄여서 다시 시도해 주세요.");
       return;
     }
 
@@ -214,6 +347,8 @@ export default function BlogWriterForm({
     try {
       const formData = new FormData();
       formData.set("prompt", prompt.trim());
+      formData.set("category", category);
+      formData.set("sponsored", String(sponsored));
       for (const file of files) formData.append("images", file);
 
       const res = await fetch("/api/write", { method: "POST", body: formData });
@@ -246,6 +381,7 @@ export default function BlogWriterForm({
       const formData = new FormData();
       formData.set("instruction", revisionInstruction.trim());
       formData.set("category", result.category);
+      formData.set("sponsored", String(result.sponsored));
       formData.set("revisionCount", String(revisionCount));
       formData.set(
         "previousResult",
@@ -262,7 +398,7 @@ export default function BlogWriterForm({
       }
 
       setResult(data);
-      setInsertedStockImages([]); // 본문이 바뀌었으니 이전 [스톡이미지] 삽입 자리는 무효화
+      setInsertedStockImages([]); // 본문이 바뀌었으니 이전 스톡이미지 삽입 자리는 무효화
       setRevisionCount((c) => c + 1);
       setRevisionInstruction("");
     } catch {
@@ -405,8 +541,9 @@ export default function BlogWriterForm({
   }
 
   const resultBlocks = result ? parseBody(result.body) : [];
+  const resultMeta = result ? getBlogCategoryMeta(result.category) : null;
   const resultResolveImage = result
-    ? createImageResolver({ photoSrcs: previews, insertedStockImages, aiImages: result.aiImages })
+    ? createImageResolver({ photoSrcs: previews, stockImages: insertedStockImages, aiImages: result.aiImages })
     : null;
 
   return (
@@ -470,6 +607,68 @@ export default function BlogWriterForm({
           onSubmit={handleSubmit}
           className="flex flex-col gap-3 rounded-lg border-2 border-hairline bg-surface p-4 shadow-sm transition-colors focus-within:border-primary sm:p-5"
         >
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-medium text-ink">글 유형</span>
+            <div className="flex flex-wrap gap-1.5">
+              {BLOG_GROUPS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setGroup(g.id);
+                    setCategory(null);
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                    group === g.id
+                      ? "border-primary bg-primary text-white"
+                      : "border-hairline text-ink-muted hover:bg-bg"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            {group && (
+              <select
+                value={category ?? ""}
+                onChange={(e) => setCategory(e.target.value as BlogCategory)}
+                disabled={loading}
+                className="rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none disabled:opacity-50"
+              >
+                <option value="" disabled>
+                  세부 유형을 골라주세요
+                </option>
+                {BLOG_CATEGORIES.filter((c) => c.group === group).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedMeta && (
+              <div className="rounded-md bg-bg px-3 py-2 text-xs text-ink-muted">
+                <p>{selectedMeta.description}</p>
+                <p className="mt-1">
+                  사진 {selectedMeta.imageHint}
+                  {selectedMeta.videoHint !== "-" && ` · 영상 ${selectedMeta.videoHint}`} · 특징:{" "}
+                  {selectedMeta.markupHint}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={sponsored}
+              disabled={loading}
+              onChange={(e) => setSponsored(e.target.checked)}
+              className="h-4 w-4 rounded border-hairline"
+            />
+            <span className="text-ink">협찬(광고비·물품을 받고 쓰는 글)이에요</span>
+          </label>
+
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-ink">사진 (선택, 최대 {MAX_IMAGES}장)</span>
             <input
@@ -510,16 +709,13 @@ export default function BlogWriterForm({
               className="rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
               disabled={loading}
             />
-            <span className="text-xs text-ink-muted">
-              글 유형(정보·리뷰·에세이·홍보 등)은 입력하신 내용을 보고 AI가 자동으로 판단해요.
-            </span>
           </label>
 
           {error && <p className="text-sm text-error">{error}</p>}
 
           <button
             type="submit"
-            disabled={loading || !prompt.trim()}
+            disabled={loading || !prompt.trim() || !category}
             className="h-11 rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97] disabled:opacity-50"
           >
             {loading ? "글 쓰는 중... (최대 1분 정도 걸려요)" : "글 생성하기"}
@@ -564,7 +760,14 @@ export default function BlogWriterForm({
             사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
             저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.
           </p>
-          <p className="text-lg font-bold text-ink">{result.title}</p>
+          <p className="text-lg font-bold text-ink">
+            {result.title}
+            {result.sponsored && (
+              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-800">
+                협찬
+              </span>
+            )}
+          </p>
           <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage)}</div>
 
           {result.recommendedThumbnail > 0 && previews[result.recommendedThumbnail - 1] && (
@@ -585,8 +788,9 @@ export default function BlogWriterForm({
           {result.tags.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-hairline pt-3">
               <span className="text-xs font-semibold text-ink-muted">
-                추천 태그 · 유형: {BLOG_CATEGORIES.find((c) => c.id === result.category)?.label} — 하나씩
-                클릭해서 복사한 뒤 태그 입력창에 붙여넣고 Enter를 눌러주세요 (네이버 태그창은 한 번에
+                추천 태그 · 유형:{" "}
+                {resultMeta ? `${BLOG_GROUPS.find((g) => g.id === resultMeta.group)?.label} · ${resultMeta.label}` : ""}{" "}
+                — 하나씩 클릭해서 복사한 뒤 태그 입력창에 붙여넣고 Enter를 눌러주세요 (네이버 태그창은 한 번에
                 여러 개를 못 받아요)
               </span>
               <div className="flex flex-wrap gap-1">
@@ -607,8 +811,8 @@ export default function BlogWriterForm({
           {result.stockImages.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-hairline pt-3">
               <span className="text-xs font-semibold text-ink-muted">
-                추천 스톡 이미지 (Pixabay 제공) · 클릭하면 위 본문의 [스톡이미지] 자리에 순서대로
-                들어가요 (다시 클릭하면 빼요)
+                추천 스톡 이미지 (Pixabay 제공) · 클릭하면 위 본문의 스톡이미지 자리에 순서대로 들어가요
+                (다시 클릭하면 빼요)
               </span>
               <div className="flex flex-wrap gap-2">
                 {result.stockImages.map((img) => {

@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/write/auth";
 import { reviseBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { isBlogCategory } from "@/lib/write/blogCategories";
+import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
 import { getErrorMessage } from "@/lib/utils/errors";
 
-const MAX_IMAGES = 10;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB — /api/write/route.ts와 동일한 근거
-const MAX_TOTAL_IMAGE_BYTES = 18 * 1024 * 1024; // 18MB
+// /api/write/route.ts와 동일한 근거(2026-08 v2 개편, GALLERY 최대 50장) —
+// 값도 그대로 맞춰둠.
+const MAX_IMAGES = 50;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB (원본 사진 1장 sanity cap)
+const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB (원본 합계 sanity cap)
+const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_INSTRUCTION_LENGTH = 300;
 // 최초 생성은 하루 1회 제한(§16)으로 막혀 있지만, 이미 생성한 그 글을 다듬는
 // 수정 요청까지 매번 새 "하루 1회"를 또 쓰게 하면 사실상 못 쓰는 기능이 됨 —
@@ -46,6 +50,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청이에요." }, { status: 400 });
   }
 
+  // 협찬 여부도 최초 생성 때 정해진 걸 그대로 유지(재판단하지 않음) —
+  // category와 동일한 원칙(§CLAUDE.md 16.2).
+  const sponsored = String(formData.get("sponsored") ?? "") === "true";
+
   const revisionCount = Number(formData.get("revisionCount"));
   if (!Number.isInteger(revisionCount) || revisionCount < 0 || revisionCount >= MAX_REVISIONS) {
     return NextResponse.json(
@@ -75,29 +83,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "jpg/png/webp/gif 형식의 사진만 올릴 수 있어요." }, { status: 400 });
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: "사진 1장의 용량은 5MB를 넘을 수 없어요." }, { status: 400 });
+      return NextResponse.json({ error: "사진 1장의 용량은 15MB를 넘을 수 없어요." }, { status: 400 });
     }
     totalImageBytes += file.size;
   }
   if (totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
     return NextResponse.json(
-      { error: "사진 전체 용량이 너무 커요(총 18MB 이하). 사진을 줄이거나 압축해서 다시 시도해 주세요." },
+      { error: "사진 전체 용량이 너무 커요. 사진 개수를 줄여서 다시 시도해 주세요." },
       { status: 400 }
     );
   }
 
   try {
-    const images: BlogWriterImage[] = await Promise.all(
+    const compressed = await Promise.all(
       files.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer());
-        return {
-          base64: buffer.toString("base64"),
-          mimeType: file.type as BlogWriterImage["mimeType"],
-        };
+        return compressImage(buffer, file.type);
       })
     );
 
-    const result = await reviseBlogPost(images, previous, instruction, category);
+    const compressedTotalBytes = compressed.reduce((sum, img) => sum + img.byteLength, 0);
+    if (compressedTotalBytes * (4 / 3) > MAX_COMPRESSED_BASE64_BYTES) {
+      return NextResponse.json(
+        { error: "사진 전체 용량이 너무 커요. 사진 개수를 줄여서 다시 시도해 주세요." },
+        { status: 400 }
+      );
+    }
+
+    const images: BlogWriterImage[] = compressed.map((img) => ({
+      base64: img.base64,
+      mimeType: img.mimeType,
+    }));
+
+    const result = await reviseBlogPost(images, previous, instruction, category, sponsored);
 
     // 부가 기능(무료 스톡 이미지 추천 + AI 이미지 생성) — /api/write와 동일한
     // 계약(절대 throw 안 함, 병렬 실행).
@@ -113,6 +131,7 @@ export async function POST(request: Request) {
       thumbnailReason: result.thumbnailReason,
       tags: result.tags,
       category,
+      sponsored,
       stockImages,
       aiImages,
     });
