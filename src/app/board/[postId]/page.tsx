@@ -5,7 +5,6 @@ import PostBody from "@/components/board/PostBody";
 import CommentSection from "@/components/board/CommentSection";
 import { getBoardPost, getCommentsForPost } from "@/lib/notion/board";
 import { getCurrentUser } from "@/lib/auth/session";
-import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +37,6 @@ export default async function BoardPostPage({ params }: { params: Promise<{ post
             <h1 className="text-xl font-bold text-ink">{post.title}</h1>
             <div className="flex items-center gap-2 text-xs text-ink-muted">
               <span>{post.authorNickname || "익명"}</span>
-              <span>·</span>
-              <span>{formatKstDateTime(post.createdAt)}</span>
             </div>
           </div>
           <PostBody postId={post.id} body={post.body} />

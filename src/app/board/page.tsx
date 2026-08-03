@@ -3,7 +3,6 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { getBoardPosts } from "@/lib/notion/board";
 import { stripPostBodyPreview } from "@/lib/board/parsePost";
-import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 export const metadata: Metadata = {
   title: "게시판",
@@ -52,8 +51,6 @@ export default async function BoardPage({
                 <p className="text-xs text-ink-muted">{stripPostBodyPreview(post.body)}</p>
                 <div className="flex items-center gap-2 text-xs text-ink-muted">
                   <span>{post.authorNickname || "익명"}</span>
-                  <span>·</span>
-                  <span>{formatKstDateTime(post.createdAt)}</span>
                 </div>
               </Link>
             ))

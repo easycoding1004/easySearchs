@@ -37,12 +37,23 @@ function richText(value: PageObjectResponse["properties"][string]): string {
   return value?.type === "rich_text" ? value.rich_text.map((t) => t.plain_text).join("") : "";
 }
 
+// 표시일시(date, 사람이 쓸 수 있음)가 있으면 그걸 우선하고, 없으면(이 속성을
+// 추가하기 전에 만들어진 글) Notion 내장 작성일시(created_time)로 폴백함.
+function resolveDisplayDate(
+  props: PageObjectResponse["properties"],
+  postedAtKey: string,
+  createdAtKey: string
+): string {
+  const postedProp = props[postedAtKey];
+  if (postedProp?.type === "date" && postedProp.date?.start) return postedProp.date.start;
+  const createdProp = props[createdAtKey];
+  return createdProp?.type === "created_time" ? createdProp.created_time : "";
+}
+
 function parseBoardPost(page: PageObjectResponse): BoardPost {
   const props = page.properties;
   const titleProp = props[BOARD_POST_PROPS.title];
   const title = titleProp?.type === "title" ? titleProp.title.map((t) => t.plain_text).join("") : "";
-  const createdProp = props[BOARD_POST_PROPS.createdAt];
-  const createdAt = createdProp?.type === "created_time" ? createdProp.created_time : "";
 
   return {
     id: page.id,
@@ -50,7 +61,7 @@ function parseBoardPost(page: PageObjectResponse): BoardPost {
     body: richText(props[BOARD_POST_PROPS.body]),
     authorNickname: richText(props[BOARD_POST_PROPS.authorNickname]),
     authorId: richText(props[BOARD_POST_PROPS.authorId]),
-    createdAt,
+    createdAt: resolveDisplayDate(props, BOARD_POST_PROPS.postedAt, BOARD_POST_PROPS.createdAt),
   };
 }
 
@@ -58,14 +69,12 @@ function parseBoardComment(page: PageObjectResponse): BoardComment {
   const props = page.properties;
   const titleProp = props[BOARD_COMMENT_PROPS.title];
   const content = titleProp?.type === "title" ? titleProp.title.map((t) => t.plain_text).join("") : "";
-  const createdProp = props[BOARD_COMMENT_PROPS.createdAt];
-  const createdAt = createdProp?.type === "created_time" ? createdProp.created_time : "";
 
   return {
     id: page.id,
     content,
     authorNickname: richText(props[BOARD_COMMENT_PROPS.authorNickname]),
-    createdAt,
+    createdAt: resolveDisplayDate(props, BOARD_COMMENT_PROPS.postedAt, BOARD_COMMENT_PROPS.createdAt),
   };
 }
 
@@ -79,6 +88,9 @@ export async function createBoardPost(input: {
   authorNickname: string;
   authorId: string;
   imageUploadIds: string[];
+  // 시드/이관용 — 실제 사용자 작성 흐름에서는 안 넘기고 항상 현재 시각으로
+  // 채워짐(BOARD_POST_PROPS.postedAt 주석 참고).
+  postedAt?: string;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: postsDataSourceId() },
@@ -101,6 +113,7 @@ export async function createBoardPost(input: {
           name: `image-${i + 1}`,
         })),
       },
+      [BOARD_POST_PROPS.postedAt]: { type: "date", date: { start: input.postedAt ?? new Date().toISOString() } },
     },
   });
   return page.id;
@@ -126,7 +139,7 @@ export async function getBoardPosts(
 ): Promise<{ posts: BoardPost[]; nextCursor: string | null }> {
   const res = await notion.dataSources.query({
     data_source_id: postsDataSourceId(),
-    sorts: [{ timestamp: "created_time", direction: "descending" }],
+    sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
     start_cursor: cursor,
     page_size: PAGE_SIZE,
   });
@@ -140,6 +153,8 @@ export async function createComment(input: {
   postId: string;
   content: string;
   authorNickname: string;
+  // 시드/이관용 — BOARD_POST_PROPS.postedAt과 같은 이유·같은 패턴.
+  postedAt?: string;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: commentsDataSourceId() },
@@ -150,6 +165,7 @@ export async function createComment(input: {
         rich_text: [{ type: "text", text: { content: input.authorNickname } }],
       },
       [BOARD_COMMENT_PROPS.post]: { type: "relation", relation: [{ id: input.postId }] },
+      [BOARD_COMMENT_PROPS.postedAt]: { type: "date", date: { start: input.postedAt ?? new Date().toISOString() } },
     },
   });
   return page.id;
@@ -163,7 +179,7 @@ export async function getCommentsForPost(postId: string): Promise<BoardComment[]
     const res = await notion.dataSources.query({
       data_source_id: commentsDataSourceId(),
       filter: { property: BOARD_COMMENT_PROPS.post, relation: { contains: postId } },
-      sorts: [{ timestamp: "created_time", direction: "ascending" }],
+      sorts: [{ property: BOARD_COMMENT_PROPS.postedAt, direction: "ascending" }],
       start_cursor: cursor,
       page_size: 100,
     });

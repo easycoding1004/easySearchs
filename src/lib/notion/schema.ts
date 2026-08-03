@@ -179,6 +179,13 @@ export const BOARD_POST_PROPS = {
   authorId: "작성자ID",
   images: "이미지",
   createdAt: "작성일시",
+  // 2026-08 추가 — Notion의 작성일시(created_time)는 API로 과거 시점을
+  // 지정할 수 없는 읽기 전용 속성이라(실측 확인), 시드/이관 등으로 과거
+  // 시점의 글을 넣어야 할 때를 대비해 별도 date 속성을 둠. 이 값이 있으면
+  // 항상 이 값을 표시·정렬 기준으로 쓰고, 없으면(과거에 만들어진 글) 기존
+  // created_time으로 폴백함 — 새 글은 API가 항상 이 값도 현재 시각으로
+  // 같이 채움(scripts/add-board-posted-at-prop.ts로 마이그레이션).
+  postedAt: "표시일시",
 } as const;
 
 export const BOARD_COMMENT_PROPS = {
@@ -188,4 +195,6 @@ export const BOARD_COMMENT_PROPS = {
   authorNickname: "작성자닉네임",
   post: "소속게시글",
   createdAt: "작성일시",
+  // BOARD_POST_PROPS.postedAt과 같은 이유·같은 패턴.
+  postedAt: "표시일시",
 } as const;

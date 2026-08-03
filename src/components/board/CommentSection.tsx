@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { BoardComment } from "@/lib/notion/board";
-import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const MAX_CONTENT_LENGTH = 1000;
 const MAX_NICKNAME_LENGTH = 20;
@@ -74,9 +73,8 @@ export default function CommentSection({
         <div className="flex flex-col gap-3">
           {comments.map((c) => (
             <div key={c.id} className="rounded-md bg-bg p-3 text-sm">
-              <div className="flex items-center justify-between text-xs text-ink-muted">
+              <div className="flex items-center text-xs text-ink-muted">
                 <span className="font-semibold text-ink">{c.authorNickname || "익명"}</span>
-                <span>{formatKstDateTime(c.createdAt)}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-ink">{c.content}</p>
             </div>

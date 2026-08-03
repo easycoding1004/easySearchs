@@ -511,6 +511,13 @@ API 응답으로 받은 키워드 1개당 1행.
 
 게시글/댓글 수정·삭제, 관리자 모더레이션 UI(`/admin`에 게시판 관리 탭 등), 이메일 인증 링크의 원래 페이지 복귀. 필요해지면 별도로 요청할 것.
 
+### 18.7.1 표시일시(작성일시 백데이트) + 데모 시드 콘텐츠 (2026-08)
+
+- **Notion의 작성일시(`created_time`)는 API로 과거 시점을 지정할 수 없는 읽기 전용 속성**(실측 확인) — 시연/마케팅 목적으로 "지난 며칠간 실제 활동이 있었던 것처럼" 보이는 글을 넣으려면 이 제약을 피해야 함. 그래서 게시판 게시글/댓글 DB 양쪽에 `표시일시`(date, `scripts/add-board-posted-at-prop.ts`로 마이그레이션) 속성을 추가함 — `board.ts`의 `parseBoardPost`/`parseBoardComment`가 이 값이 있으면 우선 쓰고, 없으면(이 속성 추가 전에 만들어진 글) 기존 `created_time`으로 폴백함. `createBoardPost`/`createComment`는 `postedAt`을 안 넘기면 자동으로 현재 시각을 채우므로, 실제 사용자가 쓰는 일반 흐름(`/api/board/posts`, `/api/board/posts/[postId]/comments`)은 전혀 안 바뀌었고 항상 지금 이 순간이 기록됨. 목록/댓글 정렬(`getBoardPosts`/`getCommentsForPost`)도 `created_time` 대신 이 속성 기준으로 바뀜.
+- **데모 시드 콘텐츠** — `scripts/seed-board-demo-content.ts`(1회성, 재실행해도 가상 회원 10명은 이메일 기준으로 중복 생성 안 됨)가 가상 회원 10명(자영업자 페르소나, `seed-*@ezzsearch.local` — 실제 로그인 불가능한 표시용 계정)과 그 이름으로 쓴 Q&A 게시글 23건 + 게시글마다 "관리자" 닉네임의 답변 댓글 1건을 만들어 넣음. `postedAt`을 스크립트 실행 시점(2026-08-03) 기준 직전 5일(2026-07-29~08-02) 낮 시간대(09~19시)로 분산 지정해서 초기 방문자에게 완전히 빈 게시판 대신 실제 운영 중인 것처럼 보이는 최소한의 콘텐츠를 제공함. 같은 스크립트가 이메일/닉네임에 "bigi2040"이 포함된 기존 계정을 찾아 닉네임을 "관리자"로 바꿔둠(사용자 요청 — 사이트 운영자 본인 계정의 게시판 표시명).
+- **⚠️ 스크립트에서 `board.ts`/`users.ts`의 고수준 함수를 재사용하지 말 것(이 스크립트에서 실제로 겪은 버그)**: `tsx`로 실행되는 `scripts/*.ts`는 진짜 ESM이라 `import`가 파일 맨 위로 호이스팅됨 — `board.ts`가 간접 import하는 `src/lib/notion/client.ts`는 모듈 로드 시점에 즉시 `new Client({auth: process.env.NOTION_TOKEN})`을 실행하는 싱글턴이라, 스크립트 본문의 `dotenv.config()`보다 먼저 평가되어 토큰이 빈 채로 생성돼버림("API token is invalid" 오류로 실측 확인). 그래서 이 프로젝트의 모든 `scripts/*.ts`는 `config()` 이후 스크립트 본문에서 직접 `new Client(...)`를 만들어 쓰는 패턴을 지키고 있고(예: `add-google-auth-provider-option.ts`), **`src/lib/notion/*.ts`의 함수(특히 모듈 최상단에서 클라이언트를 즉시 생성하는 `client.ts`를 간접 import하는 것들)를 새 스크립트에서 그대로 import하면 이 문제가 재발함** — 필요한 로직은 스크립트 안에 직접 풀어써야 함.
+- **게시글/댓글 작성 시각은 화면에 표시하지 않음**(2026-08, 사용자 결정 — 시드 콘텐츠처럼 실제 작성 시점과 표시 시점이 다를 수 있는 데이터가 섞여도 부자연스러워 보이지 않게 하기 위함). `BoardPost`/`BoardComment`는 여전히 `createdAt`(=표시일시 우선, 없으면 작성일시 폴백)을 반환하지만 `/board`·`/board/[postId]`·`CommentSection.tsx` 어디에서도 렌더링하지 않음 — 정렬 기준으로만 내부적으로 씀. 나중에 다시 노출하고 싶으면 이 세 파일에 `formatKstDateTime(...)`을 다시 붙이면 됨.
+
 ### 18.7 검증 상태
 
 `tsc`/`eslint`/`next build` 클린 확인. **아직 실사용 검증 전** — `scripts/setup-notion-board.ts`·`scripts/add-user-nickname-prop.ts` 1회 실행, 구글 로그인 env 설정, 실제 브라우저로 로그인→게시판 글쓰기(닉네임 설정→이미지 붙여넣기/업로드→제출)→목록/상세에서 이미지가 실제로 보이는지(프록시 라우트 동작)→비로그인 상태로 읽기만 되고 쓰기는 막히는지→댓글 작성까지 다음 실사용 때 확인 필요. Notion File Upload API 자체도 공식 문서 기준으로만 구현했고 실제 호출로는 아직 검증 안 됨.
