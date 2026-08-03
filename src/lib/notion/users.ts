@@ -3,7 +3,8 @@ import { isFullPage } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { USER_PROPS, AUTH_PROVIDER } from "./schema";
-import { getKstDateString } from "../utils/formatDate";
+import { countRowsMatching } from "./queryHelpers";
+import { getKstDateString, kstDayRangeUtcIso } from "../utils/formatDate";
 
 export type AuthProviderValue = (typeof AUTH_PROVIDER)[keyof typeof AUTH_PROVIDER];
 
@@ -29,6 +30,7 @@ export interface User {
   providerId: string;
   naverBlogId: string;
   nickname: string;
+  createdAt: string; // ISO — 관리자 대시보드 가입 현황용
 }
 
 function parseUser(page: PageObjectResponse): User {
@@ -74,6 +76,9 @@ function parseUser(page: PageObjectResponse): User {
   const nicknameProp = props[USER_PROPS.nickname];
   const nickname = nicknameProp?.type === "rich_text" ? nicknameProp.rich_text.map((t) => t.plain_text).join("") : "";
 
+  const createdAtProp = props[USER_PROPS.createdAt];
+  const createdAt = createdAtProp?.type === "date" ? createdAtProp.date?.start ?? "" : "";
+
   return {
     pageId: page.id,
     email,
@@ -86,6 +91,7 @@ function parseUser(page: PageObjectResponse): User {
     providerId,
     naverBlogId,
     nickname,
+    createdAt,
   };
 }
 
@@ -262,4 +268,40 @@ export async function markUsedToday(pageId: string): Promise<void> {
       [USER_PROPS.lastUsedAt]: { type: "date", date: { start: getKstDateString() } },
     },
   });
+}
+
+// 관리자 대시보드 "오늘 회원가입" 카드용 — §CLAUDE.md 15의 Notion 날짜
+// 필터 AND 버그(on_or_after+before를 한 조건에 같이 넣으면 안 묶임)와
+// 같은 이유로 두 조건을 and로 쪼갬(sessions.ts의 countSessionsToday와
+// 동일 패턴).
+export async function countUsersToday(): Promise<number> {
+  const { startIso, endIso } = kstDayRangeUtcIso(0);
+  return countRowsMatching(usersDataSourceId(), {
+    and: [
+      { property: USER_PROPS.createdAt, date: { on_or_after: startIso } },
+      { property: USER_PROPS.createdAt, date: { before: endIso } },
+    ],
+  });
+}
+
+// 관리자 대시보드 "최근 N일 회원가입" 카드 로그용 — sessions.ts의
+// getSessionsInRange와 동일 패턴(days=7이면 오늘 포함 최근 7일).
+export async function getUsersInRange(days: number): Promise<User[]> {
+  const { startIso } = kstDayRangeUtcIso(days - 1);
+  const users: User[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: usersDataSourceId(),
+      filter: { property: USER_PROPS.createdAt, date: { on_or_after: startIso } },
+      sorts: [{ property: USER_PROPS.createdAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    users.push(...res.results.filter(isFullPage).map(parseUser));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return users;
 }
