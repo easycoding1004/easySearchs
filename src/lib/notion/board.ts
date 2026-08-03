@@ -24,6 +24,7 @@ export interface BoardPost {
   authorNickname: string;
   authorId: string;
   createdAt: string;
+  commentCount: number;
 }
 
 export interface BoardComment {
@@ -55,6 +56,9 @@ function parseBoardPost(page: PageObjectResponse): BoardPost {
   const titleProp = props[BOARD_POST_PROPS.title];
   const title = titleProp?.type === "title" ? titleProp.title.map((t) => t.plain_text).join("") : "";
 
+  const commentCountProp = props[BOARD_POST_PROPS.commentCount];
+  const commentCount = commentCountProp?.type === "relation" ? commentCountProp.relation.length : 0;
+
   return {
     id: page.id,
     title,
@@ -62,6 +66,7 @@ function parseBoardPost(page: PageObjectResponse): BoardPost {
     authorNickname: richText(props[BOARD_POST_PROPS.authorNickname]),
     authorId: richText(props[BOARD_POST_PROPS.authorId]),
     createdAt: resolveDisplayDate(props, BOARD_POST_PROPS.postedAt, BOARD_POST_PROPS.createdAt),
+    commentCount,
   };
 }
 

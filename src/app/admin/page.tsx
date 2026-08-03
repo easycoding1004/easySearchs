@@ -8,7 +8,7 @@ import VisitBreakdownCard from "@/components/admin/VisitBreakdownCard";
 import { countSessionsToday, getSessionsInRange } from "@/lib/notion/sessions";
 import { countBlogScoreSessionsToday, getBlogScoreSessionsInRange } from "@/lib/notion/blogScoreSessions";
 import { countInquiriesToday } from "@/lib/notion/inquiries";
-import { countUsersToday, getUsersInRange } from "@/lib/notion/users";
+import { countAllUsers, countUsersToday, getUsersInRange } from "@/lib/notion/users";
 import { countVisitsToday, getVisitBreakdownToday, type VisitBreakdown } from "@/lib/notion/visits";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,7 @@ export default async function AdminPage() {
     inquiryCount,
     blogScoreCount,
     signupCount,
+    totalSignupCount,
     weeklySessions,
     weeklyBlogScoreSessions,
     weeklySignups,
@@ -45,6 +46,7 @@ export default async function AdminPage() {
     settle(countInquiriesToday),
     settle(countBlogScoreSessionsToday),
     settle(countUsersToday),
+    settle(countAllUsers),
     getSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
     getBlogScoreSessionsInRange(WEEKLY_LOG_DAYS).catch(() => []),
     getUsersInRange(WEEKLY_LOG_DAYS).catch(() => []),
@@ -63,7 +65,7 @@ export default async function AdminPage() {
           <AdminLogoutButton />
         </div>
 
-        <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <AdminStatCard label="오늘 키워드 검색" value={searchCount ?? 0} />
           <AdminStatCard label="오늘 방문자" value={visitCount ?? 0} />
           <AdminStatCard
@@ -73,6 +75,7 @@ export default async function AdminPage() {
           />
           <AdminStatCard label="오늘 블로그지수 확인" value={blogScoreCount ?? 0} />
           <AdminStatCard label="오늘 회원가입" value={signupCount ?? 0} />
+          <AdminStatCard label="총 가입자" value={totalSignupCount ?? 0} footnote="누적" />
         </div>
 
         {/* 방문자 유입 분석은 자체적으로 2열 세부 표를 갖고 있어 카드 하나를

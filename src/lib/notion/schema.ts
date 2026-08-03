@@ -179,6 +179,14 @@ export const BOARD_POST_PROPS = {
   authorId: "작성자ID",
   images: "이미지",
   createdAt: "작성일시",
+  // 게시판 댓글 DB의 "소속게시글" relation을 dual_property로 만들 때 Notion이
+  // 이 데이터소스에 자동 생성해준 역방향 relation(setup-notion-board.ts의
+  // renameAutoRelation이 "댓글"로 이름 붙임) — 별도 쿼리 없이 게시글을 읽을
+  // 때 이 relation 배열 길이로 댓글 수를 바로 알 수 있음(목록 카드의 댓글
+  // 수 표시용, 2026-08 추가). Notion이 relation을 페이지당 최대 25개까지만
+  // 내려주는 제약이 있어 댓글이 25개를 넘는 글은 실제보다 적게 셀 수 있음
+  // — 이 정도 규모의 게시판에선 무시할 만한 근사치로 판단.
+  commentCount: "댓글",
   // 2026-08 추가 — Notion의 작성일시(created_time)는 API로 과거 시점을
   // 지정할 수 없는 읽기 전용 속성이라(실측 확인), 시드/이관 등으로 과거
   // 시점의 글을 넣어야 할 때를 대비해 별도 date 속성을 둠. 이 값이 있으면

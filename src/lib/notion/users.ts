@@ -270,6 +270,11 @@ export async function markUsedToday(pageId: string): Promise<void> {
   });
 }
 
+// 관리자 대시보드 "총 가입자" 카드용 — 필터 없이 DB 전체를 센다(2026-08 추가).
+export async function countAllUsers(): Promise<number> {
+  return countRowsMatching(usersDataSourceId());
+}
+
 // 관리자 대시보드 "오늘 회원가입" 카드용 — §CLAUDE.md 15의 Notion 날짜
 // 필터 AND 버그(on_or_after+before를 한 조건에 같이 넣으면 안 묶임)와
 // 같은 이유로 두 조건을 and로 쪼갬(sessions.ts의 countSessionsToday와

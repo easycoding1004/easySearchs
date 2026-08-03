@@ -7,7 +7,7 @@ export const NAV_LINKS = [
   { href: "/", label: "키워드 검색량" },
   { href: "/dashboard", label: "블로그지수" },
   { href: "/trending", label: "급상승" },
-  { href: "/write", label: "AI 글쓰기" },
+  { href: "/write", label: "AI 자동글쓰기" },
   { href: "/board", label: "게시판" },
   { href: "/guide", label: "가이드" },
   { href: "/contact", label: "문의하기" },

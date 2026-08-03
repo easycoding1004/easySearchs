@@ -17,6 +17,9 @@ interface ShowcaseTab {
   ctaLabel: string;
   ctaHref: string;
   illustration: ReactNode;
+  // AI 블로그 자동글쓰기만 로그인 필요(§CLAUDE.md 16) — CTA 버튼에 미리
+  // 표시해서 눌렀다가 로그인 화면으로 튕기는 놀람을 줄임.
+  membersOnly?: boolean;
 }
 
 function BarChartIllustration() {
@@ -128,7 +131,7 @@ const TABS: ShowcaseTab[] = [
   },
   {
     id: "write",
-    label: "AI 블로그 글쓰기",
+    label: "AI 블로그 자동글쓰기",
     tabIcon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
         <path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z" />
@@ -144,6 +147,7 @@ const TABS: ShowcaseTab[] = [
     ctaLabel: "AI 블로그 써보기",
     ctaHref: "/write",
     illustration: <SparkleDocIllustration />,
+    membersOnly: true,
   },
 ];
 
@@ -195,6 +199,7 @@ export default function FeatureShowcase() {
             className="mt-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
           >
             {active.ctaLabel}
+            {active.membersOnly && <span className="font-normal text-white/80"> (회원 전용)</span>}
           </Link>
         </div>
       </div>

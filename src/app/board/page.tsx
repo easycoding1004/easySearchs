@@ -47,7 +47,12 @@ export default async function BoardPage({
                 href={`/board/${post.id}`}
                 className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
               >
-                <p className="text-sm font-semibold text-ink">{post.title}</p>
+                <p className="text-sm font-semibold text-ink">
+                  {post.title}
+                  {post.commentCount > 0 && (
+                    <span className="ml-1 font-normal text-primary">[{post.commentCount}]</span>
+                  )}
+                </p>
                 <p className="text-xs text-ink-muted">{stripPostBodyPreview(post.body)}</p>
                 <div className="flex items-center gap-2 text-xs text-ink-muted">
                   <span>{post.authorNickname || "익명"}</span>
