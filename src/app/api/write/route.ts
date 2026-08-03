@@ -6,6 +6,7 @@ import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
+import { createSseStream, SSE_HEADERS } from "@/lib/utils/sse";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 // 2026-08 v2 개편 — GALLERY가 최대 50장까지 한 번에 요구할 수 있어(§CLAUDE.md
@@ -86,56 +87,75 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    const compressed = await Promise.all(
-      files.map(async (file) => {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        return compressImage(buffer, file.type);
-      })
-    );
+  // 2026-08 사용자 신고 3건을 묶어서 대응 — ① 진행 상태를 안 보여줘서 "멈춘
+  // 건가" 오해가 생김, ② (아래 파악) AI 이미지 생성이 60초 타임아웃에 걸려
+  // 조용히 실패하고 있었을 가능성, ③ "이미지 생성이 끝나야 페이지가 보였으면"
+  // — 이 요청이 통째로 하나의 blocking JSON 응답이라 글(제목·본문)이 이미
+  // 다 됐어도 스톡·AI 이미지까지 끝나야만 화면에 아무것도 안 보였음. 사이트의
+  // 다른 느린 작업들(§CLAUDE.md 10.5)과 같은 SSE 패턴으로 바꿔서, 진행 상태를
+  // 스트리밍하고 글 텍스트가 준비되는 즉시(`textReady`) 이미지를 기다리지 않고
+  // 먼저 보여준 뒤, 이미지가 끝나면 그때 채워 넣는다.
+  const { stream, send, close } = createSseStream();
 
-    const compressedTotalBytes = compressed.reduce((sum, img) => sum + img.byteLength, 0);
-    if (compressedTotalBytes * (4 / 3) > MAX_COMPRESSED_BASE64_BYTES) {
-      return NextResponse.json(
-        { error: "사진 전체 용량이 너무 커요. 사진 개수를 줄여서 다시 시도해 주세요." },
-        { status: 400 }
+  (async () => {
+    try {
+      send({ status: files.length > 0 ? "사진을 준비하고 있어요..." : "글을 준비하고 있어요...", progress: 5 });
+
+      const compressed = await Promise.all(
+        files.map(async (file) => {
+          const buffer = Buffer.from(await file.arrayBuffer());
+          return compressImage(buffer, file.type);
+        })
       );
+
+      const compressedTotalBytes = compressed.reduce((sum, img) => sum + img.byteLength, 0);
+      if (compressedTotalBytes * (4 / 3) > MAX_COMPRESSED_BASE64_BYTES) {
+        send({ done: true, error: "사진 전체 용량이 너무 커요. 사진 개수를 줄여서 다시 시도해 주세요." });
+        return;
+      }
+
+      const images: BlogWriterImage[] = compressed.map((img) => ({
+        base64: img.base64,
+        mimeType: img.mimeType,
+      }));
+
+      send({ status: "AI가 글을 쓰고 있어요... (최대 1분 정도 걸려요)", progress: 20 });
+      const result = await generateBlogPost(images, prompt, category, sponsored);
+      // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
+      // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
+      await markUsedToday(user.pageId);
+
+      // 글 텍스트는 여기서 이미 완성됨 — 스톡·AI 이미지(부가 기능, 특히 AI
+      // 이미지는 장당 수십 초 걸릴 수 있음)를 기다리지 않고 먼저 화면에 보여줌.
+      send({
+        textReady: true,
+        title: result.title,
+        body: result.body,
+        recommendedThumbnail: result.recommendedThumbnail,
+        thumbnailReason: result.thumbnailReason,
+        tags: result.tags,
+        category,
+        sponsored,
+        progress: 70,
+      });
+
+      send({ status: "스톡·AI 이미지를 준비하고 있어요...", progress: 80 });
+      // 부가 기능(무료 스톡 이미지 추천 + AI 이미지 생성) — 둘 다 절대 throw
+      // 안 하고 실패/미설정 시 []/null만 반환하는 계약(imageSearch.ts,
+      // generateAiImages.ts) — 병렬로 돌려서 전체 대기 시간을 늘리지 않음.
+      const [stockImages, aiImages] = await Promise.all([
+        searchStockImages(result.stockImageQueries),
+        generateAiImages(result.aiImagePrompts),
+      ]);
+
+      send({ done: true, stockImages, aiImages, progress: 100 });
+    } catch (err) {
+      console.error("[POST /api/write] generation failed:", getErrorMessage(err), err);
+      send({ done: true, error: "글 생성에 실패했어요. 잠시 후 다시 시도해 주세요." });
+    } finally {
+      close();
     }
+  })();
 
-    const images: BlogWriterImage[] = compressed.map((img) => ({
-      base64: img.base64,
-      mimeType: img.mimeType,
-    }));
-
-    const result = await generateBlogPost(images, prompt, category, sponsored);
-    // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
-    // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
-    await markUsedToday(user.pageId);
-
-    // 부가 기능(무료 스톡 이미지 추천 + AI 이미지 생성) — 둘 다 절대 throw
-    // 안 하고 실패/미설정 시 []/null만 반환하는 계약(imageSearch.ts,
-    // generateAiImages.ts) — 병렬로 돌려서 전체 응답 시간을 늘리지 않음.
-    const [stockImages, aiImages] = await Promise.all([
-      searchStockImages(result.stockImageQueries),
-      generateAiImages(result.aiImagePrompts),
-    ]);
-
-    return NextResponse.json({
-      title: result.title,
-      body: result.body,
-      recommendedThumbnail: result.recommendedThumbnail,
-      thumbnailReason: result.thumbnailReason,
-      tags: result.tags,
-      category,
-      sponsored,
-      stockImages,
-      aiImages,
-    });
-  } catch (err) {
-    console.error("[POST /api/write] generation failed:", getErrorMessage(err), err);
-    return NextResponse.json(
-      { error: "글 생성에 실패했어요. 잠시 후 다시 시도해 주세요." },
-      { status: 502 }
-    );
-  }
+  return new Response(stream, { headers: SSE_HEADERS });
 }

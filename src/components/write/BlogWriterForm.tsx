@@ -30,6 +30,7 @@ import {
   type BlogTheme,
   type FontChoice,
 } from "@/lib/write/blogTheme";
+import { readSseStream } from "@/lib/utils/readSseStream";
 
 // 2026-08 v2 개편(§CLAUDE.md 16.2) — GALLERY가 최대 50장까지 한 번에 요구할
 // 수 있어 서버(route.ts)와 동일하게 상한을 올림. 원본 업로드 용량 sanity cap도
@@ -379,6 +380,16 @@ export default function BlogWriterForm({
     return applyThemeOverrides(getBlogTheme(cat), { accent: customAccent, font: customFont });
   }
   const [loading, setLoading] = useState(false);
+  // /api/write가 SSE로 진행 상태를 스트리밍함(2026-08 — 진행바 요청 대응) —
+  // percent/label은 텍스트가 준비되기 전까지만 쓰고, 텍스트가 도착하면
+  // 바로 결과 카드를 보여주므로 progress는 null로 돌려 숨긴다.
+  const [progress, setProgress] = useState<{ percent: number; label: string } | null>(null);
+  // 글 텍스트(제목·본문 등)는 이미 도착해서 result가 채워졌지만, 스톡·AI
+  // 이미지는 아직 준비 중인 구간 — 이때는 결과 카드를 이미 보여주면서 이미지
+  // 영역에만 "준비 중" 표시를 한다(사용자 요청 — "이미지 생성이 완료될 경우
+  // 페이지를 보여주는게 좋겠어"를 반대로 뒤집어서, 텍스트는 먼저 보여주고
+  // 이미지만 늦게 채워 넣는 쪽으로 구현).
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WriteResult | null>(null);
   const [richCopied, setRichCopied] = useState(false);
@@ -470,6 +481,8 @@ export default function BlogWriterForm({
     setRevisionCount(0);
     setRevisionInstruction("");
     setRevisionError(null);
+    setProgress({ percent: 5, label: "준비하고 있어요..." });
+    setImagesLoading(false);
 
     try {
       const formData = new FormData();
@@ -479,19 +492,72 @@ export default function BlogWriterForm({
       for (const file of files) formData.append("images", file);
 
       const res = await fetch("/api/write", { method: "POST", body: formData });
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         setError(data.error ?? "글 생성에 실패했어요.");
         return;
       }
 
-      setResult(data);
-      router.refresh(); // hasUsedToday를 서버에서 다시 계산해 오늘 1회 소진 반영
+      let textReady = false;
+      await readSseStream(res, (data) => {
+        if (typeof data.error === "string") {
+          setError(data.error);
+          return;
+        }
+        if (data.textReady) {
+          textReady = true;
+          setResult({
+            title: data.title as string,
+            body: data.body as string,
+            recommendedThumbnail: data.recommendedThumbnail as number,
+            thumbnailReason: data.thumbnailReason as string,
+            tags: data.tags as string[],
+            category: data.category as BlogCategory,
+            sponsored: data.sponsored as boolean,
+            stockImages: [],
+            aiImages: [],
+          });
+          setProgress(null);
+          setImagesLoading(true);
+          return;
+        }
+        if (data.done) {
+          setImagesLoading(false);
+          if (textReady) {
+            setResult((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    stockImages: (data.stockImages as StockImage[]) ?? [],
+                    aiImages: (data.aiImages as (AiImage | null)[]) ?? [],
+                  }
+                : prev
+            );
+          }
+          return;
+        }
+        setProgress({
+          percent: typeof data.progress === "number" ? data.progress : 0,
+          label: typeof data.status === "string" ? data.status : "처리하고 있어요...",
+        });
+      });
+      if (!textReady) return; // 스트림이 error 이벤트 없이 그냥 끊긴 경우 — 이미 위에서 에러가 안 잡혔으면 그냥 조용히 종료
+      // 2026-08 — 예전엔 여기서 router.refresh()로 hasUsedToday를 다시 계산해
+      // 왔는데, 그 왕복(약 1초) 동안 /write/page.tsx의 `user &&
+      // user.emailVerified` 분기가 세션 조회 타이밍에 따라 순간적으로
+      // false가 되면 BlogWriterForm 자체가 통째로 언마운트돼서 방금 만든
+      // result가 사라지는 버그로 이어졌을 가능성이 높음("AI 글이 생성되다가
+      // 1초 뒤에 사라짐" 신고와 정확히 일치하는 타이밍). 지금은
+      // TEMP_DISABLE_DAILY_LIMIT이 켜져 있어 hasUsedToday를 새로 받아와도
+      // 어차피 항상 false라 이 refresh 자체가 무의미하기도 함 — 그래서 뺌.
+      // 나중에 하루 1회 제한을 되살릴 때는 이 refresh를 되살리기보다, 언마운트
+      // 위험이 없는 더 가벼운 방법(예: hasUsedToday만 별도 API로 조회)을
+      // 고려할 것.
     } catch {
       setError("네트워크 오류가 발생했어요.");
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   }
 
@@ -955,18 +1021,36 @@ export default function BlogWriterForm({
 
           {error && <p className="text-sm text-error">{error}</p>}
 
+          {progress && (
+            <div className="flex flex-col gap-1.5">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-bg">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300 ease-spring"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+              <p className="text-xs text-ink-muted">{progress.label}</p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading || !prompt.trim() || !category}
             className="h-11 rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97] disabled:opacity-50"
           >
-            {loading ? "글 쓰는 중... (최대 1분 정도 걸려요)" : "글 생성하기"}
+            {loading ? "글 쓰는 중..." : "글 생성하기"}
           </button>
         </form>
       )}
 
       {result && resultResolveImage && resultTheme && (
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+          {imagesLoading && (
+            <div className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 text-xs text-ink-muted">
+              <span className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              스톡·AI 이미지를 준비하고 있어요 — 글은 먼저 확인하실 수 있어요.
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink">생성된 글</h2>
             <div className="flex gap-2">
