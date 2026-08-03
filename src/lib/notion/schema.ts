@@ -151,10 +151,41 @@ export const USER_PROPS = {
   // 네이버 로그인 프로필에는 이 값이 없어(오픈API의 id는 앱별 해시일 뿐 블로그
   // 주소와 무관) 계정에 1회 입력받아 저장해두고 재사용함(2026-07 추가).
   naverBlogId: "네이버블로그ID",
+  // 2026-08 추가(게시판 기능) — 로그인용 "이메일"을 그대로 공개 표시하면
+  // 개인정보 노출이라(카카오 무이메일 계정은 애초에 이 자리에 임시 표시
+  // 이름이 들어가긴 하지만, 이메일/네이버 계정은 진짜 이메일이 그대로 들어감)
+  // 게시판 글·댓글에 보일 별도의 공개용 닉네임 필드. 없으면 최초 게시글
+  // 작성 시점에 설정을 요구함(scripts/add-user-nickname-prop.ts로 마이그레이션).
+  nickname: "닉네임",
 } as const;
 
 export const AUTH_PROVIDER = {
   email: "이메일",
   naver: "네이버",
   kakao: "카카오",
+  google: "구글",
+} as const;
+
+// 게시판(`/board`, 2026-08 추가) — 자유게시판. 작성자는 relation이 아니라
+// 작성 시점 닉네임 스냅샷(rich_text)으로 저장 — 이 프로젝트가 이미 여러
+// 곳에서 쓰는 "조회 시점이 아니라 작성/생성 시점 값을 고정" 패턴과 동일
+// (예: 블로그지수 결과가 세션 생성 시점에 고정되는 것). 작성자ID는 relation
+// 없이도 나중에 "내 글만 보기" 같은 기능을 붙일 수 있도록 사용자 페이지
+// id만 별도로 남겨둠(지금은 안 씀).
+export const BOARD_POST_PROPS = {
+  title: "제목",
+  body: "본문",
+  authorNickname: "작성자닉네임",
+  authorId: "작성자ID",
+  images: "이미지",
+  createdAt: "작성일시",
+} as const;
+
+export const BOARD_COMMENT_PROPS = {
+  // Notion 데이터베이스는 title 속성이 반드시 1개 있어야 해서 댓글 내용을
+  // title로 씀(별도 "내용" rich_text를 안 둠 — 중복 저장 방지).
+  title: "내용",
+  authorNickname: "작성자닉네임",
+  post: "소속게시글",
+  createdAt: "작성일시",
 } as const;

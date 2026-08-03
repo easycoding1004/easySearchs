@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearSession } from "@/lib/notion/users";
-import { getCurrentUser, SESSION_COOKIE } from "@/lib/write/auth";
+import { getCurrentUser, SESSION_COOKIE } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 export async function POST() {

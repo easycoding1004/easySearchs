@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { setNaverBlogId } from "@/lib/notion/users";
-import { getCurrentUser } from "@/lib/write/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 // blog.naver.com/{id}의 슬러그 형식(영문/숫자/-/_, 1~40자). 빈 문자열은

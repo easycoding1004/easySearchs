@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { findUserByProvider, createSocialUser, setSession } from "@/lib/notion/users";
 import { AUTH_PROVIDER } from "@/lib/notion/schema";
-import { verifyAndConsumeOAuthState } from "@/lib/write/socialAuth";
-import { SESSION_COOKIE } from "@/lib/write/auth";
+import { verifyAndConsumeOAuthState } from "@/lib/auth/socialAuth";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 const SITE_URL = "https://ezzsearch.com";
@@ -31,7 +31,8 @@ export async function GET(request: Request) {
   if (!clientId) {
     return redirectWithError("카카오 로그인이 아직 설정되지 않았어요.");
   }
-  if (!code || !(await verifyAndConsumeOAuthState(state))) {
+  const { ok: stateOk, redirectTo } = await verifyAndConsumeOAuthState(state);
+  if (!code || !stateOk) {
     return redirectWithError("로그인 요청이 유효하지 않아요. 다시 시도해 주세요.");
   }
 
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
       : await createSocialUser(displayName, AUTH_PROVIDER.kakao, providerId);
 
     const sessionToken = await setSession(pageId);
-    const response = NextResponse.redirect(`${SITE_URL}/write`);
+    const response = NextResponse.redirect(`${SITE_URL}${redirectTo}`);
     response.cookies.set(SESSION_COOKIE, sessionToken, {
       httpOnly: true,
       sameSite: "lax",

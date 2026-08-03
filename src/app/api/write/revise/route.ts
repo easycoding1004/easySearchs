@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/write/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { reviseBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";

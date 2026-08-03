@@ -19,9 +19,11 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_PATTERN.test(email);
 }
 
-// Shared by the /write page (read-only, Server Component) and the auth API
-// routes (read via the same cookie store) — a single source of truth for
-// "who's logged in" so the two never drift out of sync on cookie name/shape.
+// 2026-08 — 원래 /write 전용으로 짜여 있던 로그인 시스템을 게시판 기능도
+// 같이 쓸 수 있게 공유 위치(lib/auth/)로 옮김(§CLAUDE.md 14 — 2개 이상
+// 기능이 쓰면 공유). SESSION_COOKIE 값("write_session")은 이름을 바꾸면
+// 지금 로그인돼 있는 기존 사용자 세션이 전부 끊기므로 그대로 유지 — 새
+// 기능(게시판)도 이 쿠키를 그대로 읽고 씀.
 export async function getCurrentUser(): Promise<User | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;

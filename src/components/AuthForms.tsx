@@ -1,12 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 type Mode = "login" | "signup";
 
+// 2026-08 — 원래 /write 전용 컴포넌트였는데, 로그인이 게시판 등 다른 기능도
+// 같이 쓰는 공용 시스템으로 확장되면서 최상위 공유 위치로 옮김(§CLAUDE.md
+// 14). 어느 페이지에서 로그인을 시작했는지(pathname)를 소셜 로그인 링크에
+// 실어 보내서, 로그인 완료 후 원래 페이지로 돌아올 수 있게 함(안 그러면
+// 게시판 글쓰기 페이지에서 로그인해도 /write로 튕겨나감) — 이메일+비밀번호
+// 로그인은 같은 페이지에서 router.refresh()로 끝나므로 이 파라미터가 필요
+// 없음. 기능별로 다른 안내 문구(예: /write의 "하루 1회 제한")는 이 컴포넌트
+// 안에 박아넣지 않고 호출하는 페이지가 알아서 옆에 보여줌 — 이 컴포넌트는
+// 순수 로그인/가입 UI만 담당.
 export default function AuthForms() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -14,6 +24,13 @@ export default function AuthForms() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [signupDone, setSignupDone] = useState(false);
+
+  // 이 페이지 URL 자체에 ?redirect=가 실려 있으면(다른 곳에서 "로그인하러
+  // 가기" 링크로 여기로 보낸 경우) 그 값을 우선하고, 없으면 지금 렌더링되고
+  // 있는 페이지 경로(게시판 글쓰기 페이지에 직접 임베드된 경우 등)를 씀.
+  const explicitRedirect = searchParams.get("redirect");
+  const effectiveRedirect = explicitRedirect || (pathname && pathname !== "/write" ? pathname : "");
+  const redirectParam = effectiveRedirect ? `?redirect=${encodeURIComponent(effectiveRedirect)}` : "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,16 +79,22 @@ export default function AuthForms() {
     <div className="flex w-full max-w-sm flex-col gap-3">
       <div className="flex flex-col gap-2">
         <a
-          href="/api/auth/naver"
+          href={`/api/auth/naver${redirectParam}`}
           className="flex h-11 items-center justify-center rounded-md bg-[#03C75A] text-sm font-semibold text-white transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97]"
         >
           네이버로 계속하기
         </a>
         <a
-          href="/api/auth/kakao"
+          href={`/api/auth/kakao${redirectParam}`}
           className="flex h-11 items-center justify-center rounded-md bg-[#FEE500] text-sm font-semibold text-[#191919] transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97]"
         >
           카카오로 계속하기
+        </a>
+        <a
+          href={`/api/auth/google${redirectParam}`}
+          className="flex h-11 items-center justify-center rounded-md border border-hairline bg-white text-sm font-semibold text-[#191919] transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97]"
+        >
+          구글로 계속하기
         </a>
       </div>
 
@@ -145,10 +168,6 @@ export default function AuthForms() {
       >
         {loading ? "처리 중..." : mode === "login" ? "로그인" : "가입하기"}
       </button>
-
-      <p className="text-xs text-ink-muted">
-        AI 블로그 글쓰기는 유료 API를 사용해서 계정당 하루 1회로 제한돼요.
-      </p>
     </form>
     </div>
   );

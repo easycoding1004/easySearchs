@@ -8,9 +8,10 @@ import { getErrorMessage } from "@/lib/utils/errors";
 const SITE_URL = "https://ezzsearch.com";
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-interface NaverProfileResponse {
-  resultcode: string;
-  response?: { id: string; email?: string };
+interface GoogleProfileResponse {
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
 }
 
 function redirectWithError(message: string): NextResponse {
@@ -24,42 +25,46 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 
-  const clientId = process.env.NAVER_LOGIN_CLIENT_ID;
-  const clientSecret = process.env.NAVER_LOGIN_CLIENT_SECRET;
+  const clientId = process.env.GOOGLE_LOGIN_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_LOGIN_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    return redirectWithError("네이버 로그인이 아직 설정되지 않았어요.");
+    return redirectWithError("구글 로그인이 아직 설정되지 않았어요.");
   }
+
   const { ok: stateOk, redirectTo } = await verifyAndConsumeOAuthState(state);
   if (!code || !stateOk) {
     return redirectWithError("로그인 요청이 유효하지 않아요. 다시 시도해 주세요.");
   }
 
   try {
-    const tokenUrl = new URL("https://nid.naver.com/oauth2.0/token");
-    tokenUrl.searchParams.set("grant_type", "authorization_code");
-    tokenUrl.searchParams.set("client_id", clientId);
-    tokenUrl.searchParams.set("client_secret", clientSecret);
-    tokenUrl.searchParams.set("code", code);
-    tokenUrl.searchParams.set("state", state ?? "");
+    const tokenParams = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: `${SITE_URL}/api/auth/google/callback`,
+      code,
+    });
 
-    const tokenRes = await fetch(tokenUrl.toString());
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString(),
+    });
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token as string | undefined;
-    if (!accessToken) throw new Error(`네이버 토큰 발급 실패: ${JSON.stringify(tokenData)}`);
+    if (!accessToken) throw new Error(`구글 토큰 발급 실패: ${JSON.stringify(tokenData)}`);
 
-    const profileRes = await fetch("https://openapi.naver.com/v1/nid/me", {
+    const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const profileData = (await profileRes.json()) as NaverProfileResponse;
-    if (profileData.resultcode !== "00" || !profileData.response) {
-      throw new Error(`네이버 프로필 조회 실패: ${JSON.stringify(profileData)}`);
-    }
+    const profileData = (await profileRes.json()) as GoogleProfileResponse;
+    if (!profileData.sub) throw new Error(`구글 프로필 조회 실패: ${JSON.stringify(profileData)}`);
 
-    const { id: providerId, email } = profileData.response;
-    const existingUser = await findUserByProvider(AUTH_PROVIDER.naver, providerId);
+    const providerId = profileData.sub;
+    const existingUser = await findUserByProvider(AUTH_PROVIDER.google, providerId);
     const pageId = existingUser
       ? existingUser.pageId
-      : await createSocialUser(email ?? `naver_${providerId}`, AUTH_PROVIDER.naver, providerId);
+      : await createSocialUser(profileData.email ?? `google_${providerId}`, AUTH_PROVIDER.google, providerId);
 
     const sessionToken = await setSession(pageId);
     const response = NextResponse.redirect(`${SITE_URL}${redirectTo}`);
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
     });
     return response;
   } catch (err) {
-    console.error("[GET /api/auth/naver/callback] failed:", getErrorMessage(err), err);
-    return redirectWithError("네이버 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    console.error("[GET /api/auth/google/callback] failed:", getErrorMessage(err), err);
+    return redirectWithError("구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
   }
 }

@@ -18,7 +18,7 @@
 
 두 제품 사이의 유일한 연결점: `/`에는 블로그지수로 유도하는 CTA, `/dashboard` 헤더에는 `/`로 가는 "키워드 빠른 조회" 링크. 기능이 겹치는 화면(예전에 `/`에 있던 경쟁업체 노출순위 비교 폼)은 블로그지수 쪽 패널로 통합하고 개인 도구에서는 제거했으므로, 새 기능을 추가할 때 "이미 다른 쪽에 있는 기능은 아닌지" 먼저 확인할 것.
 
-이 두 제품과 별개로 **어느 한쪽에도 속하지 않는 사이트 공통 기능**도 있음: `/trending`(섹션 6.3, 이메일 다이제스트는 섹션 6.4), `/guide`·`/admin`·`/contact`·`/keywords`·`/privacy`(섹션 12). `SiteHeader.tsx` 내비게이션에는 핵심 기능만 노출하고(`/keywords`·`/privacy`는 각 페이지 푸터 링크로만 접근), 새 공통 기능을 추가할 때도 여기 나열할 것.
+이 두 제품과 별개로 **어느 한쪽에도 속하지 않는 사이트 공통 기능**도 있음: `/trending`(섹션 6.3, 이메일 다이제스트는 섹션 6.4), `/guide`·`/admin`·`/contact`·`/keywords`·`/privacy`(섹션 12), AI 블로그 글쓰기(섹션 16), 게시판(섹션 18). `SiteHeader.tsx` 내비게이션에는 핵심 기능만 노출하고(`/keywords`·`/privacy`는 각 페이지 푸터 링크로만 접근), 새 공통 기능을 추가할 때도 여기 나열할 것.
 
 ## 1. 프로젝트 목적 (개인 도구)
 
@@ -239,7 +239,7 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 백그라운드 잡 2개**(검색량 급상승 스냅샷 — 섹션 6.3, 12시간 주기 / 뉴스레터 발송 — 섹션 6.4, 7일 주기)도 서버가 계속 떠 있어야 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 9개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`/`NOTION_USERS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송/회원가입 인증메일도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4·16), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2), `ANTHROPIC_API_KEY`+`AUTH_EMAIL_FROM`(AI 블로그 글쓰기, 섹션 16). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 11개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`/`NOTION_USERS_DB_ID`/`NOTION_BOARD_POSTS_DB_ID`/`NOTION_BOARD_COMMENTS_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송/회원가입 인증메일도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4·16), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2), `ANTHROPIC_API_KEY`+`AUTH_EMAIL_FROM`(AI 블로그 글쓰기, 섹션 16), `NAVER_LOGIN_CLIENT_ID`/`NAVER_LOGIN_CLIENT_SECRET`·`KAKAO_CLIENT_ID`/`KAKAO_CLIENT_SECRET`·`GOOGLE_LOGIN_CLIENT_ID`/`GOOGLE_LOGIN_CLIENT_SECRET`(소셜 로그인 3종, 섹션 16·18). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
 
@@ -294,9 +294,11 @@ API 응답으로 받은 키워드 1개당 1행.
 | `lib/search/`, `components/search/` | 개인 도구 | `src/app/page.tsx`/`src/app/result/**`에서만 import됨 |
 | `components/trending/` | 검색량 급상승 | `src/app/trending/**`에서만 import됨 (lib 쪽은 `lib/googleTrends/`·`lib/notion/keywordSnapshots.ts`·`lib/scheduler/`로 기술적 계층별 분리 — 아래 참고) |
 | `components/admin/` | 관리자 | `/admin`에서만 import됨 |
-| `lib/write/`, `components/write/` | AI 블로그 글쓰기 | `src/app/write/**`·`src/app/api/write/**`·`src/app/api/auth/**`에서만 import됨 (Notion 계정 CRUD는 다른 DB 접근과 동일하게 `lib/notion/users.ts`) |
+| `lib/write/`, `components/write/` | AI 블로그 글쓰기 | `src/app/write/**`·`src/app/api/write/**`에서만 import됨 (Notion 계정 CRUD는 다른 DB 접근과 동일하게 `lib/notion/users.ts`) |
+| `lib/board/`, `components/board/` | 게시판 | `src/app/board/**`·`src/app/api/board/**`에서만 import됨(섹션 18) |
+| `lib/auth/` | 공유 | 세션·소셜 로그인(`getCurrentUser`/`SESSION_COOKIE`/OAuth `state`) — 2026-08부터 `/write`·게시판 둘 다 이걸 씀(원래 `lib/write/auth.ts`였다가 이동, 섹션 16·18) |
 | `lib/naver/`, `lib/notion/`, `lib/utils/` | 공유 | 네이버 API 클라이언트 / Notion 클라이언트+스키마 / 범용 유틸 — 두 제품 이상이 함께 쓰는 것 확인 후에만 여기 둘 것 |
-| `components/` 최상위, `lib/constants.ts` | 공유 | `SiteHeader`/`Reveal`/`PainPointPromo`/`AmbientParticles`/`SearchProgressModal`/`ContactForm`/`MobileStickyCta`/`MobileNavMenu`/`ScrollProgressBar`처럼 두 제품 이상에서 쓰는 것 |
+| `components/` 최상위, `lib/constants.ts` | 공유 | `SiteHeader`/`Reveal`/`PainPointPromo`/`AmbientParticles`/`SearchProgressModal`/`AuthForms`/`ContactForm`/`MobileStickyCta`/`MobileNavMenu`/`ScrollProgressBar`처럼 두 제품 이상에서 쓰는 것 |
 | `src/app/**` | 라우팅 | **절대 이 컨벤션으로 옮기지 않음** — 파일 위치 자체가 Next.js 라우팅 규칙 |
 
 새 파일이 특정 기능에서만 쓰이는지 애매하면 `grep`으로 실제 importer를 확인한 뒤 폴더를 정하고(감으로 정하지 말 것), 파일 1개짜리 폴더(`lib/googleTrends/`, `lib/guide/`, `lib/scheduler/`, `lib/search/`)라도 나중에 같은 영역 파일이 늘어날 걸 감안해 미리 분리해두는 쪽을 기본값으로 삼음.
@@ -314,7 +316,7 @@ API 응답으로 받은 키워드 1개당 1행.
 사진 여러 장 + 프롬프트 한 줄만 입력하면 Claude API(Anthropic)가 네이버 블로그에 바로 붙여넣을 수 있는 완성된 글(제목+본문+사진 삽입 위치+추천 썸네일)을 생성해주는 페이지. 개인 도구/블로그지수 어느 쪽도 아닌 제3의 독립 기능 — §0의 "사이트 공통 기능" 성격. 실제 프롬프트 엔지니어링(시스템 프롬프트 전문)과 구현 레시피는 `.claude/skills/ai-blog-writer/SKILL.md`에 — 이 기능을 다시 손볼 때는 그 스킬을 먼저 참고할 것.
 
 - **저장 없음** — 완성된 글은 이 사이트에 게시되지 않고 화면에서 복사해서 쓰는 1회성 결과물. 업로드된 사진도 서버에 파일로 남기지 않고 Claude API 요청에만 담아 전송(클라이언트 쪽 미리보기는 브라우저 로컬 blob URL). 외부 이미지 저장소 연동 없음.
-- **이 사이트에서 유일하게 로그인이 있는 사용자 기능**(`/admin`과 별개) — Claude API가 요청마다 과금되는데 사이트 전체가 로그인 없는 게 원칙이라, 봇 남용으로 비용이 커지는 걸 막으려고 계정 단위 "하루 1회" 제한을 뒀다(사용자와 논의 후 확정 — 처음엔 방문자 쿠키 기준 제한도 검토했으나, 더 확실한 남용 방지를 위해 정식 계정으로 감). **Supabase/OAuth는 §10.2 결정대로 다시 안 씀** — 이 로그인은 그 방식이 아니라 Notion `사용자 계정` DB에 bcrypt 해시 비밀번호를 저장하는 자체 구현.
+- **이 사이트에서 처음으로 로그인을 도입한 사용자 기능**(`/admin`과 별개) — Claude API가 요청마다 과금되는데 사이트 전체가 로그인 없는 게 원칙이라, 봇 남용으로 비용이 커지는 걸 막으려고 계정 단위 "하루 1회" 제한을 뒀다(사용자와 논의 후 확정 — 처음엔 방문자 쿠키 기준 제한도 검토했으나, 더 확실한 남용 방지를 위해 정식 계정으로 감). **Supabase/OAuth는 §10.2 결정대로 다시 안 씀** — 이 로그인은 그 방식이 아니라 Notion `사용자 계정` DB에 bcrypt 해시 비밀번호를 저장하는 자체 구현. **2026-08부터 이 로그인 시스템이 `/write` 전용에서 공유 시스템으로 확장됨**(게시판, 섹션 18) — 관련 코드는 `lib/write/`가 아니라 `lib/auth/`(공유 위치)에 있음, 자세한 내용은 섹션 18 참고.
 - **회원가입 흐름**: `POST /api/auth/signup`(이메일+비밀번호, bcryptjs 해시 저장) → Resend로 인증 메일 발송 → `GET /api/auth/verify?token=`(랜덤 UUID, 1회용) 클릭해야 `이메일인증됨` 체크 → `POST /api/auth/login`으로 세션 발급. 세션은 Notion 유저 레코드에 저장하는 랜덤 토큰(`write_session` 쿠키, httpOnly+secure+sameSite lax, 30일) — 계정당 세션 1개만 유지(재로그인하면 이전 세션 무효화). `src/lib/write/auth.ts`의 `getCurrentUser()`가 쿠키→세션토큰→Notion 조회까지 한 번에 처리, 페이지(Server Component)와 API 라우트 양쪽에서 재사용.
 - **네이버·카카오 로그인도 지원** (2026-07 추가) — `GET /api/auth/naver`·`/api/auth/kakao`가 각각 CSRF 방지용 `state`를 발급(`src/lib/write/socialAuth.ts`, 10분짜리 `write_oauth_state` 쿠키)하고 제공자 인증 화면으로 리다이렉트, `/api/auth/{naver,kakao}/callback`이 코드를 토큰으로 교환→프로필 조회→`findUserByProvider`(이메일이 아니라 `가입방식`+`소셜ID` 조합으로 조회 — 이메일이 없거나 바뀌어도 안전) 후 없으면 `createSocialUser`로 즉시 계정 생성. **소셜 로그인은 발급처가 이미 신원을 확인한 것이므로 이메일 인증 메일 없이 바로 `이메일인증됨=true`.** 이메일+비밀번호 로그인은 그대로 유지(대체 아니라 추가 옵션) — Supabase/OAuth를 다시 안 쓴다는 §10.2 결정은 "블로그지수 전체를 로그인 기반 업체등록 시스템으로 되돌리지 않는다"는 뜻으로 재해석해 이 기능 하나에 한해 예외를 둠(사용자와 논의 후 결정). 실패 시(설정 안 됨, state 불일치, 토큰/프로필 조회 실패) 전부 `/write?error=...`로 리다이렉트해서 `AuthForms.tsx`가 쿼리 파라미터로 에러 메시지를 보여줌.
 - **카카오는 사업자 전환 없이 진행하기로 확정**(사용자 결정) — 카카오는 이메일 동의항목을 개인 개발자 앱에 기본 허용 안 해서, `/api/auth/kakao`가 `scope=profile_nickname`만 요청함. 콜백에서 이메일이 없으면 닉네임(기본 제공 동의항목)을 대신 표시 이름으로 저장 — 그마저 없으면 "카카오 사용자". 소셜 계정은 title(이메일 자리)이 아니라 `가입방식`+`소셜ID`로 조회하므로 이 표시 이름이 닉네임이라 겹치거나 비어 있어도 로그인 로직엔 영향 없음(순수 표시용). 나중에 사업자 전환하면 이메일 동의항목을 다시 켜고 `scope`에 `account_email` 추가하면 됨.
@@ -464,3 +466,50 @@ API 응답으로 받은 키워드 1개당 1행.
 - **manifest.json 변경**: `webRequest`(요청 관찰용, 차단/수정 아님이라 `webRequestBlocking`은 필요 없음), `unlimitedStorage`(사진 여러 장을 base64로 `chrome.storage.local`에 담으면 기본 5MB 쿼터를 넘기 쉬움 — 이 권한으로 쿼터 자체를 없앰), `host_permissions`에 `blog.upphoto.naver.com`·`blogfiles.pstatic.net` 추가.
 - **검증 상태**: 업로드 API의 요청/응답 구조는 사용자의 실제 캡처로 확인했고, CDN 이미지가 붙여넣기에서 살아남는 것도 사용자가 직접 콘솔에서 클립보드 HTML을 만들어 Ctrl+V로 실측 확인함. **하지만 확장 코드 자체(webRequest 캡처→자동 업로드→플레이스홀더 치환→붙여넣기로 이어지는 전체 파이프라인)는 아직 실제 확장으로 종단간 테스트 안 됨** — JS 문법 검증만 마침. 이 비공식 API는 네이버가 예고 없이 바꿀 수 있다는 것도 감안할 것(§10.4 원칙상 이런 리스크가 있는 걸 알고 사용자가 승인한 예외).
 - **§16 v2 블록 포맷 개편(GALLERY 등)과의 호환성**: `resolveImagePlaceholders`는 토큰 속성(`data-ezzsearch-token`)만 보고 동작하고 그 토큰이 어느 블록에서 나왔는지는 모름 — 그래서 GALLERY 하나가 사진 여러 장(`사진=1,3,5`)을 한 블록에 요구해도, `parseBody.ts`의 `renderBodyToHtmlForExtension`이 사진 인덱스마다 별도의 `<img data-ezzsearch-token="사진N">`을 하나씩 만들어내므로 이 파이프라인은 코드 변경 없이 그대로 작동함(v2 개편 때 확인).
+
+## 18. 게시판 (`/board`, 2026-08 신규)
+
+로그인 없이 개인 도구/블로그지수를 쓰다가, AI 블로그 글쓰기(§16)에 이어 이 사이트의 다섯 번째 독립 표면으로 추가된 자유게시판. **읽기는 §10.2와 같은 원칙으로 완전히 공개**(로그인 불필요), **쓰기(게시글·댓글)만 회원 전용** — 이 "회원" 개념을 위해 §16에서 `/write` 전용으로 짜여 있던 로그인 시스템을 공유 시스템으로 확장함.
+
+### 18.1 로그인 공유화 + 구글 로그인 추가
+
+- `src/lib/write/auth.ts`/`socialAuth.ts` → `src/lib/auth/session.ts`/`socialAuth.ts`로 이동(§14 폴더 컨벤션 — 2개 이상 기능이 쓰면 공유 위치), `components/write/AuthForms.tsx` → `components/AuthForms.tsx`로 이동. **`SESSION_COOKIE` 값(`write_session`)은 그대로 유지** — 이름을 바꾸면 기존 로그인 세션이 전부 끊기므로 의도적으로 안 바꿈.
+- **구글 로그인 추가** — `AUTH_PROVIDER`에 `google: "구글"` 추가(Notion select 속성이라 마이그레이션 스크립트 불필요, 새 옵션은 쓰는 순간 자동 생성됨). `/api/auth/google`+`/callback`을 네이버/카카오 라우트와 완전히 같은 패턴으로 구현(OAuth 2.0 authorize → 토큰 교환 → `https://www.googleapis.com/oauth2/v3/userinfo` 프로필 조회 → `sub`를 providerId로 사용). 이제 이메일+비밀번호/네이버/카카오/구글 4가지 로그인 방식을 지원함.
+- **로그인 후 원래 페이지로 복귀** — 원래 OAuth `state` CSRF 쿠키(`write_oauth_state`)에 CSRF 토큰만 담았는데, 이제 `{state, redirectTo}` JSON으로 확장해서 로그인을 시작한 페이지로 콜백 성공 시 돌아올 수 있게 함(안 그러면 게시판 글쓰기 페이지에서 로그인해도 `/write`로 튕겨나감). `redirectTo`는 클라이언트가 보낸 값이라 오픈 리다이렉트 공격을 막기 위해 `sanitizeRedirect()`로 `/`로 시작하지 않거나 `//`로 시작하는 값은 거부하고 기본값(`/write`)으로 대체함. `AuthForms.tsx`는 URL의 `?redirect=` 쿼리를 우선하고(다른 페이지가 "로그인하러 가기" 링크로 여기로 보낸 경우), 없으면 지금 렌더링 중인 페이지 경로(예: `/board/write`에 직접 임베드된 경우)를 씀. 이메일+비밀번호 로그인은 같은 페이지에서 `router.refresh()`로 끝나므로 이 파라미터가 필요 없음 — 소셜 로그인(전체 페이지 이동이 필요한 리다이렉트 플로우)에만 해당. **이메일 인증 링크(가입 후 며칠 뒤 클릭)는 이 정도로 정교하게 안 함** — 인증 완료 후에는 그대로 `/write`로 안내(스코프 밖으로 명시적으로 남겨둠).
+- **닉네임 필드 신규 추가** — 로그인용 `이메일`을 게시판에 그대로 공개하면 개인정보 노출이라(카카오 무이메일 계정은 이 자리에 애초에 임시 표시 이름이 들어가지만, 이메일/네이버/구글 계정은 진짜 이메일이 그대로 들어감), `USER_PROPS.nickname`(`scripts/add-user-nickname-prop.ts`로 마이그레이션)을 추가함. 닉네임이 없는 사용자가 게시판에 처음 글이나 댓글을 쓰려고 하면 그 폼에 닉네임 입력을 같이 요구하고(별도 설정 페이지 없음), 그 자리에서 바로 저장 후 재사용.
+
+### 18.2 Notion 스키마 — 게시판 게시글 / 댓글
+
+`scripts/setup-notion-board.ts`(신규 DB 2개, `NOTION_BOARD_POSTS_DB_ID`/`NOTION_BOARD_COMMENTS_DB_ID`).
+
+- **게시판 게시글**: 제목/본문(순수 텍스트 + `[이미지N]` 토큰)/작성자닉네임/작성자ID/이미지(Files & media)/작성일시. **작성자는 relation이 아니라 작성 시점 닉네임 스냅샷**(rich_text)으로 저장 — §10.1의 "조회 시점이 아니라 생성 시점 값을 고정"하는 이 프로젝트의 기존 패턴과 동일(예: 블로그지수 결과가 세션 생성 시점에 고정되는 것). 작성자ID는 지금은 안 쓰지만 나중에 "내 글만 보기" 등을 붙일 수 있도록 남겨둠.
+- **게시판 댓글**: 내용(title로 씀 — DB는 title 속성이 1개 필수라 별도 "내용" rich_text를 안 둠)/작성자닉네임/소속게시글(relation)/작성일시.
+- `src/lib/notion/board.ts`: `createBoardPost`/`getBoardPost`/`getBoardPosts`(최신순, 20개씩 커서 페이지네이션)/`createComment`/`getCommentsForPost`.
+
+### 18.3 이미지 저장 — Notion File Upload API + 만료 URL을 감추는 프록시
+
+- **Notion File Upload API를 공식 문서로 확인한 뒤 구현**(§10.4 "추측 금지" 원칙 그대로 — WebFetch로 `developers.notion.com/reference/create-file`·`/upload-file`·`/file-object`를 직접 확인함): `POST /v1/file_uploads`(`mode: "single_part"`)로 업로드 세션을 만들고 응답의 `upload_url`에 `multipart/form-data`로 실제 바이트를 보내면 완료. `@notionhq/client`(v5.23) 타입 SDK가 이 멀티파트 엔드포인트를 아직 안 감싸서 `src/lib/notion/boardImageUpload.ts`만 raw fetch로 Notion REST API를 직접 호출함(다른 외부 API 클라이언트들과 같은 패턴, 예: `generateAiImages.ts`의 OpenAI 호출).
+- **중요(공식 문서로 실측 확인) — Notion 호스팅 파일 URL은 1시간짜리 임시 URL**: "Don't cache or statically reference these URLs. To refresh access, re-fetch the file object." 그래서 게시글 렌더링은 절대 URL을 직접 저장/캐시하지 않고, 항상 `GET /api/board/image/[postId]/[index]` 프록시를 거치게 함 — 이 라우트가 매 요청마다 `getBoardPostImageUrl()`로 그 게시글 페이지를 다시 조회해 그 순간 유효한 URL로 302 리다이렉트한다.
+- 업로드 시엔 `type: "file_upload"`로 붙이지만, 붙인 뒤 페이지를 다시 읽으면 항상 `type: "file"`(Notion 호스팅)로 내려옴 — 읽기 쪽 SDK 타입에는 애초에 `file_upload`가 없음(실측 확인, `board.ts`의 `getBoardPostImageUrl` 참고).
+- 게시글 작성 시 사진과 텍스트를 **한 번에** FormData로 제출(`/api/write`와 동일 패턴) — 붙여넣기/선택 시점엔 브라우저 로컬 blob 미리보기만 보여주고 실제 Notion 업로드는 최종 제출 때 한 번에. `src/lib/write/compressImage.ts`(AI 블로그와 공유, 원본 그대로 올리면 느리고 큼)를 그대로 재사용해 리사이즈·재압축 후 업로드.
+
+### 18.4 작성 에디터 — 간단한 텍스트 + 붙여넣기/업로드 자동삽입
+
+사용자 확인 결과 리치 WYSIWYG 에디터가 아니라 **간단한 텍스트+자동삽입**으로 확정(§16의 SLOT/GALLERY 같은 복잡한 블록 마크업은 게시판엔 과함).
+
+- `components/board/BoardPostForm.tsx`: `<textarea>`의 `onPaste`가 클립보드 이미지를 감지하면 즉시 커서 위치에 `[이미지N]` 토큰을 삽입하고 그 파일을 로컬 상태(미리보기 strip, AI 블로그의 사진 미리보기와 동일 패턴)에 순서대로 추가. 파일 선택 업로드도 동일하게 토큰을 삽입(끝에 추가). 토큰 번호(N, 1부터 시작)가 곧 업로드 배열의 순서와 그대로 대응 — 서버가 그 순서 그대로 Notion에 업로드하고, `PostBody.tsx`가 그 순서 그대로 `[이미지N]`을 `/api/board/image/{postId}/{N-1}`로 치환해서 렌더링.
+- `src/lib/board/parsePost.ts`: 본문을 빈 줄 2개 이상으로 블록 단위로 나눠서, 블록 전체가 정확히 `[이미지N]`이면 이미지 블록으로, 아니면 문단으로 판정하는 초경량 파서(AI 블로그의 `parseBody.ts`보다 훨씬 단순 — SLOT/GALLERY/QUOTE 같은 블록 마크업 없음). `stripPostBodyPreview()`는 목록 카드용 미리보기 텍스트(이미지 토큰 제외, 80자 컷).
+
+### 18.5 페이지/라우트
+
+- `/board`(목록, `getBoardPosts` 직접 호출, 완전 공개), `/board/[postId]`(상세+댓글, `PostBody`+`CommentSection`), `/board/write`(`/write/page.tsx`와 같은 게이트 패턴: `{user ? <BoardPostForm/> : <AuthForms/>}`).
+- `POST /api/board/posts`(작성, 로그인+이메일인증 필요, 사진 최대 10장 — AI 블로그의 50장과 달리 사람이 직접 몇 장 붙여넣는 수준이라 자유게시판다운 상한으로 낮춤), `POST /api/board/posts/[postId]/comments`(댓글), `GET /api/board/image/[postId]/[index]`(18.3의 프록시).
+- `SiteHeader.tsx` 내비게이션에 "게시판" 추가. `robots.ts`는 `/board/*`를 차단 목록에서 **의도적으로 제외**(다른 1회성 세션 페이지 `/result`·`/dashboard`와 달리 진짜 사용자가 쓴 콘텐츠라 색인 가치 있음). `sitemap.ts`엔 목록 페이지(`/board`)만 우선 추가 — 개별 게시글까지 동적으로 열거하는 건 이번 범위 밖.
+
+### 18.6 스코프 밖 (이번에 명시적으로 안 함)
+
+게시글/댓글 수정·삭제, 관리자 모더레이션 UI(`/admin`에 게시판 관리 탭 등), 이메일 인증 링크의 원래 페이지 복귀. 필요해지면 별도로 요청할 것.
+
+### 18.7 검증 상태
+
+`tsc`/`eslint`/`next build` 클린 확인. **아직 실사용 검증 전** — `scripts/setup-notion-board.ts`·`scripts/add-user-nickname-prop.ts` 1회 실행, 구글 로그인 env 설정, 실제 브라우저로 로그인→게시판 글쓰기(닉네임 설정→이미지 붙여넣기/업로드→제출)→목록/상세에서 이미지가 실제로 보이는지(프록시 라우트 동작)→비로그인 상태로 읽기만 되고 쓰기는 막히는지→댓글 작성까지 다음 실사용 때 확인 필요. Notion File Upload API 자체도 공식 문서 기준으로만 구현했고 실제 호출로는 아직 검증 안 됨.

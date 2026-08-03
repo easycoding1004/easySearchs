@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createUser, findUserByEmail } from "@/lib/notion/users";
-import { hashPassword, isValidEmail, MIN_PASSWORD_LENGTH } from "@/lib/write/auth";
+import { hashPassword, isValidEmail, MIN_PASSWORD_LENGTH } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 const SITE_URL = "https://ezzsearch.com";

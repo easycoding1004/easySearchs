@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findUserByEmail, setSession } from "@/lib/notion/users";
-import { verifyPassword, SESSION_COOKIE } from "@/lib/write/auth";
+import { verifyPassword, SESSION_COOKIE } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30일

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasUsedToday, markUsedToday } from "@/lib/notion/users";
-import { getCurrentUser } from "@/lib/write/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { generateBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";

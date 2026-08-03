@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import SiteHeader from "@/components/SiteHeader";
-import AuthForms from "@/components/write/AuthForms";
+import AuthForms from "@/components/AuthForms";
 import BlogWriterForm from "@/components/write/BlogWriterForm";
-import { getCurrentUser } from "@/lib/write/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { hasUsedToday } from "@/lib/notion/users";
 
 export const metadata: Metadata = {
@@ -42,7 +42,12 @@ export default async function WritePage() {
           />
         ) : (
           <Suspense>
-            <AuthForms />
+            <div className="flex w-full max-w-sm flex-col items-center gap-3">
+              <p className="text-center text-xs text-ink-muted">
+                AI 블로그 글쓰기는 유료 API를 사용해서 계정당 하루 1회로 제한돼요.
+              </p>
+              <AuthForms />
+            </div>
           </Suspense>
         )}
       </main>

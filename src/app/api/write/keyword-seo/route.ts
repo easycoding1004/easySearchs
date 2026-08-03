@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/write/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { fetchKeywordStats } from "@/lib/naver/client";
 import { createTtlCache } from "@/lib/utils/ttlCache";
 import { getErrorMessage } from "@/lib/utils/errors";

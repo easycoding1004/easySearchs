@@ -28,6 +28,7 @@ export interface User {
   authProvider: AuthProviderValue | "";
   providerId: string;
   naverBlogId: string;
+  nickname: string;
 }
 
 function parseUser(page: PageObjectResponse): User {
@@ -70,6 +71,9 @@ function parseUser(page: PageObjectResponse): User {
   const naverBlogId =
     naverBlogIdProp?.type === "rich_text" ? naverBlogIdProp.rich_text.map((t) => t.plain_text).join("") : "";
 
+  const nicknameProp = props[USER_PROPS.nickname];
+  const nickname = nicknameProp?.type === "rich_text" ? nicknameProp.rich_text.map((t) => t.plain_text).join("") : "";
+
   return {
     pageId: page.id,
     email,
@@ -81,6 +85,7 @@ function parseUser(page: PageObjectResponse): User {
     authProvider,
     providerId,
     naverBlogId,
+    nickname,
   };
 }
 
@@ -225,6 +230,20 @@ export async function setNaverBlogId(pageId: string, naverBlogId: string): Promi
       [USER_PROPS.naverBlogId]: {
         type: "rich_text",
         rich_text: naverBlogId ? [{ type: "text", text: { content: naverBlogId } }] : [],
+      },
+    },
+  });
+}
+
+// 게시판 글·댓글에 공개로 보일 닉네임 — 로그인용 이메일과 분리(§CLAUDE.md
+// 16, USER_PROPS.nickname 주석 참고).
+export async function setNickname(pageId: string, nickname: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: {
+      [USER_PROPS.nickname]: {
+        type: "rich_text",
+        rich_text: nickname ? [{ type: "text", text: { content: nickname } }] : [],
       },
     },
   });
