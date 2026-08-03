@@ -27,10 +27,35 @@ import {
   applyThemeOverrides,
   ACCENT_PRESETS,
   FONT_OPTIONS,
+  STYLE_PRESET_OPTIONS,
   type BlogTheme,
   type FontChoice,
+  type StylePreset,
 } from "@/lib/write/blogTheme";
 import { readSseStream } from "@/lib/utils/readSseStream";
+import KeywordSeoGauge, { type KeywordSeoEntry } from "@/components/write/KeywordSeoGauge";
+import PreviewModal from "@/components/write/PreviewModal";
+
+// 2026-08 추가(사용자 요청 — "레이아웃 수정(선택지 3개)") — 본문 블록 구조
+// (SLOT/GALLERY 배치)는 생성 시점에 Claude가 정한 그대로 고정돼 있어서,
+// 레이아웃은 그 구조를 재배치하지 않고 "렌더링 방식"만 바꾼다(재생성 없이
+// 미리보기에 즉시 반영). 사진은 애초에 붙여넣기/확장 전송에 실리지 않으므로
+// (§CLAUDE.md 16) HTML 문자열 렌더러(parseBody.ts)는 건드리지 않고 이 파일의
+// React 미리보기 렌더러에만 적용한다.
+type LayoutPreset = "표준형" | "매거진형" | "미니멀형";
+const LAYOUT_PRESET_OPTIONS: LayoutPreset[] = ["표준형", "매거진형", "미니멀형"];
+
+function layoutBodyGapClass(layout: LayoutPreset): string {
+  if (layout === "매거진형") return "gap-3";
+  if (layout === "미니멀형") return "gap-0.5";
+  return "gap-1";
+}
+
+function layoutGalleryGridClass(layout: LayoutPreset): string {
+  if (layout === "매거진형") return "grid grid-cols-3 gap-2 sm:grid-cols-4";
+  if (layout === "미니멀형") return "grid grid-cols-2 gap-1.5";
+  return "grid grid-cols-2 gap-2 sm:grid-cols-3";
+}
 
 // 2026-08 v2 개편(§CLAUDE.md 16.2) — GALLERY가 최대 50장까지 한 번에 요구할
 // 수 있어 서버(route.ts)와 동일하게 상한을 올림. 원본 업로드 용량 sanity cap도
@@ -53,6 +78,7 @@ interface AiImage {
   prompt: string;
   dataUrl: string;
 }
+
 
 interface WriteResult {
   title: string;
@@ -199,7 +225,8 @@ function renderPhotoTile(src: string, alt: string, keyId: string) {
 function renderMediaBlock(
   block: SlotBlock | GalleryBlock,
   resolveImage: ReturnType<typeof createImageResolver>,
-  key: string
+  key: string,
+  layout: LayoutPreset
 ) {
   if (block.kind === "영상") {
     return (
@@ -219,7 +246,7 @@ function renderMediaBlock(
     }
     return (
       <div key={key} className="flex flex-col gap-2">
-        <div className={block.type === "gallery" ? "grid grid-cols-2 gap-2 sm:grid-cols-3" : "flex flex-col gap-2"}>
+        <div className={block.type === "gallery" ? layoutGalleryGridClass(layout) : "flex flex-col gap-2"}>
           {block.photoIndices.map((idx) => {
             const resolved = resolveImage("이미지", idx, 0);
             if (!resolved) {
@@ -290,7 +317,8 @@ function renderTableBlock(block: Extract<BodyBlock, { type: "table" }>, key: str
 function renderPreviewBlocks(
   blocks: BodyBlock[],
   resolveImage: ReturnType<typeof createImageResolver>,
-  theme: BlogTheme
+  theme: BlogTheme,
+  layout: LayoutPreset = "표준형"
 ) {
   const bodyStyle: React.CSSProperties = { fontFamily: theme.bodyFont, lineHeight: theme.lineHeight };
   return blocks.map((block, i) => {
@@ -347,7 +375,7 @@ function renderPreviewBlocks(
         );
       case "slot":
       case "gallery":
-        return renderMediaBlock(block, resolveImage, key);
+        return renderMediaBlock(block, resolveImage, key, layout);
       default:
         return null;
     }
@@ -375,9 +403,22 @@ export default function BlogWriterForm({
   // 바로 미리보기에 반영됨.
   const [customAccent, setCustomAccent] = useState<string | null>(null);
   const [customFont, setCustomFont] = useState<FontChoice | null>(null);
+  // 2026-08 추가(사용자 요청 — "워드프레스나 티스토리 스타일 선택") — 색상·
+  // 폰트와 마찬가지로 순수 렌더링 오버라이드, 재생성 없이 미리보기에 바로 반영됨.
+  const [stylePreset, setStylePreset] = useState<StylePreset | null>(null);
+  // 2026-08 추가(사용자 요청 — "레이아웃 수정(선택지 3개)") — 본문 구조는
+  // 그대로 두고 렌더링 방식만 바꾸는 프리셋(위 LAYOUT_PRESET_OPTIONS 참고).
+  const [layout, setLayout] = useState<LayoutPreset>("표준형");
+  // 2026-08 추가(사용자 요청 — "최종 수정후 선택 하는 구조로 변경") — 결과가
+  // 나오면 우선 "조정 모드"(스타일·레이아웃·사진 순서·수정 요청·SEO 게이지)로
+  // 시작하고, 사용자가 명시적으로 확정해야 복사·확장 전송 버튼이 있는 최종
+  // 화면으로 넘어간다. 새 글 생성/수정 요청이 성공할 때마다 다시 조정
+  // 모드로 리셋됨(내용이 바뀌었으니 다시 검토할 기회를 줌).
+  const [finalized, setFinalized] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   function resolveTheme(cat: BlogCategory): BlogTheme {
-    return applyThemeOverrides(getBlogTheme(cat), { accent: customAccent, font: customFont });
+    return applyThemeOverrides(getBlogTheme(cat), { accent: customAccent, font: customFont, style: stylePreset });
   }
   const [loading, setLoading] = useState(false);
   // /api/write가 SSE로 진행 상태를 스트리밍함(2026-08 — 진행바 요청 대응) —
@@ -406,6 +447,40 @@ export default function BlogWriterForm({
   // 사용자가 "추천 스톡 이미지"를 클릭해서 본문의 스톡이미지 SLOT 자리에
   // 끼워 넣은 것들 — 클릭한 순서대로 문서에 나오는 자리에 차례로 채워짐.
   const [insertedStockImages, setInsertedStockImages] = useState<StockImage[]>([]);
+
+  // 2026-08 추가(사용자 요청 — "SEO 노출도 분석, 키워드 경쟁도를 게이지바로
+  // 절대값 기준으로") — 실제 네이버 검색광고 API 데이터(자체 계산 점수 아님).
+  // 스타일·레이아웃·사진 순서는 검색량·경쟁도에 영향이 없으므로 그 값이
+  // 바뀔 때는 재조회하지 않고, 태그가 바뀔 수 있는 시점(최초 생성 직후,
+  // 수정 요청 성공 직후)에만 fetchKeywordSeo를 호출한다.
+  const [seoData, setSeoData] = useState<KeywordSeoEntry[] | null>(null);
+  const [seoLoading, setSeoLoading] = useState(false);
+
+  async function fetchKeywordSeo(tags: string[]) {
+    const keywords = tags.slice(0, 3);
+    if (keywords.length === 0) {
+      setSeoData([]);
+      return;
+    }
+    setSeoLoading(true);
+    try {
+      const res = await fetch("/api/write/keyword-seo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords }),
+      });
+      if (!res.ok) {
+        setSeoData(null);
+        return;
+      }
+      const data = await res.json();
+      setSeoData(Array.isArray(data.results) ? data.results : null);
+    } catch {
+      setSeoData(null);
+    } finally {
+      setSeoLoading(false);
+    }
+  }
 
   const [naverBlogId, setNaverBlogId] = useState(initialNaverBlogId);
   const [editingBlogId, setEditingBlogId] = useState(false);
@@ -483,6 +558,8 @@ export default function BlogWriterForm({
     setRevisionError(null);
     setProgress({ percent: 5, label: "준비하고 있어요..." });
     setImagesLoading(false);
+    setFinalized(false);
+    setSeoData(null);
 
     try {
       const formData = new FormData();
@@ -519,6 +596,7 @@ export default function BlogWriterForm({
           });
           setProgress(null);
           setImagesLoading(true);
+          fetchKeywordSeo((data.tags as string[]) ?? []);
           return;
         }
         if (data.done) {
@@ -594,6 +672,8 @@ export default function BlogWriterForm({
       setInsertedStockImages([]); // 본문이 바뀌었으니 이전 스톡이미지 삽입 자리는 무효화
       setRevisionCount((c) => c + 1);
       setRevisionInstruction("");
+      setFinalized(false); // 내용이 바뀌었으니 다시 검토할 기회를 줌
+      fetchKeywordSeo(data.tags ?? []);
     } catch {
       setRevisionError("네트워크 오류가 발생했어요.");
     } finally {
@@ -775,6 +855,50 @@ export default function BlogWriterForm({
   const resultResolveImage = result
     ? createImageResolver({ photoSrcs: previews, stockImages: insertedStockImages, aiImages: result.aiImages })
     : null;
+
+  // 2026-08 추가(사용자 요청 — "사진이 들어갈 배치 변경") — 본문의
+  // [[GALLERY: 사진=1,3,5]] 같은 지정은 "업로드 순서 번호"를 참조하므로,
+  // 파싱된 본문을 건드리지 않고 files(→previews) 순서만 바꾸면 이미 배정된
+  // 자리에 다른 실제 사진이 즉시 반영된다.
+  function movePhoto(index: number, direction: -1 | 1) {
+    setFiles((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  // 결과 카드 인라인 미리보기와 "미리보기" 모달이 같은 렌더링을 공유 —
+  // 레이아웃 프리셋(매거진형 히어로 이미지·그리드 컬럼 등)이 둘 다에
+  // 일관되게 반영되게 함.
+  function renderArticle() {
+    if (!result || !resultTheme || !resultResolveImage) return null;
+    return (
+      <>
+        <p className="text-lg font-bold text-ink" style={{ fontFamily: resultTheme.headingFont }}>
+          {result.title}
+          {result.sponsored && (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-800">
+              협찬
+            </span>
+          )}
+        </p>
+        {layout === "매거진형" && result.recommendedThumbnail > 0 && previews[result.recommendedThumbnail - 1] && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previews[result.recommendedThumbnail - 1]}
+            alt="대표 이미지"
+            className="max-h-80 w-full rounded-lg border border-hairline object-cover"
+          />
+        )}
+        <div className={`flex flex-col ${layoutBodyGapClass(layout)}`}>
+          {renderPreviewBlocks(resultBlocks, resultResolveImage, resultTheme, layout)}
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="flex w-full max-w-3xl flex-col gap-6">
@@ -1052,55 +1176,61 @@ export default function BlogWriterForm({
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-ink">생성된 글</h2>
-            <div className="flex gap-2">
+            <h2 className="text-base font-semibold text-ink">생성된 글{!finalized && " (조정 중)"}</h2>
+            {finalized ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyPlain}
+                  className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
+                >
+                  {plainCopied ? "복사됐어요" : "텍스트만 복사"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyRich}
+                  className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-hover"
+                >
+                  {richCopied ? "복사됐어요" : "서식 포함 복사"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendToExtension}
+                  className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
+                >
+                  {extensionStatus === "sent" ? "확장으로 보냈어요" : "확장으로 보내기"}
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={handleCopyPlain}
+                onClick={() => setPreviewOpen(true)}
                 className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
               >
-                {plainCopied ? "복사됐어요" : "텍스트만 복사"}
+                미리보기
               </button>
-              <button
-                type="button"
-                onClick={handleCopyRich}
-                className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-hover"
-              >
-                {richCopied ? "복사됐어요" : "서식 포함 복사"}
-              </button>
-              <button
-                type="button"
-                onClick={handleSendToExtension}
-                className="shrink-0 rounded-md border border-hairline px-3 py-1.5 text-xs font-semibold text-ink transition hover:bg-bg"
-              >
-                {extensionStatus === "sent" ? "확장으로 보냈어요" : "확장으로 보내기"}
-              </button>
-            </div>
+            )}
           </div>
-          {extensionStatus === "not-found" && (
+
+          {finalized && extensionStatus === "not-found" && (
             <p className="text-xs text-error">
               확장 프로그램이 설치되어 있지 않은 것 같아요 — 설치 후 이 페이지를 새로고침해 주세요.
             </p>
           )}
-          {!naverBlogId && (
+          {finalized && !naverBlogId && (
             <p className="text-xs text-ink-muted">
               네이버 블로그 아이디를 위에서 설정해두면 &ldquo;확장으로 보내기&rdquo; 클릭 한 번으로 에디터 탭까지
               자동으로 열리고 붙여넣기까지 시도해요.
             </p>
           )}
-          <p className="text-xs text-ink-muted">
-            사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
-            저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.
-          </p>
-          <p className="text-lg font-bold text-ink" style={{ fontFamily: resultTheme.headingFont }}>
-            {result.title}
-            {result.sponsored && (
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-xs font-semibold text-amber-800">
-                협찬
-              </span>
-            )}
-          </p>
-          <div className="flex flex-col gap-1">{renderPreviewBlocks(resultBlocks, resultResolveImage, resultTheme)}</div>
+          {finalized && (
+            <p className="text-xs text-ink-muted">
+              사진은 붙여넣기로 옮겨지지 않아요(네이버 에디터 제약) — 아래 미리보기의 &ldquo;이 사진 다운로드&rdquo;로
+              저장한 뒤 붙여넣은 자리에 직접 끼워 넣어주세요.
+            </p>
+          )}
+
+          {renderArticle()}
 
           {result.recommendedThumbnail > 0 && previews[result.recommendedThumbnail - 1] && (
             <div className="flex items-center gap-2 border-t border-hairline pt-3">
@@ -1140,78 +1270,192 @@ export default function BlogWriterForm({
             </div>
           )}
 
-          {result.stockImages.length > 0 && (
-            <div className="flex flex-col gap-2 border-t border-hairline pt-3">
-              <span className="text-xs font-semibold text-ink-muted">
-                추천 스톡 이미지 (Pixabay 제공) · 클릭하면 위 본문의 스톡이미지 자리에 순서대로 들어가요
-                (다시 클릭하면 빼요)
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {result.stockImages.map((img) => {
-                  const inserted = insertedStockImages.some((p) => p.webformatURL === img.webformatURL);
-                  return (
+          {!finalized && (
+            <div className="flex flex-col gap-4 border-t border-hairline pt-3">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-ink-muted">스타일 프리셋 (선택 사항)</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setStylePreset(null)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      stylePreset === null
+                        ? "border-primary bg-primary text-white"
+                        : "border-hairline text-ink-muted hover:bg-bg"
+                    }`}
+                  >
+                    기본형
+                  </button>
+                  {STYLE_PRESET_OPTIONS.map((s) => (
                     <button
-                      key={img.webformatURL}
+                      key={s.value}
                       type="button"
-                      onClick={() => handleToggleStockImage(img)}
-                      className={`relative h-16 w-16 overflow-hidden rounded-md border-2 transition ${
-                        inserted ? "border-primary" : "border-hairline"
+                      onClick={() => setStylePreset(s.value)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                        stylePreset === s.value
+                          ? "border-primary bg-primary text-white"
+                          : "border-hairline text-ink-muted hover:bg-bg"
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.webformatURL} alt={img.query} className="h-full w-full object-cover" />
-                      {inserted && (
-                        <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-                          ✓
-                        </span>
-                      )}
+                      {s.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-ink-muted">레이아웃</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {LAYOUT_PRESET_OPTIONS.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setLayout(l)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                        layout === l ? "border-primary bg-primary text-white" : "border-hairline text-ink-muted hover:bg-bg"
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {previews.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-ink-muted">
+                    사진 순서 (본문에 이미 배정된 자리에 이 순서대로 채워져요)
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {previews.map((src, i) => (
+                      <div key={src} className="flex flex-col items-center gap-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={`사진 ${i + 1}`}
+                          className="h-14 w-14 rounded-md border border-hairline object-cover"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => movePhoto(i, -1)}
+                            disabled={i === 0}
+                            className="rounded-sm border border-hairline px-1.5 text-xs text-ink-muted transition hover:bg-bg disabled:opacity-30"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => movePhoto(i, 1)}
+                            disabled={i === previews.length - 1}
+                            className="rounded-sm border border-hairline px-1.5 text-xs text-ink-muted transition hover:bg-bg disabled:opacity-30"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <KeywordSeoGauge entries={seoData} loading={seoLoading} />
+
+              {result.stockImages.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-ink-muted">
+                    추천 스톡 이미지 (Pixabay 제공) · 클릭하면 위 본문의 스톡이미지 자리에 순서대로 들어가요
+                    (다시 클릭하면 빼요)
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {result.stockImages.map((img) => {
+                      const inserted = insertedStockImages.some((p) => p.webformatURL === img.webformatURL);
+                      return (
+                        <button
+                          key={img.webformatURL}
+                          type="button"
+                          onClick={() => handleToggleStockImage(img)}
+                          className={`relative h-16 w-16 overflow-hidden rounded-md border-2 transition ${
+                            inserted ? "border-primary" : "border-hairline"
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.webformatURL} alt={img.query} className="h-full w-full object-cover" />
+                          {inserted && (
+                            <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold text-ink-muted">
+                  수정 요청 ({revisionCount}/{MAX_REVISIONS}회 사용) — 이 글에서 바꾸고 싶은 부분만 말씀해 주세요
+                </span>
+                <div className="flex gap-2">
+                  <input
+                    value={revisionInstruction}
+                    onChange={(e) => setRevisionInstruction(e.target.value)}
+                    placeholder="예: 제목을 더 짧게 해줘, 3번째 문단은 빼줘, 더 발랄한 톤으로"
+                    maxLength={MAX_INSTRUCTION_LENGTH}
+                    disabled={revising || revisionCount >= MAX_REVISIONS}
+                    className="flex-1 rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRevise}
+                    disabled={revising || !revisionInstruction.trim() || revisionCount >= MAX_REVISIONS}
+                    className="shrink-0 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    {revising ? "수정 중..." : "수정하기"}
+                  </button>
+                </div>
+                {revisionCount >= MAX_REVISIONS && (
+                  <p className="text-xs text-ink-muted">이 글은 수정 요청을 다 사용했어요. 다시 생성하면 초기화돼요.</p>
+                )}
+                {revisionError && <p className="text-sm text-error">{revisionError}</p>}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFinalized(true)}
+                className="h-11 rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+              >
+                이 버전으로 확정하기
+              </button>
             </div>
           )}
 
-          <div className="flex flex-col gap-2 border-t border-hairline pt-3">
-            <span className="text-xs font-semibold text-ink-muted">
-              수정 요청 ({revisionCount}/{MAX_REVISIONS}회 사용) — 이 글에서 바꾸고 싶은 부분만 말씀해 주세요
-            </span>
-            <div className="flex gap-2">
-              <input
-                value={revisionInstruction}
-                onChange={(e) => setRevisionInstruction(e.target.value)}
-                placeholder="예: 제목을 더 짧게 해줘, 3번째 문단은 빼줘, 더 발랄한 톤으로"
-                maxLength={MAX_INSTRUCTION_LENGTH}
-                disabled={revising || revisionCount >= MAX_REVISIONS}
-                className="flex-1 rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none disabled:opacity-50"
-              />
+          {finalized && (
+            <>
+              {naverBlogId && (
+                <a
+                  href={`https://blog.naver.com/${naverBlogId}?Redirect=Write&`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex h-11 items-center justify-center rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+                >
+                  네이버 블로그 글쓰기 열기
+                </a>
+              )}
               <button
                 type="button"
-                onClick={handleRevise}
-                disabled={revising || !revisionInstruction.trim() || revisionCount >= MAX_REVISIONS}
-                className="shrink-0 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+                onClick={() => setFinalized(false)}
+                className="text-xs font-semibold text-ink-muted hover:text-primary"
               >
-                {revising ? "수정 중..." : "수정하기"}
+                다시 조정하기
               </button>
-            </div>
-            {revisionCount >= MAX_REVISIONS && (
-              <p className="text-xs text-ink-muted">이 글은 수정 요청을 다 사용했어요. 다시 생성하면 초기화돼요.</p>
-            )}
-            {revisionError && <p className="text-sm text-error">{revisionError}</p>}
-          </div>
-
-          {naverBlogId && (
-            <a
-              href={`https://blog.naver.com/${naverBlogId}?Redirect=Write&`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 flex h-11 items-center justify-center rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
-            >
-              네이버 블로그 글쓰기 열기
-            </a>
+            </>
           )}
         </div>
       )}
+
+      {previewOpen && result && <PreviewModal onClose={() => setPreviewOpen(false)}>{renderArticle()}</PreviewModal>}
     </div>
   );
 }

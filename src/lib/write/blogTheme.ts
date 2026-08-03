@@ -310,16 +310,41 @@ export function lightenHex(hex: string, ratio = 0.85): string {
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
 }
 
+// 2026-08 추가(사용자 요청 — "워드프레스나 티스토리 스타일 선택 등 추가"):
+// 실제 워드프레스/티스토리 발행 연동이 아니라(사용자와 논의 후 확정 —
+// 이 기능 전체가 네이버 전용으로 설계돼 있어 실제 다른 플랫폼 내보내기는
+// 훨씬 큰 범위의 작업이라 이번엔 시각적 프리셋만) 그 플랫폼들의 전형적인
+// 타이포그래피 느낌만 흉내 낸 렌더링 프리셋 — 색상·폰트 오버라이드와
+// 독립적으로 유형 기본 테마 위에 얹을 수 있다.
+export type StylePreset = "wordpress" | "tistory";
+
+const STYLE_PRESET_OVERRIDES: Record<StylePreset, Partial<BlogTheme>> = {
+  // 워드프레스풍 — 사이드바 헤딩·세리프 인용구·넉넉한 줄간격으로 에디토리얼한 느낌
+  wordpress: { headingStyle: "sideBar", quoteStyle: "serif", lineHeight: 1.95 },
+  // 티스토리풍 — 박스형 헤딩·하이라이트 인용구·촘촘한 줄간격으로 카드형 느낌
+  tistory: { headingStyle: "boxed", quoteStyle: "highlight", lineHeight: 1.7 },
+};
+
+export const STYLE_PRESET_OPTIONS: { label: string; value: StylePreset }[] = [
+  { label: "워드프레스풍", value: "wordpress" },
+  { label: "티스토리풍", value: "tistory" },
+];
+
 export interface ThemeOverrides {
   accent?: string | null; // hex — null/undefined이면 유형 기본 색상 사용
   font?: FontChoice | null; // null/undefined이면 유형 기본 폰트 사용
+  style?: StylePreset | null; // null/undefined이면 유형 기본 헤딩·인용구·줄간격 구조 사용
 }
 
-// 유형 기본 테마 위에 사용자가 고른 색상·폰트를 얹는다 — 유형별 헤딩
-// 스타일/인용구 스타일/목록 마커 등 "구조"는 그대로 유지하고 색·폰트만
-// 바뀌므로, 유형 특유의 개성은 남으면서 색감만 취향대로 바뀜.
+// 유형 기본 테마 위에 사용자가 고른 스타일 프리셋·색상·폰트를 얹는다 —
+// 스타일 프리셋을 먼저 얹어 헤딩·인용구·줄간격 "구조"를 바꾸고, 그 위에
+// 색상·폰트를 얹어서 유형 개성 대신 사용자가 고른 조합이 최종 반영되게 함
+// (셋 다 서로 다른 속성을 건드리므로 순서 자체는 결과에 영향 없음).
 export function applyThemeOverrides(base: BlogTheme, overrides: ThemeOverrides): BlogTheme {
-  const theme = { ...base };
+  let theme = { ...base };
+  if (overrides.style) {
+    theme = { ...theme, ...STYLE_PRESET_OVERRIDES[overrides.style] };
+  }
   if (overrides.accent) {
     theme.accent = overrides.accent;
     theme.accentSoft = lightenHex(overrides.accent);
