@@ -172,6 +172,27 @@ body {
   }
 }
 
+/* 홈페이지 3대 기능 쇼케이스(FeatureShowcase) 탭 전환 — 탭이 바뀔 때마다
+   key가 바뀌어 다시 마운트되면서 재생된다. category-slide-in과 같은
+   패턴이지만 옆이 아니라 위에서 살짝 떠오르는 편이 탭 전환 느낌에 더 맞아
+   방향만 다르게 별도로 둠. */
+@keyframes showcase-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .showcase-fade-in {
+    animation: showcase-fade-in 0.35s var(--ease-spring) both;
+  }
+}
+
 /* 카테고리 전체 티커 (TrendTicker) — 콘텐츠를 두 번 이어붙이고 정확히
    -50% 이동시키는 표준 무한 마퀴 기법. reduced-motion이면 정지된 채로
    그냥 스크롤 가능한 한 줄로 남는다(내용은 계속 보임). */

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import SearchForm from "@/components/search/SearchForm";
 import SiteHeader from "@/components/SiteHeader";
-import CategoryTopKeywordsPanel from "@/components/search/CategoryTopKeywordsPanel";
+import FeatureShowcase from "@/components/search/FeatureShowcase";
 import Reveal from "@/components/Reveal";
 import PainPointPromo from "@/components/PainPointPromo";
 import AmbientParticles from "@/components/AmbientParticles";
@@ -9,11 +9,8 @@ import StatCounters from "@/components/search/StatCounters";
 import TrendTicker from "@/components/search/TrendTicker";
 import MobileStickyCta from "@/components/MobileStickyCta";
 import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
-import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
-import { getCategoryShoppingDirection } from "@/lib/naver/categoryShoppingTrend";
 import { getSiteStats } from "@/lib/notion/stats";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
-import type { NormalizedKeywordRow } from "@/lib/naver/types";
 
 const TRENDING_PREVIEW_COUNT = 4;
 
@@ -107,21 +104,11 @@ const STEPS = [
   },
 ];
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string }>;
-}) {
-  const { category: categoryParam } = await searchParams;
-  const category = CATEGORIES.find((c) => c.id === categoryParam) ?? CATEGORIES[0];
-
-  const [categoryTrend, siteStats, trending, shoppingDirection] = await Promise.all([
-    getCategoryTopKeywords(category.id).catch(() => null),
+export default async function Home() {
+  const [siteStats, trending] = await Promise.all([
     getSiteStats().catch(() => null),
     fetchTrendingKeywordsWithNaverVolume().catch(() => null),
-    getCategoryShoppingDirection(category.id).catch(() => undefined),
   ]);
-  const categoryRows: NormalizedKeywordRow[] = categoryTrend?.rows ?? [];
 
   return (
     <div className="flex flex-1 flex-col font-sans">
@@ -153,21 +140,8 @@ export default async function Home({
               <SearchForm />
             </div>
 
-            <div className="flex w-full max-w-xl flex-col gap-2">
-              <CategoryTopKeywordsPanel
-                categories={CATEGORIES}
-                initialCategory={category}
-                initialRows={categoryRows}
-                initialFetchedAt={categoryTrend?.fetchedAt ?? null}
-                initialError={!categoryTrend}
-                initialShoppingDirection={shoppingDirection}
-              />
-              <Link
-                href="/keywords"
-                className="self-end text-xs text-ink-muted transition-colors hover:text-primary"
-              >
-                업종별 인기 검색어 전체보기 →
-              </Link>
+            <div className="w-full max-w-xl">
+              <FeatureShowcase />
             </div>
           </div>
         </section>
