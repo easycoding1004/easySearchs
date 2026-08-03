@@ -689,10 +689,22 @@ export default function BlogWriterForm({
     });
   }
 
+  // 2026-08 사용자 신고("본문 복사에 태그가 반영되지 않았어") — 태그 배지를
+  // 하나씩 클릭해서 복사하는 흐름(handleCopySingleTag, 네이버 태그 입력창이
+  // 쉼표 붙여넣기를 못 받아서 생긴 우회)과는 별개로, 본문 자체를 복사할 때
+  // 해시태그 한 줄을 맨 끝에 같이 넣어달라는 요청 — 많은 네이버 블로그가
+  // 태그 입력창과 별개로 본문 끝에도 해시태그를 적어두는 관행과 일치함.
+  // 기술적으로 막혀있던 게 아니라 단순히 안 넣고 있었던 것이라 바로 추가함.
+  function tagsAsText(tags: string[]): string {
+    return tags.length > 0 ? `\n\n${tags.map((t) => `#${t}`).join(" ")}` : "";
+  }
+
   async function handleCopyPlain() {
     if (!result) return;
     try {
-      await navigator.clipboard.writeText(`${result.title}\n\n${stripBodyMarkup(result.body)}`);
+      await navigator.clipboard.writeText(
+        `${result.title}\n\n${stripBodyMarkup(result.body)}${tagsAsText(result.tags)}`
+      );
       setPlainCopied(true);
       setTimeout(() => setPlainCopied(false), 2000);
     } catch {
@@ -710,8 +722,14 @@ export default function BlogWriterForm({
     try {
       const theme = resolveTheme(result.category);
       const blocks = parseBody(result.body);
-      const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks, theme)}`;
-      const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}`;
+      const tagsHtml =
+        result.tags.length > 0
+          ? `<p style="margin-top:16px;font-weight:600;color:${theme.accent};">${result.tags
+              .map((t) => `#${escapeHtmlText(t)}`)
+              .join(" ")}</p>`
+          : "";
+      const html = `<h2 style="font-family:${theme.headingFont};font-size:24px;font-weight:800;margin:0 0 16px;">${escapeHtmlText(result.title)}</h2>\n${renderBodyToHtml(blocks, theme)}${tagsHtml}`;
+      const plain = `${result.title}\n\n${stripBodyMarkup(result.body)}${tagsAsText(result.tags)}`;
 
       if (typeof ClipboardItem !== "undefined") {
         await navigator.clipboard.write([
