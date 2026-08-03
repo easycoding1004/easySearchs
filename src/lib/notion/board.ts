@@ -122,11 +122,30 @@ export async function createBoardPost(input: {
 export async function getBoardPost(id: string): Promise<BoardPost | null> {
   try {
     const page = await notion.pages.retrieve({ page_id: id });
-    if (!isFullPage(page)) return null;
+    // 삭제(소프트 삭제, archived:true — deleteBoardPost 참고)된 글은 조회
+    // 자체는 성공하지만 존재하지 않는 것처럼 취급해야 함.
+    if (!isFullPage(page) || page.archived) return null;
     return parseBoardPost(page);
   } catch {
     return null;
   }
+}
+
+export async function updateBoardPost(id: string, input: { title: string; body: string }): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: {
+      [BOARD_POST_PROPS.title]: { type: "title", title: [{ type: "text", text: { content: input.title } }] },
+      [BOARD_POST_PROPS.body]: { type: "rich_text", rich_text: [{ type: "text", text: { content: input.body } }] },
+    },
+  });
+}
+
+// 실제 삭제 대신 archived:true(휴지통)로 소프트 삭제 — 이 사이트의 다른
+// "삭제" 기능(구독 해지 등)과 같은 패턴. 게시글 목록/조회 쿼리는 Notion이
+// 기본적으로 archived 페이지를 걸러주므로 별도 필터가 필요 없음.
+export async function deleteBoardPost(id: string): Promise<void> {
+  await notion.pages.update({ page_id: id, archived: true });
 }
 
 // 목록 — 최신순, 페이지당 20개. Notion 커서를 그대로 노출해서 "더 보기"에
