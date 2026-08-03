@@ -28,17 +28,20 @@ const notion = new Client({ auth: notionToken });
 
 // 데모/시연용 가상 회원 10명 — 실제 로그인은 안 되는 계정(비밀번호 없음,
 // 이메일도 가짜 도메인)이고, 게시판 글/댓글 작성자 표시용으로만 씀.
+// 2026-08 닉네임을 영문 핸들로 변경 — "필라테스원장" 같은 한국어 직업+
+// 직함 조합이 부자연스럽다는 사용자 피드백(scripts/rename-seed-persona-
+// nicknames.ts로 기존 계정·게시글에도 소급 적용함).
 const PERSONAS = [
-  { email: "seed-cafe01@ezzsearch.local", nickname: "카페사장님" },
-  { email: "seed-bakery02@ezzsearch.local", nickname: "동네빵집대표" },
-  { email: "seed-pilates03@ezzsearch.local", nickname: "필라테스원장" },
-  { email: "seed-cleaning04@ezzsearch.local", nickname: "청소업체사장" },
-  { email: "seed-tutor05@ezzsearch.local", nickname: "과외선생님" },
-  { email: "seed-nail06@ezzsearch.local", nickname: "네일샵운영자" },
-  { email: "seed-pension07@ezzsearch.local", nickname: "펜션지기" },
-  { email: "seed-shop08@ezzsearch.local", nickname: "온라인쇼핑몰대표" },
-  { email: "seed-studio09@ezzsearch.local", nickname: "스튜디오작가" },
-  { email: "seed-marketer10@ezzsearch.local", nickname: "마케팅프리랜서" },
+  { email: "seed-cafe01@ezzsearch.local", nickname: "mia_cafe" },
+  { email: "seed-bakery02@ezzsearch.local", nickname: "tom_bakes" },
+  { email: "seed-pilates03@ezzsearch.local", nickname: "jenny_flow" },
+  { email: "seed-cleaning04@ezzsearch.local", nickname: "alex_clean" },
+  { email: "seed-tutor05@ezzsearch.local", nickname: "kate_tutors" },
+  { email: "seed-nail06@ezzsearch.local", nickname: "sophie_nails" },
+  { email: "seed-pension07@ezzsearch.local", nickname: "mark_stay" },
+  { email: "seed-shop08@ezzsearch.local", nickname: "liam_shop" },
+  { email: "seed-studio09@ezzsearch.local", nickname: "noah_shoots" },
+  { email: "seed-marketer10@ezzsearch.local", nickname: "emma_mkt" },
 ] as const;
 
 interface SeedPost {
