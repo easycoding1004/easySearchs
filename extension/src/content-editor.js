@@ -314,16 +314,35 @@ function cdpInsertTags(tags) {
 // 클릭해서 복사" 수동 흐름(웹사이트 쪽)이 그대로 남아있어 손해가 없음.
 async function insertTagsViaDebugger(target, tags) {
   if (!target || !tags || tags.length === 0) return false;
-  // 위 insertViaDebugger와 같은 이유로 필드 활성화도 CDP 클릭으로 함 —
-  // 태그 입력창은 성공 시 자기 자신을 비우는 UI라 title/body처럼 사후
-  // textContent 비교로 검증할 수 없어서, CDP 명령 자체의 성공 여부
-  // (result.ok)만 신뢰한다.
-  target.focus();
-  target.click?.();
-  const { x, y } = getAbsoluteCenter(target);
-  const clickResult = await cdpClick(x, y);
-  if (!clickResult.ok) console.warn("[ezzsearch] cdpClick failed (tags):", clickResult.error);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // 2026-08 사용자 신고("발행 버튼을 누르자마자 본문에 태그가 삽입되고
+  // 있어") — 클릭이 실제로 포커스를 옮기지 못한 채 CDP 텍스트 삽입이 그냥
+  // 진행돼서, 여전히 포커스가 남아있던 본문에 태그가 들어간 것으로 추정됨
+  // (발행 설정 패널이 열리는 애니메이션 도중에 좌표를 계산해서 어긋났을
+  // 가능성). title/body는 진짜 캡처 지점이 화면 밖 숨겨진 별도 프레임이라
+  // document.activeElement 검증이 항상 거짓이 돼서 폐기했지만(§CLAUDE.md
+  // 17.4/17.5), 태그 입력창(`#tag-input`)은 그런 우회가 필요 없는 진짜
+  // 포커스 가능한 `<input>`이라(실측 확인) 이 검증이 여기서는 유효한 신호다
+  // — 클릭 후 실제로 포커스가 옮겨졌는지 확인하고, 안 됐으면 한 번 더
+  // 재시도한 뒤에도 안 되면 엉뚱한 곳(본문 등)에 타이핑하느니 그냥
+  // 포기한다.
+  let focused = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    target.focus();
+    target.click?.();
+    const { x, y } = getAbsoluteCenter(target);
+    const clickResult = await cdpClick(x, y);
+    if (!clickResult.ok) console.warn("[ezzsearch] cdpClick failed (tags):", clickResult.error);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (document.activeElement === target) {
+      focused = true;
+      break;
+    }
+    log("insertTagsViaDebugger: focus did not land on tag input, attempt=", attempt);
+  }
+  if (!focused) {
+    log("insertTagsViaDebugger: giving up, refusing to type into an unrelated field");
+    return false;
+  }
   const result = await cdpInsertTags(tags);
   if (!result.ok) console.warn("[ezzsearch] cdpInsertTags failed:", result.error);
   return result.ok;

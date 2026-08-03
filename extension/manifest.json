@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "이지서치 키워드 조회",
   "short_name": "이지서치",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "description": "텍스트를 선택해 우클릭하거나, 주소창에서 바로 네이버 키워드 검색량을 조회하세요.",
   "icons": {
     "16": "icons/icon16.png",
