@@ -16,6 +16,11 @@ export { isBlogCategory } from "./blogCategories";
 const RULES_DIR = path.join(process.cwd(), "new_blog");
 const OVERVIEW_FILE = "블로그글쓰기규칙_개요.md";
 const SPONSORSHIP_FILE = "블로그글쓰기규칙_협찬표기.md";
+// 2026-08 추가(사용자 요청 — "저품질에 막히지 않도록 깊게 분석해서 md파일
+// 정리") — C-Rank/D.I.A.(+) 판정 메커니즘 리서치를 바탕으로 한 심층 가이드.
+// 개요와 마찬가지로 16개 유형 전부에 항상 포함됨(협찬표기와 달리 조건부
+// 아님 — 저품질 방지는 모든 글에 해당하는 관심사라서).
+const LOW_QUALITY_FILE = "블로그글쓰기규칙_저품질방지.md";
 
 // 2026-08 v2 개편 — 4개 파일 → 16개 파일로 세분화(§CLAUDE.md 16.2). 파일명은
 // blogCategories.ts의 id와 그대로 대응되게 지었음 — 새 유형을 추가할 때
@@ -54,8 +59,9 @@ function readRuleFile(filename: string): string {
 // Claude gets both without the caller needing to know the overview exists.
 export function getCategoryRuleText(category: BlogCategory): string {
   const overview = readRuleFile(OVERVIEW_FILE);
+  const lowQuality = readRuleFile(LOW_QUALITY_FILE);
   const specific = readRuleFile(RULE_FILES[category]);
-  return `${overview}\n\n---\n\n${specific}`;
+  return `${overview}\n\n---\n\n${lowQuality}\n\n---\n\n${specific}`;
 }
 
 // 협찬 여부는 16개 유형과 별개 축(§CLAUDE.md 16.2) — 사용자가 협찬 토글을
