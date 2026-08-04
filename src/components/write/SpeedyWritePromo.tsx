@@ -1,5 +1,5 @@
 // 2026-08 추가 — /write 페이지 상단 홍보 배너(사용자 요청): "블로그 쓰는 데
-// 1~2시간 허비하지 말고 10분이면 끝내라"는 메시지를 마스코트 캐릭터와 함께
+// 1~2시간 허비하지 말고 3분이면 끝내라"는 메시지를 마스코트 캐릭터와 함께
 // 보여줌. 이 사이트에 아직 실제 일러스트 에셋이 없어서(로고 하나뿐,
 // design-system.md §2) 브랜드 톤(코랄/앰버, 둥근 형태)에 맞춘 인라인 SVG로
 // 새로 그렸다 — FeatureShowcase.tsx의 미니 일러스트와 같은 제작 방식.
@@ -55,7 +55,7 @@ export default function SpeedyWritePromo() {
           블로그 쓰는 데 1~2시간 허비하지 마세요
         </p>
         <p className="text-sm text-ink-muted sm:text-base">
-          사진과 한 줄 프롬프트만 있으면, AI가 <span className="font-semibold text-primary">10분</span> 만에 완성해드려요
+          사진과 한 줄 프롬프트만 있으면, AI가 <span className="font-semibold text-primary">3분</span> 만에 완성해드려요
         </p>
       </div>
     </div>

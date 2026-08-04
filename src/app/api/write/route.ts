@@ -6,6 +6,7 @@ import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
+import { assessLowQualityRisk } from "@/lib/write/lowQualityRisk";
 import { createSseStream, SSE_HEADERS } from "@/lib/utils/sse";
 import { getErrorMessage } from "@/lib/utils/errors";
 
@@ -127,6 +128,8 @@ export async function POST(request: Request) {
 
       // 글 텍스트는 여기서 이미 완성됨 — 스톡·AI 이미지(부가 기능, 특히 AI
       // 이미지는 장당 수십 초 걸릴 수 있음)를 기다리지 않고 먼저 화면에 보여줌.
+      // 저품질 위험도는 생성된 텍스트만으로 즉시 계산 가능해서(네트워크 호출
+      // 없음) 여기서 같이 보내도 지연이 전혀 안 생김.
       send({
         textReady: true,
         title: result.title,
@@ -136,6 +139,7 @@ export async function POST(request: Request) {
         tags: result.tags,
         category,
         sponsored,
+        lowQualityRisk: assessLowQualityRisk(result, sponsored),
         progress: 70,
       });
 

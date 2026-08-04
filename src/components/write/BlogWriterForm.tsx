@@ -34,7 +34,14 @@ import {
 } from "@/lib/write/blogTheme";
 import { readSseStream } from "@/lib/utils/readSseStream";
 import KeywordSeoGauge, { type KeywordSeoEntry } from "@/components/write/KeywordSeoGauge";
+import LowQualityRiskCard from "@/components/write/LowQualityRiskCard";
 import PreviewModal from "@/components/write/PreviewModal";
+// 타입만 가져옴(import type) — lowQualityRisk.ts의 실제 계산 함수는 서버
+// 라우트에서만 돌고 클라이언트는 결과만 받아서 보여줌. type import는 빌드
+// 시 완전히 지워지므로 blogWriter.ts(→fs 쓰는 blogRules.ts)가 클라이언트
+// 번들에 실수로 섞여 들어가지 않음(blogCategories.ts/blogRules.ts 분리와
+// 같은 원칙, §CLAUDE.md 16).
+import type { LowQualityAssessment } from "@/lib/write/lowQualityRisk";
 
 // 2026-08 추가(사용자 요청 — "레이아웃 수정(선택지 3개)") — 본문 블록 구조
 // (SLOT/GALLERY 배치)는 생성 시점에 Claude가 정한 그대로 고정돼 있어서,
@@ -90,6 +97,7 @@ interface WriteResult {
   sponsored: boolean;
   stockImages: StockImage[];
   aiImages: (AiImage | null)[];
+  lowQualityRisk: LowQualityAssessment;
 }
 
 // 텍스트/강조 인라인만 렌더링 — v2부터 이미지는 더 이상 인라인 토큰이 아니라
@@ -593,6 +601,7 @@ export default function BlogWriterForm({
             sponsored: data.sponsored as boolean,
             stockImages: [],
             aiImages: [],
+            lowQualityRisk: data.lowQualityRisk as LowQualityAssessment,
           });
           setProgress(null);
           setImagesLoading(true);
@@ -1378,6 +1387,8 @@ export default function BlogWriterForm({
               )}
 
               <KeywordSeoGauge entries={seoData} loading={seoLoading} />
+
+              <LowQualityRiskCard assessment={result.lowQualityRisk} />
 
               {result.stockImages.length > 0 && (
                 <div className="flex flex-col gap-2">

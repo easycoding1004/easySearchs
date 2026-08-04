@@ -5,6 +5,7 @@ import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
+import { assessLowQualityRisk } from "@/lib/write/lowQualityRisk";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 // /api/write/route.ts와 동일한 근거(2026-08 v2 개편, GALLERY 최대 50장) —
@@ -132,6 +133,7 @@ export async function POST(request: Request) {
       tags: result.tags,
       category,
       sponsored,
+      lowQualityRisk: assessLowQualityRisk(result, sponsored),
       stockImages,
       aiImages,
     });
