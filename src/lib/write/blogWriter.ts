@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCategoryRuleText, getSponsorshipRuleText, type BlogCategory } from "./blogRules";
+import type { TopRankFormatProfile } from "./topRankFormat";
 
 const MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 8192;
@@ -186,7 +187,8 @@ async function callClaude(
   images: BlogWriterImage[],
   userText: string,
   category: BlogCategory,
-  sponsored: boolean
+  sponsored: boolean,
+  formatProfile: TopRankFormatProfile | null
 ): Promise<BlogWriterResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Missing environment variable: ANTHROPIC_API_KEY");
@@ -202,7 +204,16 @@ async function callClaude(
     ? `\n\n## 협찬 여부: 이 글은 협찬(광고비 또는 물품)을 받고 씁니다\n\n${getSponsorshipRuleText()}`
     : "";
 
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}`;
+  // 사용자 요청(2026-08) — 타겟 키워드를 입력하면 그 키워드로 네이버에서
+  // 검색되는 상위 블로그 글들의 "형태"(구조 통계)를 16개 유형 공통 기본
+  // 포맷으로 참고시킴. 절대 실제 문장은 안 주고 숫자만 준다 — 표절/저품질
+  // 위험을 스스로 만들지 않기 위함(lowQualityRisk.ts와 같은 원칙).
+  const formatSection =
+    formatProfile && formatProfile.sampleSize > 0
+      ? `\n\n## "${formatProfile.keyword}" 키워드 상위 노출 글 형태 참고 (실제 문장·내용 아님, 구조 통계만)\n\n네이버에서 이 키워드로 검색했을 때 상위에 노출되는 블로그 글 ${formatProfile.sampleSize}개를 분석한 평균 형태입니다:\n${formatProfile.avgCharCount != null ? `- 평균 글자수: 약 ${formatProfile.avgCharCount}자\n` : ""}${formatProfile.avgImageCount != null ? `- 평균 이미지 수: 약 ${formatProfile.avgImageCount}장\n` : ""}${formatProfile.avgQuoteCount != null ? `- 평균 인용구 수: 약 ${formatProfile.avgQuoteCount}개\n` : ""}${formatProfile.avgLinkCount != null ? `- 평균 링크 수: 약 ${formatProfile.avgLinkCount}개\n` : ""}\n이 분량·구성을 기본 기준으로 삼아 비슷하게(±20% 정도 여유) 맞춰서 쓰세요. **다만 이건 어디까지나 길이·구조 참고용 통계일 뿐, 실제 상위 노출 글의 문장이나 표현이 아닙니다 — 절대로 다른 글을 베끼거나 비슷하게 흉내 내지 말고, 완전히 새로운 내용과 표현으로 작성하세요.**`
+      : "";
+
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}${formatSection}`;
 
   const message = await anthropic.messages.create({
     model: MODEL,
@@ -228,9 +239,10 @@ export async function generateBlogPost(
   images: BlogWriterImage[],
   prompt: string,
   category: BlogCategory,
-  sponsored: boolean
+  sponsored: boolean,
+  formatProfile: TopRankFormatProfile | null = null
 ): Promise<BlogWriterResult> {
-  return callClaude(images, prompt, category, sponsored);
+  return callClaude(images, prompt, category, sponsored, formatProfile);
 }
 
 // 이미 생성된 글에 "제목을 더 짧게", "3번째 문단 빼줘" 같은 수정 요청을 반영해
@@ -244,7 +256,8 @@ export async function reviseBlogPost(
   previous: Pick<BlogWriterResult, "title" | "body" | "tags">,
   instruction: string,
   category: BlogCategory,
-  sponsored: boolean
+  sponsored: boolean,
+  formatProfile: TopRankFormatProfile | null = null
 ): Promise<BlogWriterResult> {
   const userText = `기존에 작성한 글입니다.
 
@@ -261,5 +274,5 @@ ${previous.body}
 배치, 나머지 문단, 톤 등)은 원래 내용을 최대한 그대로 유지하세요. 응답은 처음 글쓰기
 때와 똑같은 JSON 형식으로 하세요.`;
 
-  return callClaude(images, userText, category, sponsored);
+  return callClaude(images, userText, category, sponsored, formatProfile);
 }

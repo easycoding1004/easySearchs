@@ -7,6 +7,7 @@ import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
 import { assessLowQualityRisk } from "@/lib/write/lowQualityRisk";
+import { getTopRankFormatProfile } from "@/lib/write/topRankFormat";
 import { getErrorMessage } from "@/lib/utils/errors";
 
 // /api/write/route.ts와 동일한 근거(2026-08 v2 개편, GALLERY 최대 50장) —
@@ -16,6 +17,7 @@ const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB (원본 사진 1장 sanity cap
 const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB (원본 합계 sanity cap)
 const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_INSTRUCTION_LENGTH = 300;
+const MAX_KEYWORD_LENGTH = 50;
 // 최초 생성은 하루 1회 제한(§16)으로 막혀 있지만, 이미 생성한 그 글을 다듬는
 // 수정 요청까지 매번 새 "하루 1회"를 또 쓰게 하면 사실상 못 쓰는 기능이 됨 —
 // 그래서 수정 요청은 hasUsedToday와 별개로 취급하되, 무제한 재호출로 비용이
@@ -53,8 +55,11 @@ export async function POST(request: Request) {
   }
 
   // 협찬 여부도 최초 생성 때 정해진 걸 그대로 유지(재판단하지 않음) —
-  // category와 동일한 원칙(§CLAUDE.md 16.2).
+  // category와 동일한 원칙(§CLAUDE.md 16.2). 타겟 키워드도 마찬가지로
+  // 최초 생성 때 쓴 값을 그대로 다시 받아서 형태 참고를 유지함(캐시가
+  // 있어 재조회 비용은 거의 없음, topRankFormat.ts 참고).
   const sponsored = String(formData.get("sponsored") ?? "") === "true";
+  const keyword = String(formData.get("keyword") ?? "").trim().slice(0, MAX_KEYWORD_LENGTH);
 
   const revisionCount = Number(formData.get("revisionCount"));
   if (!Number.isInteger(revisionCount) || revisionCount < 0) {
@@ -122,7 +127,8 @@ export async function POST(request: Request) {
       mimeType: img.mimeType,
     }));
 
-    const result = await reviseBlogPost(images, previous, instruction, category, sponsored);
+    const formatProfile = keyword ? await getTopRankFormatProfile(keyword) : null;
+    const result = await reviseBlogPost(images, previous, instruction, category, sponsored, formatProfile);
 
     // 부가 기능(무료 스톡 이미지 추천 + AI 이미지 생성) — /api/write와 동일한
     // 계약(절대 throw 안 함, 병렬 실행).
@@ -140,6 +146,7 @@ export async function POST(request: Request) {
       category,
       sponsored,
       lowQualityRisk: assessLowQualityRisk(result, sponsored),
+      formatProfile,
       stockImages,
       aiImages,
     });

@@ -8,6 +8,7 @@ import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
 import { assessLowQualityRisk } from "@/lib/write/lowQualityRisk";
+import { getTopRankFormatProfile } from "@/lib/write/topRankFormat";
 import { createSseStream, SSE_HEADERS } from "@/lib/utils/sse";
 import { getErrorMessage } from "@/lib/utils/errors";
 
@@ -23,6 +24,7 @@ const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB (원본 합계 sanity 
 // 포함, base64는 원본 대비 약 4/3배). 30MB로 여유를 둠.
 const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 500;
+const MAX_KEYWORD_LENGTH = 50;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export async function POST(request: Request) {
@@ -56,6 +58,9 @@ export async function POST(request: Request) {
   if (!prompt) {
     return NextResponse.json({ error: "어떤 글을 원하는지 입력해 주세요." }, { status: 400 });
   }
+  // 선택 입력 — 있으면 그 키워드의 상위 노출 글 형태를 참고시킴(아래 SSE
+  // 흐름 참고). 없어도 글 생성 자체는 그대로 동작.
+  const keyword = String(formData.get("keyword") ?? "").trim().slice(0, MAX_KEYWORD_LENGTH);
 
   // 2026-08부터 유형은 자동 분류가 아니라 사용자가 16개 중 직접 선택
   // (§CLAUDE.md 16.2) — classifyCategory.ts는 삭제됨.
@@ -120,8 +125,17 @@ export async function POST(request: Request) {
         mimeType: img.mimeType,
       }));
 
+      // 타겟 키워드가 있으면 그 키워드 상위 노출 글의 "형태"(구조 통계만,
+      // 실제 문장은 안 씀 — blogWriter.ts 주석 참고)를 참고 자료로 붙임.
+      // 부가 기능이라 실패해도 null만 돌아오고 생성 자체는 계속됨.
+      let formatProfile = null;
+      if (keyword) {
+        send({ status: `"${keyword}" 상위 노출 글 형태를 분석하고 있어요...`, progress: 12 });
+        formatProfile = await getTopRankFormatProfile(keyword);
+      }
+
       send({ status: "AI가 글을 쓰고 있어요... (최대 1분 정도 걸려요)", progress: 20 });
-      const result = await generateBlogPost(images, prompt, category, sponsored);
+      const result = await generateBlogPost(images, prompt, category, sponsored, formatProfile);
       // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
       // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
       await markUsedToday(user.pageId);
@@ -140,6 +154,7 @@ export async function POST(request: Request) {
         category,
         sponsored,
         lowQualityRisk: assessLowQualityRisk(result, sponsored),
+        formatProfile,
         progress: 70,
       });
 

@@ -162,7 +162,7 @@ function extractTags(html: string): string[] {
   }
 }
 
-interface ContentStats {
+export interface ContentStats {
   charCount: number | null;
   imageCount: number | null;
   quoteCount: number | null;
@@ -254,6 +254,22 @@ export async function fetchPostTags(link: string): Promise<string[]> {
   const tags = extractTags(html);
   if (tags.length > 0) tagsCache.set(cacheKey, tags);
   return tags;
+}
+
+// 임의의 게시글 URL(다른 사람 블로그 포함) 하나의 본문 구조 통계만 필요할
+// 때용 — fetchPostAnalysis()는 "블로그 도메인 하나 → RSS로 최근 글 찾기"
+// 흐름이라 이미 URL을 알고 있는 경우(예: 블로그 검색 결과로 찾은 상위 노출
+// 글)엔 안 맞음. src/lib/write/topRankFormat.ts(AI 블로그 자동글쓰기의
+// "상위 노출 형태 참고" 기능, 2026-08 추가)가 씀 — 댓글·공감·공유수는 안
+// 구하고(그 기능엔 불필요) 본문 구조만 가볍게 가져옴.
+export async function fetchPostContentStats(link: string): Promise<ContentStats | null> {
+  const match = link.match(/blog\.naver\.com\/([a-zA-Z0-9_-]+)\/(\d+)/);
+  if (!match) return null;
+  const [, blogId, logNo] = match;
+
+  const html = await fetchText(`https://m.blog.naver.com/${blogId}/${logNo}`);
+  if (!html) return null;
+  return extractContentStats(html, blogId);
 }
 
 // 최근 게시물(RECENT_POST_SAMPLE개) 각각의 댓글·공감·공유·본문 구조 통계를

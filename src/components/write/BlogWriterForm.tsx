@@ -42,6 +42,7 @@ import PreviewModal from "@/components/write/PreviewModal";
 // 번들에 실수로 섞여 들어가지 않음(blogCategories.ts/blogRules.ts 분리와
 // 같은 원칙, §CLAUDE.md 16).
 import type { LowQualityAssessment } from "@/lib/write/lowQualityRisk";
+import type { TopRankFormatProfile } from "@/lib/write/topRankFormat";
 
 // 2026-08 추가(사용자 요청 — "레이아웃 수정(선택지 3개)") — 본문 블록 구조
 // (SLOT/GALLERY 배치)는 생성 시점에 Claude가 정한 그대로 고정돼 있어서,
@@ -98,6 +99,7 @@ interface WriteResult {
   stockImages: StockImage[];
   aiImages: (AiImage | null)[];
   lowQualityRisk: LowQualityAssessment;
+  formatProfile: TopRankFormatProfile | null;
 }
 
 // 텍스트/강조 인라인만 렌더링 — v2부터 이미지는 더 이상 인라인 토큰이 아니라
@@ -404,6 +406,11 @@ export default function BlogWriterForm({
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [prompt, setPrompt] = useState("");
+  // 2026-08 추가(사용자 요청 — "노출순위 높은 블로그를 스크래핑해서 16가지
+  // 형태의 기본 포맷으로 설정") — 선택 입력. 채우면 서버가 그 키워드의
+  // 네이버 상위 노출 블로그 글 형태(구조 통계만, 실제 문장 아님)를 참고해서
+  // 글의 분량·구성을 맞춤. 비워두면 이 기능 자체를 건너뜀.
+  const [keyword, setKeyword] = useState("");
   const [group, setGroup] = useState<BlogGroup | null>(null);
   const [category, setCategory] = useState<BlogCategory | null>(null);
   const [sponsored, setSponsored] = useState(false);
@@ -576,6 +583,7 @@ export default function BlogWriterForm({
       formData.set("prompt", prompt.trim());
       formData.set("category", category);
       formData.set("sponsored", String(sponsored));
+      formData.set("keyword", keyword.trim());
       for (const file of files) formData.append("images", file);
 
       const res = await fetch("/api/write", { method: "POST", body: formData });
@@ -604,6 +612,7 @@ export default function BlogWriterForm({
             stockImages: [],
             aiImages: [],
             lowQualityRisk: data.lowQualityRisk as LowQualityAssessment,
+            formatProfile: (data.formatProfile as TopRankFormatProfile | null) ?? null,
           });
           setProgress(null);
           setImagesLoading(true);
@@ -664,6 +673,7 @@ export default function BlogWriterForm({
       formData.set("instruction", revisionInstruction.trim());
       formData.set("category", result.category);
       formData.set("sponsored", String(result.sponsored));
+      formData.set("keyword", keyword.trim());
       formData.set("revisionCount", String(revisionCount));
       formData.set(
         "previousResult",
@@ -1172,6 +1182,23 @@ export default function BlogWriterForm({
             />
           </label>
 
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-ink">
+              타겟 키워드 <span className="font-normal text-ink-muted">(선택 — 상위 노출 글 형태를 참고해요)</span>
+            </span>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="예: 강남 카페 추천"
+              maxLength={50}
+              className="h-11 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
+              disabled={loading}
+            />
+            <span className="text-xs text-ink-muted">
+              이 키워드로 네이버에서 상위 노출되는 글들의 분량·구조(실제 문장은 절대 아님)를 참고해서 써드려요.
+            </span>
+          </label>
+
           {error && <p className="text-sm text-error">{error}</p>}
 
           {progress && (
@@ -1391,6 +1418,14 @@ export default function BlogWriterForm({
               <KeywordSeoGauge entries={seoData} loading={seoLoading} />
 
               <LowQualityRiskCard assessment={result.lowQualityRisk} />
+
+              {result.formatProfile && result.formatProfile.sampleSize > 0 && (
+                <p className="text-xs text-ink-muted">
+                  &quot;{result.formatProfile.keyword}&quot; 상위 노출 글 {result.formatProfile.sampleSize}개의
+                  평균 형태(글자수·이미지·인용구·링크 수)를 참고해서 분량과 구성을 맞췄어요 — 실제 문장은
+                  그대로 가져오지 않아요.
+                </p>
+              )}
 
               {result.stockImages.length > 0 && (
                 <div className="flex flex-col gap-2">

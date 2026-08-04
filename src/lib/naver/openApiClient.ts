@@ -134,7 +134,7 @@ async function naverSearch<T>(
 
 export async function searchBlog(
   query: string,
-  options: { sort?: "sim" | "date" } = {}
+  options: { sort?: "sim" | "date"; display?: number } = {}
 ): Promise<NaverSearchResult<BlogSearchItem>> {
   return naverSearch<BlogSearchItem>("blog.json", query, options);
 }
