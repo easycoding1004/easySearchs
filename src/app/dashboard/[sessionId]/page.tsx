@@ -30,6 +30,7 @@ import PanelSkeleton from "@/components/dashboard/PanelSkeleton";
 import DashboardTabs from "@/components/dashboard/DashboardTabs";
 import ExportableImage from "@/components/dashboard/ExportableImage";
 import EmbedBadgeCard from "@/components/dashboard/EmbedBadgeCard";
+import BoardPromptLink from "@/components/BoardPromptLink";
 
 export const dynamic = "force-dynamic";
 
@@ -300,6 +301,8 @@ export default async function BlogScoreResultPage({
           },
         ]}
       />
+
+      <BoardPromptLink />
     </main>
   );
 }

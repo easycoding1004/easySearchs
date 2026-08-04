@@ -6,13 +6,17 @@ import { stripPostBodyPreview } from "@/lib/board/parsePost";
 
 export const metadata: Metadata = {
   title: "게시판",
-  description: "이지서치 자유게시판 — 누구나 읽을 수 있고, 회원가입하면 글과 댓글을 남길 수 있어요.",
+  description: "이지서치 사용법을 묻고 답하는 게시판 — 누구나 읽을 수 있고, 회원가입하면 질문·답변을 남길 수 있어요.",
 };
 
 export const dynamic = "force-dynamic";
 
 // 2026-08 게시판(§CLAUDE.md 16) — 읽기는 로그인 없이 완전히 공개(개인
 // 도구/블로그지수와 같은 원칙), 쓰기만 회원 전용.
+// 2026-08 포지셔닝 조정(사용자 요청) — 범용 자유게시판보다 "이지서치
+// 사용법 Q&A"에 가깝게 문구를 다듬음(실제로 시드/실사용 게시글 대부분이
+// 이런 성격이라 §CLAUDE.md 18에도 같은 관찰이 적혀 있음). 자유롭게 다른
+// 글도 쓸 수 있는 기능 자체는 그대로 유지 — 프레이밍만 바꿈.
 export default async function BoardPage({
   searchParams,
 }: {
@@ -26,10 +30,15 @@ export default async function BoardPage({
       <SiteHeader />
       <main className="flex w-full flex-1 flex-col items-center gap-6 px-4 py-12 sm:px-6 sm:py-16">
         <div className="flex w-full max-w-2xl items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">게시판</h1>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">게시판</h1>
+            <p className="mt-1 text-sm text-ink-muted">
+              이지서치 사용법이 궁금하신가요? 다른 분들의 질문과 답변을 둘러보세요.
+            </p>
+          </div>
           <Link
             href="/board/write"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
+            className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-hover"
           >
             글쓰기
           </Link>

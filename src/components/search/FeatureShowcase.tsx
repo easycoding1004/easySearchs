@@ -20,6 +20,11 @@ interface ShowcaseTab {
   // AI 블로그 자동글쓰기만 로그인 필요(§CLAUDE.md 16) — CTA 버튼에 미리
   // 표시해서 눌렀다가 로그인 화면으로 튕기는 놀람을 줄임.
   membersOnly?: boolean;
+  // 2026-08 추가 — /keywords(업종별 인기 검색어)로 가는 내부 링크가 이
+  // 컴포넌트가 CategoryTopKeywordsPanel을 대체하면서 사라졌던 걸 복원
+  // (사용자 요청 — "/keywords 내부링크 복원"). 키워드 탭에서만 씀.
+  secondaryLabel?: string;
+  secondaryHref?: string;
 }
 
 function BarChartIllustration() {
@@ -109,6 +114,8 @@ const TABS: ShowcaseTab[] = [
     ctaLabel: "지금 검색하기",
     ctaHref: "#hero-search",
     illustration: <BarChartIllustration />,
+    secondaryLabel: "업종별 인기 검색어 보기",
+    secondaryHref: "/keywords",
   },
   {
     id: "blogscore",
@@ -194,13 +201,20 @@ export default function FeatureShowcase() {
               </li>
             ))}
           </ol>
-          <Link
-            href={active.ctaHref}
-            className="mt-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
-          >
-            {active.ctaLabel}
-            {active.membersOnly && <span className="font-normal text-white/80"> (회원 전용)</span>}
-          </Link>
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+            <Link
+              href={active.ctaHref}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+            >
+              {active.ctaLabel}
+              {active.membersOnly && <span className="font-normal text-white/80"> (회원 전용)</span>}
+            </Link>
+            {active.secondaryHref && active.secondaryLabel && (
+              <Link href={active.secondaryHref} className="text-xs font-medium text-ink-muted hover:text-primary">
+                {active.secondaryLabel} →
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </div>

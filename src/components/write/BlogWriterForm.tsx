@@ -393,10 +393,12 @@ function renderPreviewBlocks(
 export default function BlogWriterForm({
   email,
   hasUsedToday,
+  isAdmin,
   naverBlogId: initialNaverBlogId,
 }: {
   email: string;
   hasUsedToday: boolean;
+  isAdmin: boolean;
   naverBlogId: string;
 }) {
   const router = useRouter();
@@ -652,7 +654,7 @@ export default function BlogWriterForm({
   // /api/write와 별도 라우트라 하루 1회 제한과 무관하게 쓸 수 있지만, 대신
   // 이 글 하나당 MAX_REVISIONS번까지만 되도록 서버가 다시 검증함.
   async function handleRevise() {
-    if (!result || !revisionInstruction.trim() || revising || revisionCount >= MAX_REVISIONS) return;
+    if (!result || !revisionInstruction.trim() || revising || (!isAdmin && revisionCount >= MAX_REVISIONS)) return;
 
     setRevising(true);
     setRevisionError(null);
@@ -1424,7 +1426,7 @@ export default function BlogWriterForm({
 
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-semibold text-ink-muted">
-                  수정 요청 ({revisionCount}/{MAX_REVISIONS}회 사용) — 이 글에서 바꾸고 싶은 부분만 말씀해 주세요
+                  수정 요청 ({revisionCount}{isAdmin ? "회 사용" : `/${MAX_REVISIONS}회 사용`}) — 이 글에서 바꾸고 싶은 부분만 말씀해 주세요
                 </span>
                 <div className="flex gap-2">
                   <input
@@ -1432,19 +1434,19 @@ export default function BlogWriterForm({
                     onChange={(e) => setRevisionInstruction(e.target.value)}
                     placeholder="예: 제목을 더 짧게 해줘, 3번째 문단은 빼줘, 더 발랄한 톤으로"
                     maxLength={MAX_INSTRUCTION_LENGTH}
-                    disabled={revising || revisionCount >= MAX_REVISIONS}
+                    disabled={revising || (!isAdmin && revisionCount >= MAX_REVISIONS)}
                     className="flex-1 rounded-sm border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={handleRevise}
-                    disabled={revising || !revisionInstruction.trim() || revisionCount >= MAX_REVISIONS}
+                    disabled={revising || !revisionInstruction.trim() || (!isAdmin && revisionCount >= MAX_REVISIONS)}
                     className="shrink-0 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                   >
                     {revising ? "수정 중..." : "수정하기"}
                   </button>
                 </div>
-                {revisionCount >= MAX_REVISIONS && (
+                {!isAdmin && revisionCount >= MAX_REVISIONS && (
                   <p className="text-xs text-ink-muted">이 글은 수정 요청을 다 사용했어요. 다시 생성하면 초기화돼요.</p>
                 )}
                 {revisionError && <p className="text-sm text-error">{revisionError}</p>}

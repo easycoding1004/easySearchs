@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasUsedToday, markUsedToday } from "@/lib/notion/users";
 import { getCurrentUser } from "@/lib/auth/session";
+import { isAdminAuthed } from "@/lib/auth/adminAuth";
 import { generateBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";
@@ -24,11 +25,6 @@ const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 500;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
-// TEMP(사용자 요청, 2026-08 — v2 블록 포맷 작업 중이라 반복 테스트 필요):
-// 하루 1회 제한을 임시로 꺼둠. 복구 요청 오면 이 상수를 false로 되돌리고
-// src/app/write/page.tsx의 같은 이름 상수도 같이 되돌릴 것.
-const TEMP_DISABLE_DAILY_LIMIT = true;
-
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -37,8 +33,12 @@ export async function POST(request: Request) {
   if (!user.emailVerified) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
-  // 유료 API 남용 방지 — 계정당 하루 1회로 제한 (CLAUDE.md §16).
-  if (!TEMP_DISABLE_DAILY_LIMIT && hasUsedToday(user)) {
+  // 유료 API 남용 방지 — 계정당 하루 1회로 제한 (CLAUDE.md §16). 관리자
+  // (/admin 비밀번호 쿠키 — 게시판 관리자 권한과 같은 정의, §18.6.1)는
+  // 이 제한에서 제외해서 계속 테스트·시연용으로 쓸 수 있게 함(2026-08,
+  // 사용자 요청).
+  const admin = await isAdminAuthed();
+  if (!admin && hasUsedToday(user)) {
     return NextResponse.json(
       { error: "오늘은 이미 사용하셨어요. 내일 다시 시도해 주세요." },
       { status: 429 }

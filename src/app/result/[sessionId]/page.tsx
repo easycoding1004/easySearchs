@@ -5,6 +5,7 @@ import SearchTrendPanel from "@/components/search/SearchTrendPanel";
 import KeywordAudiencePanel from "@/components/search/KeywordAudiencePanel";
 import ShareResultButton from "@/components/search/ShareResultButton";
 import SiteHeader from "@/components/SiteHeader";
+import BoardPromptLink from "@/components/BoardPromptLink";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";
 import { KEYWORD_KIND } from "@/lib/notion/schema";
@@ -66,6 +67,7 @@ export default async function ResultPage({
         <KeywordTable records={records} />
         <SearchTrendPanel sessionId={sessionId} />
         {seedKeyword && <KeywordAudiencePanel keyword={seedKeyword} />}
+        <BoardPromptLink />
       </main>
     </div>
   );
