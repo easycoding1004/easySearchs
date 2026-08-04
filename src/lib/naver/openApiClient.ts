@@ -27,6 +27,18 @@ export interface LocalSearchItem {
   mapy: string;
 }
 
+// 2026-08 추가(§16 "web_search 비용 절감" — Claude의 유료 web_search 도구 대신
+// 무료 네이버 뉴스검색으로 시간 민감 정보를 사전 검색하기 위함, src/lib/write/
+// newsGrounding.ts에서 사용). 필드는 실제 API를 직접 호출해 실측 확인함(문서
+// 사이트가 이 환경에서 fetch 차단돼 있어서) — blog/cafe와 같은 wrapper 구조.
+export interface NewsSearchItem {
+  title: string;
+  originallink: string;
+  link: string;
+  description: string;
+  pubDate: string;
+}
+
 export interface NaverSearchResult<T> {
   items: T[];
   total: number;
@@ -152,4 +164,11 @@ export async function searchLocal(
     display: MAX_LOCAL_DISPLAY,
     sort: "random",
   });
+}
+
+export async function searchNews(
+  query: string,
+  options: { sort?: "sim" | "date"; display?: number } = {}
+): Promise<NaverSearchResult<NewsSearchItem>> {
+  return naverSearch<NewsSearchItem>("news.json", query, options);
 }
