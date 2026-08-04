@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForms from "@/components/AuthForms";
 import BlogWriterForm from "@/components/write/BlogWriterForm";
+import SpeedyWritePromo from "@/components/write/SpeedyWritePromo";
 import { getCurrentUser } from "@/lib/auth/session";
 import { hasUsedToday } from "@/lib/notion/users";
 
@@ -25,6 +26,8 @@ export default async function WritePage() {
     <div className="flex flex-1 flex-col items-center font-sans">
       <SiteHeader />
       <main className="flex w-full flex-1 flex-col items-center gap-6 px-4 py-16 sm:px-6 sm:py-20">
+        <SpeedyWritePromo />
+
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
             AI 블로그 자동글쓰기
