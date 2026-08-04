@@ -128,19 +128,25 @@ export const SUBSCRIBER_PROPS = {
   unsubscribeToken: "구독해지토큰",
 } as const;
 
-// AI 블로그 글쓰기(`/write`)용 계정 — 로그인 없는 이 사이트에서 유일하게 계정이
-// 필요한 기능(CLAUDE.md §16: 유료 Claude API 남용 방지 목적). 비밀번호는
-// bcrypt 해시만 저장, 평문 저장 안 함. sessionToken은 로그인 시 매번 새로
-// 발급(1계정 1세션만 유지 — 여러 기기 동시 로그인 지원 안 함, MVP 범위).
-// authProvider/providerId는 네이버·카카오 소셜 로그인용(2026-07 추가) —
-// 소셜 로그인은 발급처가 이미 신원을 확인한 것이라 emailVerified가 가입
-// 즉시 true로 세팅됨(별도 인증 메일 없음). providerId로 재로그인 시 계정을
+// AI 블로그 글쓰기(`/write`)·게시판용 계정 — 로그인 없는 이 사이트에서
+// 유일하게 계정이 필요한 기능들(CLAUDE.md §16: 유료 Claude API 남용 방지
+// 목적). sessionToken은 로그인 시 매번 새로 발급(1계정 1세션만 유지 — 여러
+// 기기 동시 로그인 지원 안 함, MVP 범위). authProvider/providerId는
+// 네이버·카카오·구글 소셜 로그인용 — 발급처가 이미 신원을 확인한 것이라
+// emailVerified가 가입 즉시 true로 세팅됨. providerId로 재로그인 시 계정을
 // 찾음(이메일이 안 바뀌어도, 혹은 제공 안 돼도 안전하게 매칭하기 위함).
+// **2026-08부터 이메일+비밀번호 가입/로그인은 완전히 제거되고 소셜 로그인
+// 3종만 남음**(사용자 요청 — 소셜은 이미 이메일 인증 없이 바로 가입되는데
+// 이메일+비밀번호만 별도 인증 절차를 거치게 하는 게 일관성이 없다는 이유,
+// `src/lib/auth/session.ts`·`src/lib/notion/users.ts` 참고) — `비밀번호해시`/
+// `인증토큰` 두 속성은 이제 아무 코드도 안 쓰지만, Notion 컬럼 자체는
+// additive-only 원칙에 따라 그대로 남겨둠(레거시, 옛 이메일+비밀번호 계정의
+// 흔적일 뿐).
 export const USER_PROPS = {
   title: "이메일",
-  passwordHash: "비밀번호해시",
+  passwordHash: "비밀번호해시", // 레거시, 더 이상 안 씀
   emailVerified: "이메일인증됨",
-  verificationToken: "인증토큰",
+  verificationToken: "인증토큰", // 레거시, 더 이상 안 씀
   sessionToken: "세션토큰",
   sessionIssuedAt: "세션발급일시",
   lastUsedAt: "마지막사용일",

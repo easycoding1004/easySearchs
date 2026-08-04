@@ -95,26 +95,6 @@ function parseUser(page: PageObjectResponse): User {
   };
 }
 
-export async function findUserByEmail(email: string): Promise<User | null> {
-  const res = await notion.dataSources.query({
-    data_source_id: usersDataSourceId(),
-    filter: { property: USER_PROPS.title, title: { equals: email } },
-    page_size: 1,
-  });
-  const page = res.results.find(isFullPage);
-  return page ? parseUser(page) : null;
-}
-
-export async function findUserByVerificationToken(token: string): Promise<User | null> {
-  const res = await notion.dataSources.query({
-    data_source_id: usersDataSourceId(),
-    filter: { property: USER_PROPS.verificationToken, rich_text: { equals: token } },
-    page_size: 1,
-  });
-  const page = res.results.find(isFullPage);
-  return page ? parseUser(page) : null;
-}
-
 export async function findUserBySessionToken(token: string): Promise<User | null> {
   if (!token) return null;
   const res = await notion.dataSources.query({
@@ -146,34 +126,10 @@ export async function findUserByProvider(
   return page ? parseUser(page) : null;
 }
 
-// Returns the raw verification token so the caller (signup route) can email
-// it — Notion is the source of truth, this function doesn't send mail itself.
-export async function createUser(email: string, passwordHash: string): Promise<string> {
-  const verificationToken = randomUUID();
-  await notion.pages.create({
-    parent: { type: "data_source_id", data_source_id: usersDataSourceId() },
-    properties: {
-      [USER_PROPS.title]: { type: "title", title: [{ type: "text", text: { content: email } }] },
-      [USER_PROPS.passwordHash]: {
-        type: "rich_text",
-        rich_text: [{ type: "text", text: { content: passwordHash } }],
-      },
-      [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: false },
-      [USER_PROPS.verificationToken]: {
-        type: "rich_text",
-        rich_text: [{ type: "text", text: { content: verificationToken } }],
-      },
-      [USER_PROPS.authProvider]: { type: "select", select: { name: AUTH_PROVIDER.email } },
-      [USER_PROPS.createdAt]: { type: "date", date: { start: new Date().toISOString() } },
-    },
-  });
-  return verificationToken;
-}
-
-// 네이버/카카오 로그인 — 발급처가 이미 신원을 확인했으므로 emailVerified를
-// 바로 true로 세팅하고 별도 인증 메일을 안 보냄. 비밀번호 자체가 없는
-// 계정이라 passwordHash는 빈 문자열로 둠(로그인 라우트가 이메일+비밀번호
-// 계정과 구분해서 처리). 반환값은 세션 발급까지 바로 이어갈 수 있게 pageId.
+// 네이버/카카오/구글 로그인 — 발급처가 이미 신원을 확인했으므로 emailVerified를
+// 바로 true로 세팅하고 별도 인증 메일을 안 보냄. 비밀번호 로그인 자체가
+// 없어졌으니(2026-08) passwordHash는 항상 빈 문자열. 반환값은 세션 발급까지
+// 바로 이어갈 수 있게 pageId.
 export async function createSocialUser(
   email: string,
   provider: AuthProviderValue,
@@ -190,17 +146,6 @@ export async function createSocialUser(
     },
   });
   return page.id;
-}
-
-export async function markEmailVerified(pageId: string): Promise<void> {
-  await notion.pages.update({
-    page_id: pageId,
-    properties: {
-      [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: true },
-      // Consumed once — a stale verification link shouldn't keep working.
-      [USER_PROPS.verificationToken]: { type: "rich_text", rich_text: [] },
-    },
-  });
 }
 
 // One active session per account (MVP scope — logging in again elsewhere
