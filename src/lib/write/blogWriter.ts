@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCategoryRuleText, getSponsorshipRuleText, type BlogCategory } from "./blogRules";
 import type { TopRankFormatProfile } from "./topRankFormat";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 8192;
@@ -38,6 +39,12 @@ const SYSTEM_PROMPT = `당신은 네이버 블로그에 익숙한 한국어 블�
   감싸세요. 문단마다 많아야 1~2곳 — 남발하면 오히려 안 읽힙니다.
 - **저품질 판정을 피하기 위한 구체적 지침은 아래에 첨부되는 "저품질 방지 심층 가이드"를
   반드시 따르세요** (도입부·마무리 패턴, 1인칭 경험, 구조화 요소 등).
+- **최신 정보가 필요한 내용(가격·요금, 최근 트렌드, 현재 진행 중인 이벤트·시즌, 통계 수치,
+  뉴스성 사실, "요즘"/"최근"/"올해" 같은 시간 표현이 들어가는 서술 등)은 절대 학습된
+  지식만으로 추측해서 쓰지 마세요.** 아래 안내된 오늘 날짜를 기준으로 판단하고, 확실하지
+  않거나 시점에 따라 달라질 수 있는 사실은 제공된 웹 검색 도구로 실제로 검색해서 확인한
+  뒤에 반영하세요. 검색해도 확실한 최신 정보를 못 찾았다면, 지어내지 말고 그 부분은
+  구체적 수치·시점 대신 일반적인 표현으로 돌려 쓰세요.
 
 ## 블록 마크업 (이미지·영상·인용구·구분선·표·장소·링크)
 
@@ -209,26 +216,65 @@ async function callClaude(
       ? `\n\n## "${formatProfile.keyword}" 키워드 상위 노출 글 형태 참고 (실제 문장·내용 아님, 구조 통계만)\n\n네이버에서 이 키워드로 검색했을 때 상위에 노출되는 블로그 글 ${formatProfile.sampleSize}개를 분석한 평균 형태입니다:\n${formatProfile.avgCharCount != null ? `- 평균 글자수: 약 ${formatProfile.avgCharCount}자\n` : ""}${formatProfile.avgImageCount != null ? `- 평균 이미지 수: 약 ${formatProfile.avgImageCount}장\n` : ""}${formatProfile.avgQuoteCount != null ? `- 평균 인용구 수: 약 ${formatProfile.avgQuoteCount}개\n` : ""}${formatProfile.avgLinkCount != null ? `- 평균 링크 수: 약 ${formatProfile.avgLinkCount}개\n` : ""}\n이 분량·구성을 기본 기준으로 삼아 비슷하게(±20% 정도 여유) 맞춰서 쓰세요. **다만 이건 어디까지나 길이·구조 참고용 통계일 뿐, 실제 상위 노출 글의 문장이나 표현이 아닙니다 — 절대로 다른 글을 베끼거나 비슷하게 흉내 내지 말고, 완전히 새로운 내용과 표현으로 작성하세요.**`
       : "";
 
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}${formatSection}`;
+  // 2026-08 추가(사용자 신고 — "2~3년 전 정보를 보여주는 경우가 많다") — 원인은
+  // 두 가지였음: ① 프롬프트에 오늘 날짜가 전혀 없어서 모델이 "최근"/"올해" 같은
+  // 상대 시점을 판단할 기준이 없었음, ② 실시간 데이터 소스가 전혀 없어서 학습
+  // 시점 지식에만 의존했음. ①은 날짜만이 아니라 요청 시각(시:분)까지 주입 —
+  // 사용자 요청(2026-08, "명령 시간 정보까지 같이 주입") — 시즌/시간대별 문구
+  // ("아침엔"/"저녁 방문"/"주말에만")까지 정확히 판단하려면 날짜만으로는
+  // 부족해서임. ②는 아래 web_search 서버사이드 도구(모델이 필요하다 판단할
+  // 때만 호출 — tool_choice 기본값 auto)로 해결.
+  const dateSection = `\n\n## 지금 시각\n\n지금은 ${formatKstDateTime(Date.now())}(한국시간)입니다. 시간 관련 표현이나 최신 정보 판단은 이 시각을 기준으로 하세요.`;
 
-  const message = await anthropic.messages.create({
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}${formatSection}${dateSection}`;
+
+  // 2026-08 상한 해제(사용자 요청 — "16가지 모든 포멧도 검색이 필요하면 그만큼
+  // 비용을 지불하도록") — 원래 max_uses:3으로 낮게 잡아뒀던 걸 제거함. 여전히
+  // tool_choice 기본값이 auto라 모델이 실제로 필요하다고 판단할 때만 검색을
+  // 부르므로(에세이형처럼 시간 민감 정보가 없는 글은 여전히 검색 자체를 안 함) —
+  // 상한 제거는 "검색이 실제로 필요한 경우에 도중에 끊기지 않게" 하는 효과.
+  // Anthropic 서버사이드 web_search 루프는 자체적으로 기본 10회 iteration
+  // 상한이 있어서(우리가 건드릴 수 없음), 그 상한에 닿으면 stop_reason이
+  // "pause_turn"으로 오고 그 시점까지의 응답엔 아직 최종 JSON이 없을 수 있음 —
+  // 그래서 이전 턴을 그대로 이어붙여 재요청하는 방식으로 재개해야 함(문서 지시:
+  // "Continue" 같은 새 user 메시지를 추가하지 말 것, 응답 content를 그대로
+  // 다시 보내면 서버가 이어서 진행함). MAX_CONTINUATIONS는 검색 횟수 제한이
+  // 아니라 순수 무한루프 방지용 안전장치.
+  const MAX_CONTINUATIONS = 5;
+  const tools: Anthropic.ToolUnion[] = [{ type: "web_search_20260209", name: "web_search" }];
+  let messages: Anthropic.MessageParam[] = [
+    { role: "user", content: [...imageBlocks, { type: "text", text: userText }] },
+  ];
+  let message: Anthropic.Message = await anthropic.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
     system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: [...imageBlocks, { type: "text", text: userText }],
-      },
-    ],
+    tools,
+    messages,
   });
+  for (let i = 0; i < MAX_CONTINUATIONS && message.stop_reason === "pause_turn"; i++) {
+    messages = [...messages, { role: "assistant", content: message.content }];
+    message = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: systemPrompt,
+      tools,
+      messages,
+    });
+  }
 
-  const textBlock = message.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
+  // web_search가 개입하면 응답에 text 블록이 여러 개(검색 전후 설명 등) 섞여
+  // 나올 수 있어서, 첫 블록이 아니라 마지막 text 블록(최종 JSON 응답)을 찾아야 함
+  // — 이전엔 검색 도구가 없어 항상 text 블록이 하나뿐이라 find()로 충분했음.
+  const textBlocks = message.content.filter(
+    (block): block is Anthropic.TextBlock => block.type === "text"
+  );
+  const lastTextBlock = textBlocks[textBlocks.length - 1];
+  if (!lastTextBlock) {
     throw new Error("Claude 응답에서 텍스트를 찾을 수 없습니다.");
   }
 
-  return parseResult(textBlock.text, images.length);
+  return parseResult(lastTextBlock.text, images.length);
 }
 
 export async function generateBlogPost(
