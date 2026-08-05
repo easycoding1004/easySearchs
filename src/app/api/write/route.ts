@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { hasUsedToday, markUsedToday } from "@/lib/notion/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
-import { generateBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
-import { isBlogCategory } from "@/lib/write/blogCategories";
+import { generateBlogPost, type BlogWriterImage, type StyleReference } from "@/lib/write/blogWriter";
+import { isBlogCategory, type BlogCategory } from "@/lib/write/blogCategories";
+import { getWriteHistoryForUser } from "@/lib/notion/writeHistory";
 import { compressImage } from "@/lib/write/compressImage";
 import { searchStockImages } from "@/lib/write/imageSearch";
 import { generateAiImages } from "@/lib/write/generateAiImages";
@@ -26,6 +27,22 @@ const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 500;
 const MAX_KEYWORD_LENGTH = 50;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+// 2026-08 추가(사용자 요청 — "게시에 적용한 글들을 히스토리로 저장하고, 그걸
+// 기반으로 앞으로 스타일을 미리 정해줬으면") — 같은 유형으로 확정했던 과거
+// 글이 있으면 그걸 우선 참고시키고(유형마다 톤이 크게 달라서), 없으면 전체
+// 히스토리 중 가장 최근 글로 대체함. 부가 기능이라 Notion 조회가 실패해도
+// 절대 throw 안 하고 null만 반환 — 스타일 참고가 없어도 글 생성 자체는
+// 그대로 진행됨(topRankFormat.ts/imageSearch.ts와 같은 원칙).
+async function getStyleReference(userId: string, category: BlogCategory): Promise<StyleReference | null> {
+  try {
+    const sameCategory = await getWriteHistoryForUser(userId, { category, limit: 1 });
+    const entry = sameCategory[0] ?? (await getWriteHistoryForUser(userId, { limit: 1 }))[0];
+    return entry ? { title: entry.title, body: entry.body } : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -134,8 +151,10 @@ export async function POST(request: Request) {
         formatProfile = await getTopRankFormatProfile(keyword);
       }
 
+      const styleReference = await getStyleReference(user.pageId, category);
+
       send({ status: "AI가 글을 쓰고 있어요... (최대 1분 정도 걸려요)", progress: 20 });
-      const result = await generateBlogPost(images, prompt, category, sponsored, formatProfile);
+      const result = await generateBlogPost(images, prompt, category, sponsored, formatProfile, styleReference);
       // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
       // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
       await markUsedToday(user.pageId);

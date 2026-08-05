@@ -50,7 +50,7 @@ import type { TopRankFormatProfile } from "@/lib/write/topRankFormat";
 // 미리보기에 즉시 반영). 사진은 애초에 붙여넣기/확장 전송에 실리지 않으므로
 // (§CLAUDE.md 16) HTML 문자열 렌더러(parseBody.ts)는 건드리지 않고 이 파일의
 // React 미리보기 렌더러에만 적용한다.
-type LayoutPreset = "표준형" | "매거진형" | "미니멀형";
+export type LayoutPreset = "표준형" | "매거진형" | "미니멀형";
 const LAYOUT_PRESET_OPTIONS: LayoutPreset[] = ["표준형", "매거진형", "미니멀형"];
 
 function layoutBodyGapClass(layout: LayoutPreset): string {
@@ -75,6 +75,17 @@ const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB
 // 새는 걸 막는 상한. 새로 생성하면(handleSubmit) 0으로 초기화됨.
 const MAX_REVISIONS = 5;
 const MAX_INSTRUCTION_LENGTH = 300;
+
+// 2026-08 추가(사용자 요청 — "게시에 적용한 글을 기반으로 앞으로 스타일을
+// 미리 정해줬으면") — write/page.tsx가 이 사용자의 가장 최근 히스토리 1건에서
+// 뽑아 서버에서 미리 계산해 넘겨주는 스타일 기본값. 히스토리가 없으면 전부
+// null/기본값이라 지금까지의 하드코딩된 초기값과 동일하게 동작함.
+export interface InitialStyleDefaults {
+  stylePreset: StylePreset | null;
+  layout: LayoutPreset;
+  accentColor: string | null;
+  font: FontChoice | null;
+}
 
 interface StockImage {
   query: string;
@@ -397,11 +408,13 @@ export default function BlogWriterForm({
   hasUsedToday,
   isAdmin,
   naverBlogId: initialNaverBlogId,
+  initialStyleDefaults,
 }: {
   email: string;
   hasUsedToday: boolean;
   isAdmin: boolean;
   naverBlogId: string;
+  initialStyleDefaults?: InitialStyleDefaults;
 }) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
@@ -417,15 +430,17 @@ export default function BlogWriterForm({
   // 2026-08 추가 — 유형 선택과 별개로 색상·폰트를 직접 고를 수 있는 선택
   // 사항. null이면 유형 기본값을 그대로 씀. 순수 렌더링 설정이라(Claude에
   // 보내는 프롬프트와 무관) 결과가 이미 생성된 뒤에 바꿔도 재생성 없이
-  // 바로 미리보기에 반영됨.
-  const [customAccent, setCustomAccent] = useState<string | null>(null);
-  const [customFont, setCustomFont] = useState<FontChoice | null>(null);
+  // 바로 미리보기에 반영됨. 초기값은 initialStyleDefaults(과거 히스토리
+  // 기반 — 없으면 전부 null/기본값)에서 가져와 "스타일을 미리 정해줌"을
+  // 구현함(2026-08, 사용자 요청).
+  const [customAccent, setCustomAccent] = useState<string | null>(initialStyleDefaults?.accentColor ?? null);
+  const [customFont, setCustomFont] = useState<FontChoice | null>(initialStyleDefaults?.font ?? null);
   // 2026-08 추가(사용자 요청 — "워드프레스나 티스토리 스타일 선택") — 색상·
   // 폰트와 마찬가지로 순수 렌더링 오버라이드, 재생성 없이 미리보기에 바로 반영됨.
-  const [stylePreset, setStylePreset] = useState<StylePreset | null>(null);
+  const [stylePreset, setStylePreset] = useState<StylePreset | null>(initialStyleDefaults?.stylePreset ?? null);
   // 2026-08 추가(사용자 요청 — "레이아웃 수정(선택지 3개)") — 본문 구조는
   // 그대로 두고 렌더링 방식만 바꾸는 프리셋(위 LAYOUT_PRESET_OPTIONS 참고).
-  const [layout, setLayout] = useState<LayoutPreset>("표준형");
+  const [layout, setLayout] = useState<LayoutPreset>(initialStyleDefaults?.layout ?? "표준형");
   // 2026-08 추가(사용자 요청 — "최종 수정후 선택 하는 구조로 변경") — 결과가
   // 나오면 우선 "조정 모드"(스타일·레이아웃·사진 순서·수정 요청·SEO 게이지)로
   // 시작하고, 사용자가 명시적으로 확정해야 복사·확장 전송 버튼이 있는 최종
@@ -731,6 +746,35 @@ export default function BlogWriterForm({
     } catch {
       // Clipboard access blocked — no feedback to show.
     }
+  }
+
+  // 2026-08 추가(사용자 요청 — "게시에 적용한 글들을 히스토리로 저장") — "이
+  // 버전으로 확정하기"를 눌러야 복사/확장전송/네이버열기 버튼이 있는 확정
+  // 화면으로 넘어가므로, 이 클릭을 "실제로 쓸 글을 정했다"는 신호로 보고
+  // 히스토리에 저장한다. fire-and-forget — 저장이 실패해도(로그만 남김)
+  // 확정 화면 전환 자체는 항상 진행됨(사용자 흐름을 막지 않음, naver-blog-id
+  // 저장과 같은 원칙).
+  function handleFinalize() {
+    setFinalized(true);
+    if (!result) return;
+    const theme = resolveTheme(result.category);
+    fetch("/api/write/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: result.title,
+        body: result.body,
+        tags: result.tags,
+        category: result.category,
+        sponsored: result.sponsored,
+        stylePreset,
+        layout,
+        accentColor: customAccent ?? theme.accent,
+        font: customFont,
+      }),
+    }).catch(() => {
+      // 무시 — 히스토리 저장은 부가 기능, 실패해도 사용자에게 알리지 않음.
+    });
   }
 
   // 네이버 에디터에 붙여넣을 때 굵게/소제목/목록 서식이 살아 있도록 text/html도
@@ -1489,7 +1533,7 @@ export default function BlogWriterForm({
 
               <button
                 type="button"
-                onClick={() => setFinalized(true)}
+                onClick={handleFinalize}
                 className="h-11 rounded-md bg-primary px-5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
               >
                 이 버전으로 확정하기

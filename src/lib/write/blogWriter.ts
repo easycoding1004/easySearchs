@@ -130,6 +130,13 @@ export interface BlogWriterResult {
   aiImagePrompts: string[];
 }
 
+// 새 글 생성 시 문체 참고용으로 넘기는, 이 사용자가 과거에 실제로 확정해서
+// 쓴 글 1건(§CLAUDE.md 16 "AI 글쓰기 히스토리" 참고).
+export interface StyleReference {
+  title: string;
+  body: string;
+}
+
 // 사용자 요청(2026-07): 제목에 광고·협찬 표기가 남지 않게 해달라는 요청 —
 // 시스템 프롬프트로 지시했지만 모델이 가끔 놓칠 수 있어 방어적으로 한 번 더
 // 걷어냄. 협찬 표기는(협찬 토글이 켜졌을 때만) 본문 첫 줄에만 넣도록
@@ -239,7 +246,8 @@ async function callClaude(
   category: BlogCategory,
   sponsored: boolean,
   formatProfile: TopRankFormatProfile | null,
-  searchQuery: string
+  searchQuery: string,
+  styleReference: StyleReference | null
 ): Promise<BlogWriterResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Missing environment variable: ANTHROPIC_API_KEY");
@@ -264,6 +272,19 @@ async function callClaude(
       ? `\n\n## "${formatProfile.keyword}" 키워드 상위 노출 글 형태 참고 (실제 문장·내용 아님, 구조 통계만)\n\n네이버에서 이 키워드로 검색했을 때 상위에 노출되는 블로그 글 ${formatProfile.sampleSize}개를 분석한 평균 형태입니다:\n${formatProfile.avgCharCount != null ? `- 평균 글자수: 약 ${formatProfile.avgCharCount}자\n` : ""}${formatProfile.avgImageCount != null ? `- 평균 이미지 수: 약 ${formatProfile.avgImageCount}장\n` : ""}${formatProfile.avgQuoteCount != null ? `- 평균 인용구 수: 약 ${formatProfile.avgQuoteCount}개\n` : ""}${formatProfile.avgLinkCount != null ? `- 평균 링크 수: 약 ${formatProfile.avgLinkCount}개\n` : ""}\n이 분량·구성을 기본 기준으로 삼아 비슷하게(±20% 정도 여유) 맞춰서 쓰세요. **다만 이건 어디까지나 길이·구조 참고용 통계일 뿐, 실제 상위 노출 글의 문장이나 표현이 아닙니다 — 절대로 다른 글을 베끼거나 비슷하게 흉내 내지 말고, 완전히 새로운 내용과 표현으로 작성하세요.**`
       : "";
 
+  // 2026-08 추가(사용자 요청 — "게시에 적용한 글들을 히스토리로 저장하고,
+  // 그걸 기반으로 앞으로 스타일을 미리 정해줬으면") — 이 사용자가 과거에
+  // 실제로 확정해서 쓴 글(styleReference, /api/write/route.ts가 같은 유형의
+  // 최근 히스토리 1건을 미리 조회해서 넘겨줌)이 있으면 어투·문장 습관 참고용
+  // 예시로 첨부함. 수정 요청(reviseBlogPost)에는 안 씀 — 이미 직전에 쓴 글
+  // 본문 자체가 맥락으로 들어가 있어서 중복.
+  const styleReferenceSection = styleReference
+    ? `\n\n## 이 사용자의 최근 글 문체 참고 (실제로 확정해서 쓴 글)\n\n제목: ${styleReference.title}\n\n${styleReference.body.slice(
+        0,
+        800
+      )}\n\n위 글은 이 사용자가 최근 실제로 완성해서 사용한 글입니다. 어투·문장 습관·분위기를 참고해서 비슷한 느낌으로 쓰되, 내용은 이번 요청에 맞게 완전히 새로 작성하고 위 글을 그대로 베끼지 마세요.`
+    : "";
+
   // 2026-08 추가(사용자 신고 — "2~3년 전 정보를 보여주는 경우가 많다") — 프롬프트에
   // 오늘 날짜가 전혀 없어서 모델이 "최근"/"올해" 같은 상대 시점을 판단할 기준이
   // 없었음. 날짜만이 아니라 요청 시각(시:분)까지 주입 — 사용자 요청(2026-08,
@@ -286,7 +307,7 @@ async function callClaude(
         : "이번 요청에는 시간 민감 정보가 많이 필요해 보이지 않아 별도로 검색하지 않았습니다."
     } 시점에 따라 달라질 수 있는 구체적 수치·사실은 지어내지 말고 일반적인 표현으로 돌려 쓰세요.`;
 
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}${formatSection}${dateSection}${groundingSection}`;
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n## 선택된 글 유형: ${category}\n\n${getCategoryRuleText(category)}${sponsorshipSection}${formatSection}${styleReferenceSection}${dateSection}${groundingSection}`;
 
   const message = await anthropic.messages.create({
     model: MODEL,
@@ -316,9 +337,10 @@ export async function generateBlogPost(
   prompt: string,
   category: BlogCategory,
   sponsored: boolean,
-  formatProfile: TopRankFormatProfile | null = null
+  formatProfile: TopRankFormatProfile | null = null,
+  styleReference: StyleReference | null = null
 ): Promise<BlogWriterResult> {
-  return callClaude(images, prompt, category, sponsored, formatProfile, prompt);
+  return callClaude(images, prompt, category, sponsored, formatProfile, prompt, styleReference);
 }
 
 // 이미 생성된 글에 "제목을 더 짧게", "3번째 문단 빼줘" 같은 수정 요청을 반영해
@@ -352,6 +374,7 @@ ${previous.body}
 
   // 검색 쿼리는 이 큰 userText 전체가 아니라 instruction(사용자가 방금 요청한
   // 수정 내용)만 씀 — "기존 글 전체 + 수정 요청"을 통째로 뉴스검색 쿼리로
-  // 보내면 본문 문장이 섞여 들어가 검색 관련도가 떨어짐.
-  return callClaude(images, userText, category, sponsored, formatProfile, instruction);
+  // 보내면 본문 문장이 섞여 들어가 검색 관련도가 떨어짐. styleReference는 항상
+  // null — 직전에 쓴 글 본문 자체가 이미 userText에 들어가 있어 중복.
+  return callClaude(images, userText, category, sponsored, formatProfile, instruction, null);
 }

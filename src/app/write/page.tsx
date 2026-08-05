@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForms from "@/components/AuthForms";
-import BlogWriterForm from "@/components/write/BlogWriterForm";
+import BlogWriterForm, { type InitialStyleDefaults, type LayoutPreset } from "@/components/write/BlogWriterForm";
 import SpeedyWritePromo from "@/components/write/SpeedyWritePromo";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
 import { hasUsedToday } from "@/lib/notion/users";
+import { getWriteHistoryForUser } from "@/lib/notion/writeHistory";
 
 export const metadata: Metadata = {
   title: "AI 블로그 자동글쓰기",
@@ -15,8 +17,28 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+// 2026-08 추가(사용자 요청 — "게시에 적용한 글을 기반으로 앞으로 스타일을
+// 미리 정해줬으면") — 가장 최근 히스토리 1건에서 스타일 설정을 뽑아 폼 초기값으로
+// 넘김. 부가 기능이라 Notion 조회가 실패해도 페이지 렌더링 자체는 막지 않음
+// (undefined를 반환하면 BlogWriterForm이 기존 하드코딩 기본값을 그대로 씀).
+async function getInitialStyleDefaults(userId: string): Promise<InitialStyleDefaults | undefined> {
+  try {
+    const [latest] = await getWriteHistoryForUser(userId, { limit: 1 });
+    if (!latest) return undefined;
+    return {
+      stylePreset: latest.stylePreset,
+      layout: latest.layout as LayoutPreset,
+      accentColor: latest.accentColor,
+      font: latest.font,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function WritePage() {
   const [user, admin] = await Promise.all([getCurrentUser(), isAdminAuthed()]);
+  const initialStyleDefaults = user ? await getInitialStyleDefaults(user.pageId) : undefined;
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -34,12 +56,18 @@ export default async function WritePage() {
         </div>
 
         {user && user.emailVerified ? (
-          <BlogWriterForm
-            email={user.email}
-            hasUsedToday={!admin && hasUsedToday(user)}
-            isAdmin={admin}
-            naverBlogId={user.naverBlogId}
-          />
+          <>
+            <Link href="/write/history" className="text-xs font-semibold text-primary hover:underline">
+              내 히스토리 보기 →
+            </Link>
+            <BlogWriterForm
+              email={user.email}
+              hasUsedToday={!admin && hasUsedToday(user)}
+              isAdmin={admin}
+              naverBlogId={user.naverBlogId}
+              initialStyleDefaults={initialStyleDefaults}
+            />
+          </>
         ) : (
           <Suspense>
             <div className="flex w-full max-w-sm flex-col items-center gap-3">

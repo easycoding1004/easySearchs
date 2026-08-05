@@ -212,3 +212,27 @@ export const BOARD_COMMENT_PROPS = {
   // BOARD_POST_PROPS.postedAt과 같은 이유·같은 패턴.
   postedAt: "표시일시",
 } as const;
+
+// AI 블로그 자동글쓰기 히스토리(`/write/history`, 2026-08 추가, 사용자 요청 —
+// "게시에 적용한 글들을 히스토리로 저장하고, 그걸 기반으로 앞으로 스타일을
+// 미리 정해줬으면"). "이 버전으로 확정하기" 클릭 시점에 1건씩 쌓임(BOARD_POST_PROPS와
+// 동일하게 작성자는 relation이 아니라 작성 시점 ID·닉네임 스냅샷). 유형은
+// select — Notion select는 미리 존재하는 옵션만 쓸 수 있어서(§16 구글 로그인
+// select 옵션 버그와 같은 함정) setup 스크립트가 16개 BlogCategory id를 전부
+// 옵션으로 미리 만들어둬야 함.
+export const WRITE_HISTORY_PROPS = {
+  title: "제목",
+  body: "본문",
+  authorId: "작성자ID",
+  authorNickname: "작성자닉네임",
+  category: "유형",
+  sponsored: "협찬여부",
+  tags: "태그",
+  stylePreset: "스타일프리셋",
+  layout: "레이아웃",
+  accentColor: "강조색상",
+  font: "폰트",
+  // BOARD_POST_PROPS.createdAt과 같은 패턴 — Notion `created_time` 타입
+  // 속성이라 값을 직접 안 써도 페이지 생성 시 자동으로 채워짐(읽기 전용).
+  createdAt: "적용일시",
+} as const;
