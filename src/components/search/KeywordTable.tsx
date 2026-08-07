@@ -1,6 +1,7 @@
 import type { KeywordRecord } from "@/lib/notion/types";
 import { KEYWORD_KIND } from "@/lib/notion/schema";
 import TrendDirectionBadge from "@/components/TrendDirectionBadge";
+import ShoppingInterestBadge from "@/components/search/ShoppingInterestBadge";
 
 function formatBlogStat(value: number | null): string {
   return value == null ? "-" : value.toLocaleString();
@@ -37,7 +38,10 @@ export default function KeywordTable({ records }: { records: KeywordRecord[] }) 
                   <div className="flex items-center gap-2">
                     <span>{record.keyword}</span>
                     {record.kind === KEYWORD_KIND.seed && (
-                      <TrendDirectionBadge keyword={record.keyword} />
+                      <>
+                        <TrendDirectionBadge keyword={record.keyword} />
+                        <ShoppingInterestBadge keyword={record.keyword} />
+                      </>
                     )}
                   </div>
                 </td>
@@ -78,7 +82,10 @@ export default function KeywordTable({ records }: { records: KeywordRecord[] }) 
               <div className="flex items-center gap-2">
                 <span className="font-medium text-ink">{record.keyword}</span>
                 {record.kind === KEYWORD_KIND.seed && (
-                  <TrendDirectionBadge keyword={record.keyword} />
+                  <>
+                    <TrendDirectionBadge keyword={record.keyword} />
+                    <ShoppingInterestBadge keyword={record.keyword} />
+                  </>
                 )}
               </div>
               <span className="shrink-0 text-xs text-ink-muted">{record.kind}</span>
