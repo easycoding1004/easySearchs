@@ -9,6 +9,7 @@ import {
   compositeScore,
   type PostAnalysisAverages,
 } from "@/lib/dashboard/contentDiagnostics";
+import { generateInsightReport, buildInsightReportInput } from "@/lib/dashboard/insightReport";
 import { fetchBlogProfileStats } from "@/lib/naver/blogProfileScraper";
 import { fetchPostAnalysis } from "@/lib/naver/blogEngagementScraper";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
@@ -115,6 +116,32 @@ export async function POST(request: Request) {
       scores = applyPostAnalysisScores(scores, analysisByDomain);
       const gaps = buildGapMessages(scores);
 
+      // 2026-08 추가(사용자 요청 — "숫자 지표를 AI가 자연어로 요약해줬으면") —
+      // 세션 생성 시점에 딱 한 번만 호출, 재방문 시 재호출 안 함(§CLAUDE.md
+      // 10.1과 동일 원칙). 비교 블로그가 없어도(gaps가 비어있어도) 생성됨 —
+      // 규칙 기반 gaps와 달리 "내 블로그" 데이터만으로도 의미 있는 요약이
+      // 가능해서.
+      let insightReport: string | null = null;
+      const mine = scores.find((s) => s.isMine);
+      if (mine) {
+        send({ status: "AI 인사이트를 정리하고 있어요...", progress: 90 });
+        const profile = profileStatsByDomain.get(mine.domain) ?? null;
+        insightReport = await generateInsightReport(
+          buildInsightReportInput(
+            mine,
+            compositeScore(mine),
+            profile ? { postCount: profile.postCount, category: profile.category } : null,
+            analysisByDomain.get(mine.domain)?.avgComments ?? null,
+            analysisByDomain.get(mine.domain)?.avgReactions ?? null,
+            analysisByDomain.get(mine.domain)?.avgShares ?? null,
+            profileByDomainKey.get(mine.domain)?.terms ?? [],
+            keywords,
+            gaps,
+            competitors.length
+          )
+        );
+      }
+
       send({ status: "결과 저장 중...", progress: 92 });
 
       const sessionId = await createBlogScoreSession({
@@ -125,6 +152,7 @@ export async function POST(request: Request) {
         gaps,
         businessName,
         competitorBusinessNames,
+        insightReport,
       });
 
       // "결과 저장 중..." 이후 진행률 없이 침묵하던 구간 — 경쟁사가 많으면

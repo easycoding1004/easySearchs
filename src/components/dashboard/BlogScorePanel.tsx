@@ -322,6 +322,7 @@ export default function BlogScorePanel({
   avgRecentReactions,
   avgRecentShares,
   topTerms,
+  insightReport,
 }: {
   scores: RadarScore[];
   gaps: GapMessage[];
@@ -331,6 +332,7 @@ export default function BlogScorePanel({
   avgRecentReactions: Record<string, number | null>;
   avgRecentShares: Record<string, number | null>;
   topTerms: Record<string, { term: string; count: number }[]>;
+  insightReport: string | null;
 }) {
   const mine = scores.find((s) => s.isMine);
   const competitors = scores.filter((s) => !s.isMine);
@@ -361,6 +363,16 @@ export default function BlogScorePanel({
           {formatKstDateTime(fetchedAt)} 기준
         </span>
       </div>
+
+      {insightReport && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 sm:p-5">
+          <h3 className="mb-2 text-sm font-semibold text-ink">AI 인사이트</h3>
+          <p className="whitespace-pre-wrap text-sm text-ink">{insightReport}</p>
+          <p className="mt-2 text-xs text-ink-muted">
+            위 데이터를 바탕으로 AI가 요약한 참고용 의견이에요 — 네이버 공식 진단이 아니에요.
+          </p>
+        </div>
+      )}
 
       {!mine && (
         <p className="text-sm text-ink-muted">

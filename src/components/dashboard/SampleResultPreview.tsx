@@ -3,6 +3,7 @@ import KeywordClusterPanel from "./KeywordClusterPanel";
 import {
   SAMPLE_SCORES,
   SAMPLE_GAPS,
+  SAMPLE_INSIGHT_REPORT,
   SAMPLE_FETCHED_AT,
   SAMPLE_PROFILE_STATS,
   SAMPLE_AVG_RECENT_COMMENTS,
@@ -45,6 +46,7 @@ export default function SampleResultPreview() {
             avgRecentReactions={SAMPLE_AVG_RECENT_REACTIONS}
             avgRecentShares={SAMPLE_AVG_RECENT_SHARES}
             topTerms={SAMPLE_TOP_TERMS}
+            insightReport={SAMPLE_INSIGHT_REPORT}
           />
         </div>
       </div>

@@ -256,6 +256,7 @@ export default async function BlogScoreResultPage({
                     avgRecentReactions={avgRecentReactions}
                     avgRecentShares={avgRecentShares}
                     topTerms={topTerms}
+                    insightReport={session.insightReport}
                   />
                 </ExportableImage>
                 <EmbedBadgeCard sessionId={sessionId} />

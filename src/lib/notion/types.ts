@@ -40,6 +40,7 @@ export interface BlogScoreSession {
   gaps: BlogScoreGap[];
   businessName: string | null;
   competitorBusinessNames: string[];
+  insightReport: string | null;
 }
 
 export interface BlogScoreRecord {

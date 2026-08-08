@@ -48,6 +48,10 @@ export const SAMPLE_GAPS: GapMessage[] = [
   },
 ];
 
+// 2026-08 추가 — AI 인사이트 카드 예시(실제 Claude 호출 아님, 고정 문구).
+export const SAMPLE_INSIGHT_REPORT =
+  "게시글 수와 검색 노출은 준수한 편이라 꾸준히 글을 올리고 계신 게 잘 드러나요. 다만 최근 게시물의 댓글·공유수가 비교 블로그보다 낮은 편이라, 글 마지막에 질문을 던지거나 체크리스트 형태로 정리해보시면 반응을 끌어올리는 데 도움이 될 거예요. 자주 쓰시는 단어를 보니 원두·로스팅 관련 콘텐츠가 강점이니, 이 주제를 더 살려보시는 것도 추천드려요.";
+
 export const SAMPLE_PROFILE_STATS: Record<string, BlogProfileStats | null> = {
   [MY_DOMAIN]: {
     blogId: "my_cafe_blog",

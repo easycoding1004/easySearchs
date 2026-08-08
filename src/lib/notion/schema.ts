@@ -46,6 +46,11 @@ export const BLOG_SCORE_SESSION_PROPS = {
   // 2026-07 추가 — 지역·플레이스 노출순위를 경쟁 업체와도 비교할 수 있도록
   // competitorDomains와 같은 패턴(콤마 구분 텍스트)으로 별도 수집.
   competitorBusinessNames: "비교 업체명 목록",
+  // 2026-08 추가(사용자 요청 — "숫자 지표를 AI가 자연어로 요약해줬으면") —
+  // 세션 생성 시점에 Claude가 한 번 생성해서 고정하는 짧은 텍스트 요약.
+  // gapSummary(부족 항목, 규칙 기반 템플릿)와 달리 실제 자연어 문장이고
+  // 비교 블로그가 없어도 생성됨. `insightReport.ts` 참고.
+  insightReport: "AI 인사이트",
 } as const;
 
 // 2026-07 블로그 지수 산정 방식 전면 개편(검색 상위노출·게시글수·댓글수·

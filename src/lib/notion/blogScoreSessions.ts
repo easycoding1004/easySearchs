@@ -61,6 +61,7 @@ function parseSession(page: PageObjectResponse): BlogScoreSession {
     gaps: parseGaps(richText(props[BLOG_SCORE_SESSION_PROPS.gapSummary])),
     businessName: businessName || null,
     competitorBusinessNames: parseCsv(richText(props[BLOG_SCORE_SESSION_PROPS.competitorBusinessNames])),
+    insightReport: richText(props[BLOG_SCORE_SESSION_PROPS.insightReport]) || null,
   };
 }
 
@@ -72,6 +73,7 @@ export async function createBlogScoreSession(input: {
   gaps: BlogScoreGap[];
   businessName: string | null;
   competitorBusinessNames: string[];
+  insightReport: string | null;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: sessionsDataSourceId() },
@@ -115,6 +117,14 @@ export async function createBlogScoreSession(input: {
               rich_text: [
                 { type: "text" as const, text: { content: input.competitorBusinessNames.join(", ") } },
               ],
+            },
+          }
+        : {}),
+      ...(input.insightReport
+        ? {
+            [BLOG_SCORE_SESSION_PROPS.insightReport]: {
+              type: "rich_text" as const,
+              rich_text: [{ type: "text" as const, text: { content: input.insightReport.slice(0, 1900) } }],
             },
           }
         : {}),
