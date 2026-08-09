@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hasUsedToday, markUsedToday } from "@/lib/notion/users";
+import { canUseWrite, recordWriteUse } from "@/lib/notion/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
 import { generateBlogPost, type BlogWriterImage, type StyleReference } from "@/lib/write/blogWriter";
@@ -52,16 +52,28 @@ export async function POST(request: Request) {
   if (!user.emailVerified) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
-  // 유료 API 남용 방지 — 계정당 하루 1회로 제한 (CLAUDE.md §16). 관리자
-  // (/admin 비밀번호 쿠키 — 게시판 관리자 권한과 같은 정의, §18.6.1)는
-  // 이 제한에서 제외해서 계속 테스트·시연용으로 쓸 수 있게 함(2026-08,
-  // 사용자 요청).
+  // 유료 API 남용 방지 — 무료회원 누적 3회, 유료회원 결제주기당 10회
+  // (토스페이먼츠 월 구독제, CLAUDE.md 신규 섹션). 관리자(/admin 비밀번호
+  // 쿠키 — 게시판 관리자 권한과 같은 정의, §18.6.1)는 이 제한에서 제외해서
+  // 계속 테스트·시연용으로 쓸 수 있게 함(2026-08, 사용자 요청).
   const admin = await isAdminAuthed();
-  if (!admin && hasUsedToday(user)) {
-    return NextResponse.json(
-      { error: "오늘은 이미 사용하셨어요. 내일 다시 시도해 주세요." },
-      { status: 429 }
-    );
+  if (!admin) {
+    const usage = canUseWrite(user);
+    if (!usage.allowed) {
+      if (usage.reason === "free_exhausted") {
+        return NextResponse.json(
+          {
+            error: "무료 이용 횟수를 모두 사용하셨어요. 구독하면 매달 더 쓸 수 있어요.",
+            needsSubscription: true,
+          },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json(
+        { error: "이번 달 이용 횟수를 모두 사용하셨어요. 다음 결제일에 다시 채워져요." },
+        { status: 429 }
+      );
+    }
   }
 
   let formData: FormData;
@@ -155,9 +167,9 @@ export async function POST(request: Request) {
 
       send({ status: "AI가 글을 쓰고 있어요... (최대 1분 정도 걸려요)", progress: 20 });
       const result = await generateBlogPost(images, prompt, category, sponsored, formatProfile, styleReference);
-      // 실제로 Claude 호출까지 성공했을 때만 "오늘 사용"으로 기록 — 검증 실패나
-      // API 오류로 실패한 시도까지 하루 1회를 소진시키면 안 됨.
-      await markUsedToday(user.pageId);
+      // 실제로 Claude 호출까지 성공했을 때만 사용 횟수를 기록 — 검증 실패나
+      // API 오류로 실패한 시도까지 무료/월 이용 횟수를 깎으면 안 됨.
+      await recordWriteUse(user);
 
       // 글 텍스트는 여기서 이미 완성됨 — 스톡·AI 이미지(부가 기능, 특히 AI
       // 이미지는 장당 수십 초 걸릴 수 있음)를 기다리지 않고 먼저 화면에 보여줌.

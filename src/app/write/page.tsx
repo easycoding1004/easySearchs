@@ -7,7 +7,7 @@ import BlogWriterForm, { type InitialStyleDefaults, type LayoutPreset } from "@/
 import SpeedyWritePromo from "@/components/write/SpeedyWritePromo";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
-import { hasUsedToday } from "@/lib/notion/users";
+import { canUseWrite } from "@/lib/notion/users";
 import { getWriteHistoryForUser } from "@/lib/notion/writeHistory";
 
 export const metadata: Metadata = {
@@ -62,7 +62,7 @@ export default async function WritePage() {
             </Link>
             <BlogWriterForm
               email={user.email}
-              hasUsedToday={!admin && hasUsedToday(user)}
+              blockedReason={admin ? null : canUseWrite(user).reason}
               isAdmin={admin}
               naverBlogId={user.naverBlogId}
               initialStyleDefaults={initialStyleDefaults}
@@ -72,7 +72,8 @@ export default async function WritePage() {
           <Suspense>
             <div className="flex w-full max-w-sm flex-col items-center gap-3">
               <p className="text-center text-xs text-ink-muted">
-                AI 블로그 자동글쓰기는 유료 API를 사용해서 계정당 하루 1회로 제한돼요.
+                AI 블로그 자동글쓰기는 유료 API를 사용해서 무료 회원은 누적 3회까지 이용할 수 있어요.
+                구독하면 매달 더 쓸 수 있어요.
               </p>
               <AuthForms />
             </div>

@@ -10,6 +10,8 @@ import {
   type PostAnalysisAverages,
 } from "@/lib/dashboard/contentDiagnostics";
 import { generateInsightReport, buildInsightReportInput } from "@/lib/dashboard/insightReport";
+import { getCurrentUser } from "@/lib/auth/session";
+import { isPaidSubscriber } from "@/lib/notion/users";
 import { fetchBlogProfileStats } from "@/lib/naver/blogProfileScraper";
 import { fetchPostAnalysis } from "@/lib/naver/blogEngagementScraper";
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
@@ -120,26 +122,31 @@ export async function POST(request: Request) {
       // 세션 생성 시점에 딱 한 번만 호출, 재방문 시 재호출 안 함(§CLAUDE.md
       // 10.1과 동일 원칙). 비교 블로그가 없어도(gaps가 비어있어도) 생성됨 —
       // 규칙 기반 gaps와 달리 "내 블로그" 데이터만으로도 의미 있는 요약이
-      // 가능해서.
+      // 가능해서. 2026-08 토스페이먼츠 월 구독제 추가 — 무료회원/비로그인
+      // 조회는 이 Claude 호출 자체를 건너뛰어 비용이 안 나가게 함(로그인은
+      // §10.2 원칙상 세션 생성 자체엔 필요 없고 이 카드 하나만의 예외).
       let insightReport: string | null = null;
       const mine = scores.find((s) => s.isMine);
       if (mine) {
-        send({ status: "AI 인사이트를 정리하고 있어요...", progress: 90 });
-        const profile = profileStatsByDomain.get(mine.domain) ?? null;
-        insightReport = await generateInsightReport(
-          buildInsightReportInput(
-            mine,
-            compositeScore(mine),
-            profile ? { postCount: profile.postCount, category: profile.category } : null,
-            analysisByDomain.get(mine.domain)?.avgComments ?? null,
-            analysisByDomain.get(mine.domain)?.avgReactions ?? null,
-            analysisByDomain.get(mine.domain)?.avgShares ?? null,
-            profileByDomainKey.get(mine.domain)?.terms ?? [],
-            keywords,
-            gaps,
-            competitors.length
-          )
-        );
+        const requester = await getCurrentUser();
+        if (requester && isPaidSubscriber(requester)) {
+          send({ status: "AI 인사이트를 정리하고 있어요...", progress: 90 });
+          const profile = profileStatsByDomain.get(mine.domain) ?? null;
+          insightReport = await generateInsightReport(
+            buildInsightReportInput(
+              mine,
+              compositeScore(mine),
+              profile ? { postCount: profile.postCount, category: profile.category } : null,
+              analysisByDomain.get(mine.domain)?.avgComments ?? null,
+              analysisByDomain.get(mine.domain)?.avgReactions ?? null,
+              analysisByDomain.get(mine.domain)?.avgShares ?? null,
+              profileByDomainKey.get(mine.domain)?.terms ?? [],
+              keywords,
+              gaps,
+              competitors.length
+            )
+          );
+        }
       }
 
       send({ status: "결과 저장 중...", progress: 92 });

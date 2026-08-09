@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BLOG_GROUPS,
@@ -405,13 +406,15 @@ function renderPreviewBlocks(
 
 export default function BlogWriterForm({
   email,
-  hasUsedToday,
+  blockedReason,
   isAdmin,
   naverBlogId: initialNaverBlogId,
   initialStyleDefaults,
 }: {
   email: string;
-  hasUsedToday: boolean;
+  // null이면 사용 가능. 무료 3회 소진("free_exhausted")이면 구독 유도,
+  // 유료회원 월 10회 소진("monthly_exhausted")이면 다음 결제일 안내만.
+  blockedReason: "free_exhausted" | "monthly_exhausted" | null;
   isAdmin: boolean;
   naverBlogId: string;
   initialStyleDefaults?: InitialStyleDefaults;
@@ -464,6 +467,7 @@ export default function BlogWriterForm({
   // 이미지만 늦게 채워 넣는 쪽으로 구현).
   const [imagesLoading, setImagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsSubscription, setNeedsSubscription] = useState(false);
   const [result, setResult] = useState<WriteResult | null>(null);
   const [richCopied, setRichCopied] = useState(false);
   const [plainCopied, setPlainCopied] = useState(false);
@@ -567,7 +571,7 @@ export default function BlogWriterForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!prompt.trim() || !category || loading || hasUsedToday) return;
+    if (!prompt.trim() || !category || loading || blockedReason) return;
 
     for (const f of files) {
       if (f.size > MAX_IMAGE_BYTES) {
@@ -583,6 +587,7 @@ export default function BlogWriterForm({
 
     setLoading(true);
     setError(null);
+    setNeedsSubscription(false);
     setResult(null);
     setInsertedStockImages([]);
     setRevisionCount(0);
@@ -605,6 +610,7 @@ export default function BlogWriterForm({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "글 생성에 실패했어요.");
+        setNeedsSubscription(Boolean(data.needsSubscription));
         return;
       }
 
@@ -660,12 +666,12 @@ export default function BlogWriterForm({
       // user.emailVerified` 분기가 세션 조회 타이밍에 따라 순간적으로
       // false가 되면 BlogWriterForm 자체가 통째로 언마운트돼서 방금 만든
       // result가 사라지는 버그로 이어졌을 가능성이 높음("AI 글이 생성되다가
-      // 1초 뒤에 사라짐" 신고와 정확히 일치하는 타이밍). 지금은
-      // TEMP_DISABLE_DAILY_LIMIT이 켜져 있어 hasUsedToday를 새로 받아와도
-      // 어차피 항상 false라 이 refresh 자체가 무의미하기도 함 — 그래서 뺌.
-      // 나중에 하루 1회 제한을 되살릴 때는 이 refresh를 되살리기보다, 언마운트
-      // 위험이 없는 더 가벼운 방법(예: hasUsedToday만 별도 API로 조회)을
-      // 고려할 것.
+      // 1초 뒤에 사라짐" 신고와 정확히 일치하는 타이밍) — 그래서 뺐음.
+      // `blockedReason`은 여전히 페이지 로드 시점의 정적 prop이라, 이번
+      // 생성으로 무료/월 한도를 막 다 썼어도 화면상 폼은 계속 열려있음
+      // (실제 한도는 서버가 항상 다시 검증하므로 안전하지만, 한도를 넘긴
+      // 다음 시도에서야 에러로 알게 됨) — 언마운트 위험 없이 이 값만 가볍게
+      // 다시 조회하는 방법이 필요해지면 그때 추가할 것.
     } catch {
       setError("네트워크 오류가 발생했어요.");
     } finally {
@@ -1035,9 +1041,23 @@ export default function BlogWriterForm({
         )}
       </div>
 
-      {hasUsedToday ? (
-        <div className="rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center">
-          <p className="text-sm text-ink-muted">오늘은 이미 사용하셨어요. 내일 다시 시도해 주세요.</p>
+      {blockedReason ? (
+        <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center">
+          {blockedReason === "free_exhausted" ? (
+            <>
+              <p className="text-sm text-ink-muted">무료 이용 횟수를 모두 사용하셨어요. 구독하면 매달 더 쓸 수 있어요.</p>
+              <Link
+                href="/subscribe"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+              >
+                구독하러 가기
+              </Link>
+            </>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              이번 달 이용 횟수를 모두 사용하셨어요. 다음 결제일에 다시 채워져요.
+            </p>
+          )}
         </div>
       ) : (
         <form
@@ -1243,7 +1263,16 @@ export default function BlogWriterForm({
             </span>
           </label>
 
-          {error && <p className="text-sm text-error">{error}</p>}
+          {error && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-error">{error}</p>
+              {needsSubscription && (
+                <Link href="/subscribe" className="text-sm font-semibold text-primary hover:underline">
+                  구독하러 가기 →
+                </Link>
+              )}
+            </div>
+          )}
 
           {progress && (
             <div className="flex flex-col gap-1.5">

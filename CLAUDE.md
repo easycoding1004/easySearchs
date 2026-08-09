@@ -242,7 +242,7 @@ API 응답으로 받은 키워드 1개당 1행.
 
 - **서버리스 부적합, 상주형 서버로 결정함 (2026-07, 사용자와 논의)** — 이 앱은 네이버 오픈API 공유 스로틀(`openApiClient.ts`)과 스크래핑 결과 캐시(`ttlCache.ts`)를 인메모리 변수로 구현해서, Node 프로세스가 하나 계속 떠 있어야 "전체 방문자가 공유"라는 설계 의도가 실제로 성립한다. Vercel처럼 요청마다 다른 인스턴스가 뜰 수 있는 서버리스 환경에서는 이 공유가 깨지고, `/api/search`·`/api/blog-score`의 SSE 스트리밍도 서버리스 함수 실행시간 제한에 걸려 중간에 끊길 수 있다. VPS/Railway/Render/Fly.io 등 Node 프로세스가 계속 떠 있는 플랫폼을 쓸 것. **`src/instrumentation.ts`의 백그라운드 잡 2개**(검색량 급상승 스냅샷 — 섹션 6.3, 12시간 주기 / 뉴스레터 발송 — 섹션 6.4, 7일 주기)도 서버가 계속 떠 있어야 의미가 있음 — 서버리스로 옮기면 Railway Cron 등 외부 스케줄러로 교체해야 함.
 - **Docker로 배포** — `Dockerfile`(멀티스테이지, `next.config.ts`의 `output: "standalone"` 사용) + `.dockerignore` 준비돼 있음. 로컬 검증: `docker build -t easyserch .` → `docker run -p 3000:3000 --env-file .env.local easyserch`.
-- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 12개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`/`NOTION_USERS_DB_ID`/`NOTION_BOARD_POSTS_DB_ID`/`NOTION_BOARD_COMMENTS_DB_ID`/`NOTION_WRITE_HISTORY_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4. **`AUTH_EMAIL_FROM`은 2026-08 이메일+비밀번호 로그인 제거와 함께 같이 삭제됨 — 되살리지 말 것**), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2), `ANTHROPIC_API_KEY`(AI 블로그 글쓰기, 섹션 16), `NAVER_LOGIN_CLIENT_ID`/`NAVER_LOGIN_CLIENT_SECRET`·`KAKAO_CLIENT_ID`/`KAKAO_CLIENT_SECRET`·`GOOGLE_LOGIN_CLIENT_ID`/`GOOGLE_LOGIN_CLIENT_SECRET`(소셜 로그인 3종, 섹션 16·18). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
+- **환경변수** — `.env.example` 참고, 실제 값은 `.env.local`(gitignore됨)에. 필수: `NAVER_API_KEY`/`NAVER_SECRET_KEY`/`NAVER_CUSTOMER_ID`(검색광고), `NAVER_OPENAPI_CLIENT_ID`/`NAVER_OPENAPI_CLIENT_SECRET`(오픈API), `NOTION_TOKEN`+DB ID 13개(세션/키워드결과/블로그지수세션/블로그지수결과/문의/`NOTION_KEYWORD_SNAPSHOTS_DB_ID`/`NOTION_VISITS_DB_ID`/`NOTION_SUBSCRIBERS_DB_ID`/`NOTION_USERS_DB_ID`/`NOTION_BOARD_POSTS_DB_ID`/`NOTION_BOARD_COMMENTS_DB_ID`/`NOTION_WRITE_HISTORY_DB_ID`/`NOTION_BILLING_HISTORY_DB_ID`), `RESEND_API_KEY`+`CONTACT_EMAIL_TO`(문의하기, 섹션 12.3 — 뉴스레터 발송도 같은 `RESEND_API_KEY` 재사용, 섹션 6.4. **`AUTH_EMAIL_FROM`은 2026-08 이메일+비밀번호 로그인 제거와 함께 같이 삭제됨 — 되살리지 말 것**), `ADMIN_PASSWORD`(관리자 로그인, 섹션 12.2), `ANTHROPIC_API_KEY`(AI 블로그 글쓰기, 섹션 16), `NAVER_LOGIN_CLIENT_ID`/`NAVER_LOGIN_CLIENT_SECRET`·`KAKAO_CLIENT_ID`/`KAKAO_CLIENT_SECRET`·`GOOGLE_LOGIN_CLIENT_ID`/`GOOGLE_LOGIN_CLIENT_SECRET`(소셜 로그인 3종, 섹션 16·18), `TOSS_SECRET_KEY`/`NEXT_PUBLIC_TOSS_CLIENT_KEY`(토스페이먼츠 월 구독제, 섹션 19 — 아직 테스트 키만 발급된 상태). `NOTION_PARENT_PAGE_ID`는 `scripts/setup-notion*.ts` 최초 1회 실행 때만 필요하고 런타임에는 불필요. **`.env.local.example` 같은 별도 예시 파일을 새로 만들지 말 것** — 예전에 낡은 사본이 실수로 방치돼 삭제된 적 있음(섹션 10.2에서 삭제한 변수들이 그 파일엔 여전히 남아 있었음), `.env.example` 하나만 유지.
 - **헬스체크** — `GET /api/health`, Notion/네이버 호출 없이 즉시 200 반환 (플랫폼 헬스체크가 API 쿼터를 깎아먹지 않도록 의도적으로 아무것도 조회하지 않음).
 - **포트** — standalone 서버(`server.js`)는 `PORT` 환경변수를 자동으로 읽음(기본 3000, `HOSTNAME=0.0.0.0`) — 플랫폼이 지정하는 포트를 그대로 주입하면 됨.
 
@@ -555,3 +555,72 @@ API 응답으로 받은 키워드 1개당 1행.
 ### 18.7 검증 상태
 
 `tsc`/`eslint`/`next build` 클린 확인. **아직 실사용 검증 전** — `scripts/setup-notion-board.ts`·`scripts/add-user-nickname-prop.ts` 1회 실행, 구글 로그인 env 설정, 실제 브라우저로 로그인→게시판 글쓰기(닉네임 설정→이미지 붙여넣기/업로드→제출)→목록/상세에서 이미지가 실제로 보이는지(프록시 라우트 동작)→비로그인 상태로 읽기만 되고 쓰기는 막히는지→댓글 작성까지 다음 실사용 때 확인 필요. Notion File Upload API 자체도 공식 문서 기준으로만 구현했고 실제 호출로는 아직 검증 안 됨.
+
+## 19. 토스페이먼츠 월 구독제 (`/subscribe`, 2026-08 신규)
+
+이 사이트 최초의 실제 금전 거래 기능. Claude API를 쓰는 두 기능(AI 블로그 자동글쓰기 §16, 블로그지수 AI 인사이트 §10.3.1)의 비용이 이 세션 내내 반복적으로 문제가 됐던 것(크레딧 소진 여러 차례, web_search 비용 폭주로 인한 대체 구현 등)이 배경 — 사용자가 "claude api를 써야 하는 기능들은 유료회원만 확인 가능하다는 문구를 남겨달라"고 요청했다가, 실제로는 문구가 아니라 **진짜 결제 기반 유료회원 시스템**을 원한다고 명확히 함.
+
+**확정된 사업 조건** (사용자와 직접 논의):
+- PG사: 토스페이먼츠 정기결제(빌링). **사용자가 아직 가맹점 가입 전** — 테스트 키로만 개발됨, 실 서비스 전환 시 `.env`의 `TOSS_SECRET_KEY`/`NEXT_PUBLIC_TOSS_CLIENT_KEY`만 라이브 키로 바꾸면 되고 코드 변경은 필요 없도록 설계함.
+- 요금제: 월 9,900원 정기구독(`SUBSCRIPTION_MONTHLY_AMOUNT`, `src/lib/notion/users.ts`).
+- AI 블로그 자동글쓰기: 무료 회원 **누적 3회**(`FREE_WRITE_USE_LIMIT`), 유료회원 **월 10회**(`MONTHLY_WRITE_USE_LIMIT`, 결제주기 기준 리셋).
+- 블로그지수 AI 인사이트: 무료회원(비로그인 포함)에게는 아예 생성·노출 안 하고 **유료회원에게만** 제공.
+
+### 19.1 토스페이먼츠 정기결제 API (공식 문서로 확인, 추측 없음)
+
+`src/lib/billing/tossClient.ts` — raw fetch로 직접 호출(공식 SDK 패키지 없이 이 프로젝트의 다른 외부 API 클라이언트들과 같은 패턴, 예: `generateAiImages.ts`의 OpenAI 호출).
+
+- **카드 등록**: 프론트가 Toss SDK(`https://js.tosspayments.com/v2/standard`)를 로드해 `TossPayments(clientKey).payment({customerKey}).requestBillingAuth({method:"CARD", successUrl, failUrl, customerEmail})`를 부름 → 인증 성공 시 브라우저가 `successUrl`에 `authKey`+`customerKey` 쿼리로 리다이렉트됨(`src/components/billing/SubscribeButton.tsx`).
+- **빌링키 발급**: 서버가 `POST https://api.tosspayments.com/v1/billing/authorizations/issue`(Basic Auth: `base64(secretKey+":")`) body `{authKey, customerKey}` → `billingKey` 반환(`issueBillingKey()`).
+- **정기 청구**: 서버가 `POST https://api.tosspayments.com/v1/billing/{billingKey}` body `{customerKey, amount, orderId, orderName}` → 결제 성공/실패(`chargeBilling()`, 절대 throw 안 하고 discriminated union으로 반환 — billingJob이 여러 사용자를 순회하며 호출하므로 한 명의 카드 실패가 나머지 청구를 막으면 안 됨).
+- **⚠️ 토스는 정기 청구를 대신 스케줄링해주지 않음** — 가맹점이 직접 주기적으로 청구 API를 호출해야 함(공식 문서로 확인). 이게 이 프로젝트의 기존 `src/instrumentation.ts` 백그라운드 잡 패턴(§6.3/6.4)을 그대로 재사용해 `billingJob.ts`(아래 19.4)를 만든 이유.
+- `customerKey`는 2~50자, 이메일·순번처럼 예측 가능한 값 금지(공식 문서 기준) — `generateCustomerKey()`가 `U${randomUUID()}`로 생성(대문자 접두사 하나를 붙여 "대문자/소문자/숫자" 조합 요건 해석 어느 쪽이든 안전하게 걸치도록 방어적으로 만듦).
+- Webhook(`payment_status_changed`)은 **이번 범위에서 안 씀** — 정기 청구를 서버가 직접 호출해서 이미 성공/실패를 동기적으로 아는 구조라 필수가 아니고, 나중에 감사용 보조 채널로 보강 가능(스코프 밖).
+
+### 19.2 Notion 스키마
+
+- **`사용자 계정` DB에 속성 추가**(`scripts/add-user-subscription-props.ts`, additive-only, 이미 실행 완료): `구독상태`(select: 무료/유료 — §18.1에서 실측 확인된 "select는 새 값을 써도 옵션이 자동 생성 안 됨" 함정을 피해 스크립트가 두 옵션을 미리 만들어둠), `해지예정`(checkbox), `토스고객키`/`토스빌링키`(rich_text), `다음결제일`(date), `무료사용횟수`/`이번달사용횟수`(number).
+- **새 DB "결제내역"**(`scripts/setup-notion-billing-history.ts`, `NOTION_BILLING_HISTORY_DB_ID`, 이미 실행 완료) — 최초 결제·매달 정기 청구 시도마다 1건씩 기록하는 감사 로그(제목/작성자ID/금액/상태/토스주문ID/실패사유/결제일시). `src/lib/notion/billingHistory.ts`의 `createBillingRecord()` — 이 기록 자체의 실패는 결제 흐름을 막지 않도록 호출부가 `.catch()`로 감싸 씀(Pixabay/OpenAI 이미지처럼 이 함수 자체가 절대 안 던지는 계약은 아니고, 실패를 콘솔에는 남기되 호출부 판단으로 무시).
+
+### 19.3 AI 블로그 자동글쓰기 사용량 로직 교체
+
+§16의 예전 "하루 1회"(`hasUsedToday`/`markUsedToday`, KST 날짜 비교)를 완전히 대체함(레거시 `마지막사용일` Notion 컬럼은 additive-only 원칙에 따라 그대로 남겨두되 더 이상 아무 코드도 안 씀 — `User.lastUsedAt` 필드에 그 사실을 주석으로 남겨둠).
+
+- `src/lib/notion/users.ts`의 `canUseWrite(user)`가 `{allowed, reason: "free_exhausted"|"monthly_exhausted"|null, isPaid}`를 반환 — 유료회원이면 `이번달사용횟수 < 10`, 무료회원이면 `무료사용횟수 < 3`. `recordWriteUse(user)`는 Claude 호출이 실제로 성공했을 때만 호출해서 해당 카운터를 1 올림(§16의 기존 원칙 그대로 — 실패한 시도까지 소진시키면 안 됨).
+- `/api/write`가 이 상한에 걸리면 429와 함께 `{error, needsSubscription: true}`(무료 소진 시에만)를 반환 — `BlogWriterForm.tsx`가 이 신호를 보고 "구독하러 가기" 링크를 보여줌. 관리자(`isAdminAuthed()`) 예외는 그대로 유지.
+- `write/page.tsx`가 `canUseWrite(user).reason`을 `blockedReason` prop으로 내려주면, `BlogWriterForm.tsx`가 `free_exhausted`일 땐 구독 유도 카드+버튼을, `monthly_exhausted`일 땐 "다음 결제일에 다시 채워져요" 안내만 보여줌(이미 구독 중이라 굳이 구독 CTA를 또 보여줄 필요 없음). 이 prop은 페이지 로드 시점의 정적 값이라, 방금 그 요청으로 한도를 다 썼어도 화면상 폼은 계속 열려있음(실제 한도는 서버가 항상 다시 검증하므로 안전, 다음 시도에서 에러로 알게 될 뿐) — 언마운트 위험 없이 가볍게 갱신하는 방법은 스코프 밖.
+- `/api/write/revise`의 `MAX_REVISIONS`(5회) 캡은 이 카운터와 별개 축으로 그대로 유지(§16).
+
+### 19.4 정기 청구 크론 — `src/lib/scheduler/billingJob.ts`
+
+`instrumentation.ts`에 `newsletterJob`과 정확히 같은 패턴으로 등록(`BILLING_JOB_INTERVAL_MS`=1일, `src/lib/constants.ts`) — **서버 시작 시 즉시 실행하지 않음**(매 배포마다 카드가 청구되면 안 되므로, newsletterJob과 같은 이유).
+
+- `getUsersWithBillingDue()`(`users.ts`)가 `구독상태=유료 AND 다음결제일<=오늘(KST)`인 사용자를 훑음.
+- `해지예정=true`인 계정은 청구 없이 `downgradeToFree()`로 무료 전환.
+- 아니면 `chargeBilling()` 호출 → 성공: `renewSubscription()`이 다음결제일을 갱신(**"오늘" 기준이 아니라 이 사용자의 원래 `다음결제일` 기준으로 한 달을 더함** — `nextBillingDateFrom()`, `tossClient.ts` — 잡 실행이 며칠 늦어져도 결제 주기 자체가 밀리지 않도록)하고 `이번달사용횟수`를 0으로 리셋. 실패: **MVP는 유예 기간 없이 즉시 강등**(`downgradeToFree()`) — 재시도/유예 로직은 스코프 밖.
+- `nextBillingDateFrom()`은 말일 기준 구독이 다음 달로 밀리지 않도록 대상 월의 마지막 날로 클램프함(예: 1/31 구독 → 다음은 2/28).
+- 각 청구 시도(성공/실패 모두) `createBillingRecord()`로 결제내역에 기록.
+
+### 19.5 블로그지수 AI 인사이트 — 이중 게이팅 (생성 시점 + 조회 시점)
+
+§10.2의 "로그인 없이 완전 공개" 원칙에 대한 이번 프로젝트 최초의 예외 — **AI 인사이트 카드 하나만** 예외이고, 블로그지수 세션 생성 자체는 여전히 로그인 없이 완전 공개.
+
+- **생성 시점 게이팅(비용 통제)**: `/api/blog-score/route.ts`가 `generateInsightReport()`를 부르기 직전 `getCurrentUser()`+`isPaidSubscriber()`를 확인 — 무료회원/비로그인이면 Claude 호출 자체를 건너뛰고 `insightReport: null`을 그대로 저장.
+- **조회 시점 게이팅(공유 URL 우회 방지)**: 인사이트가 실제로 저장돼 있어도(다른 유료회원이 만든 세션일 수 있음), **그 결과 URL을 지금 보고 있는 사람**이 유료회원이 아니면 내용을 안 보여줌 — 세션 생성자가 아니라 뷰어 기준으로 판단해야, 유료회원이 만든 공개 URL을 아무나 찾아서 무료로 인사이트를 읽는 걸 막을 수 있음. `dashboard/[sessionId]/page.tsx`가 (지금까지 전혀 안 부르던) `getCurrentUser()`를 호출해 `insightLocked = !viewer || !isPaidSubscriber(viewer)`를 계산해 `BlogScorePanel`에 내려줌 — `insightLocked`가 true면 실제 `insightReport` 값과 무관하게 항상 "유료회원 전용, 구독하면 볼 수 있어요" + `/subscribe` 링크 카드를 보여줌.
+- 예시 미리보기(`SampleResultPreview.tsx`)는 로그인 상태와 무관한 고정 데모라 `insightLocked`를 안 넘김(기본값 false) — 항상 정상적으로 보임.
+- 6번째 축으로 컴포짓 점수에 넣지 않는다는 §10.3의 기존 결정은 그대로 유지 — 이번 변경은 순수하게 열람 권한만 다룸.
+
+### 19.6 구독 시작·해지 흐름
+
+- `/subscribe`(`src/app/subscribe/page.tsx`) — 비로그인이면 `AuthForms`, 로그인했지만 무료면 `SubscribeButton`(카드 등록 시작), 이미 유료면 다음 결제일 안내 + `CancelSubscriptionButton`.
+- `POST /api/billing/start-registration` — 로그인 사용자에게 `customerKey`를 발급해 계정에 저장(카드 등록 인증 콜백이 세션 쿠키가 아니라 쿼리 파라미터만 받기 때문에, 나중에 이 값으로 역으로 사용자를 찾아야 함 — `findUserByTossCustomerKey()`).
+- `GET /api/billing/confirm` — Toss SDK의 `successUrl` 리다이렉트 대상. `authKey`+`customerKey`로 빌링키 발급 → 첫 달 즉시 청구 → 성공하면 `activateSubscription()`(구독상태=유료, 다음결제일=오늘+1개월, 이번달사용횟수=0)으로 활성화하고 `/write?subscribed=1`로, 실패하면 `/subscribe?error=...`로 리다이렉트.
+- `POST /api/billing/cancel` — **즉시 무료 전환이 아니라 "다음 결제일에 청구하지 말고 무료로 전환하라"는 예약**(`해지예정=true`)만 세움. 이미 낸 이번 달 혜택은 결제 주기가 끝날 때까지 유지되고, 실제 전환은 `billingJob`이 다음 결제일에 처리(19.4 참고).
+
+### 19.7 스코프 밖 (명시적으로 안 함)
+
+Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉시 강등으로 단순화), 환불 처리 UI/API, `/admin`에 구독자 통계 카드 추가, 실 서비스 전환(라이브 키 발급·사업자 심사 — 사용자가 토스 가맹점 심사를 통과한 뒤 직접 `.env`의 키만 교체하면 되도록 설계함, 코드 변경 불필요). 필요해지면 별도로 요청할 것.
+
+### 19.8 검증 상태
+
+`tsc`/`eslint`/`next build` 전부 클린 확인(새로 추가·수정된 파일 전체 + 전체 레포 lint). **토스페이먼츠 실제 API 호출(카드 등록/빌링키 발급/청구)은 전혀 검증 안 됨** — 사용자가 아직 토스 가맹점 가입 전이라 테스트 키조차 없는 상태로 코드만 작성함. 테스트 키가 발급되면 다음을 확인할 것: 브라우저로 구독 시작(테스트 카드로 카드 등록) → 빌링키 발급·첫 결제 성공 → `구독상태='유료'` 반영 확인 → AI 블로그 글쓰기 무료 3회 소진 후 구독 유도 문구 확인 → 블로그지수 조회 시 무료회원은 AI 인사이트 카드 대신 구독 유도, 유료회원은 실제 생성 확인 → 정기 청구 크론은 `다음결제일`을 과거로 강제 세팅한 테스트 계정으로 수동 트리거해 재청구·리셋 동작 확인. Notion 마이그레이션(사용자 계정 속성 추가, 결제내역 DB 생성)은 실제로 실행 완료됨.

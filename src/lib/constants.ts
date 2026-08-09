@@ -32,3 +32,9 @@ export const NEWSLETTER_SEND_CONCURRENCY = 3;
 // 1회라 개인 도구(시드 최대 5개)는 그대로 다 보내지만, 블로그지수(최대 30개)
 // 쪽은 이미 느린 라이브 탭이 더 느려지지 않도록 상한을 둠.
 export const MAX_TREND_BADGE_KEYWORDS = 10;
+
+// 토스페이먼츠 월 구독제 정기 청구 잡 — newsletterJob과 같은 방식(순수
+// setInterval, 서버 시작 시 즉시 실행 안 함: 매 배포마다 카드가 청구되면
+// 안 되므로). 하루 1회면 "다음결제일<=오늘" 판정을 놓치지 않기에 충분함.
+export const BILLING_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1일
+export const BILLING_JOB_CONCURRENCY = 2;

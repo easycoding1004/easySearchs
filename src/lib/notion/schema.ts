@@ -168,6 +168,17 @@ export const USER_PROPS = {
   // 게시판 글·댓글에 보일 별도의 공개용 닉네임 필드. 없으면 최초 게시글
   // 작성 시점에 설정을 요구함(scripts/add-user-nickname-prop.ts로 마이그레이션).
   nickname: "닉네임",
+  // 2026-08 추가(토스페이먼츠 월 구독제) — AI 블로그 자동글쓰기/블로그지수
+  // AI 인사이트 유료화. `scripts/add-user-subscription-props.ts`로 마이그레이션.
+  // select 옵션은 자동 생성 안 되므로(§CLAUDE.md 18.1) 마이그레이션 스크립트가
+  // SUBSCRIPTION_STATUS 두 값을 미리 만들어둠.
+  subscriptionStatus: "구독상태",
+  cancelPending: "해지예정",
+  tossCustomerKey: "토스고객키",
+  tossBillingKey: "토스빌링키",
+  nextBillingDate: "다음결제일",
+  freeUsesUsed: "무료사용횟수",
+  monthlyUsesUsed: "이번달사용횟수",
 } as const;
 
 export const AUTH_PROVIDER = {
@@ -175,6 +186,11 @@ export const AUTH_PROVIDER = {
   naver: "네이버",
   kakao: "카카오",
   google: "구글",
+} as const;
+
+export const SUBSCRIPTION_STATUS = {
+  free: "무료",
+  paid: "유료",
 } as const;
 
 // 게시판(`/board`, 2026-08 추가) — 자유게시판. 작성자는 relation이 아니라
@@ -240,4 +256,21 @@ export const WRITE_HISTORY_PROPS = {
   // BOARD_POST_PROPS.createdAt과 같은 패턴 — Notion `created_time` 타입
   // 속성이라 값을 직접 안 써도 페이지 생성 시 자동으로 채워짐(읽기 전용).
   createdAt: "적용일시",
+} as const;
+
+// 결제내역 (2026-08 추가, 토스페이먼츠 월 구독제) — 최초 결제·매달 정기 청구
+// 시도마다 1건씩 기록하는 감사 로그. 고객 문의 대응·디버깅용.
+export const BILLING_HISTORY_PROPS = {
+  title: "제목",
+  authorId: "작성자ID",
+  amount: "금액",
+  status: "상태",
+  orderId: "토스주문ID",
+  failureReason: "실패사유",
+  createdAt: "결제일시",
+} as const;
+
+export const BILLING_STATUS = {
+  success: "성공",
+  failure: "실패",
 } as const;

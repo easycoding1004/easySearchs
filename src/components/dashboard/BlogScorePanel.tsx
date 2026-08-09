@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RADAR_AXES, compositeScore, type GapMessage, type RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
@@ -323,6 +324,7 @@ export default function BlogScorePanel({
   avgRecentShares,
   topTerms,
   insightReport,
+  insightLocked = false,
 }: {
   scores: RadarScore[];
   gaps: GapMessage[];
@@ -333,6 +335,11 @@ export default function BlogScorePanel({
   avgRecentShares: Record<string, number | null>;
   topTerms: Record<string, { term: string; count: number }[]>;
   insightReport: string | null;
+  // 2026-08 추가(토스페이먼츠 월 구독제) — 이 결과를 보고 있는 사람이
+  // 유료회원이 아니면 true. insightReport가 실제로 있어도(다른 유료회원이
+  // 생성한 세션일 수 있음) 이 화면의 조회자가 유료가 아니면 내용 대신
+  // 구독 유도 카드를 보여줌 — 공유 URL로 무료 열람이 되지 않게 함.
+  insightLocked?: boolean;
 }) {
   const mine = scores.find((s) => s.isMine);
   const competitors = scores.filter((s) => !s.isMine);
@@ -364,14 +371,26 @@ export default function BlogScorePanel({
         </span>
       </div>
 
-      {insightReport && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 sm:p-5">
-          <h3 className="mb-2 text-sm font-semibold text-ink">AI 인사이트</h3>
-          <p className="whitespace-pre-wrap text-sm text-ink">{insightReport}</p>
-          <p className="mt-2 text-xs text-ink-muted">
-            위 데이터를 바탕으로 AI가 요약한 참고용 의견이에요 — 네이버 공식 진단이 아니에요.
+      {insightLocked ? (
+        <div className="flex flex-col items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:p-5">
+          <h3 className="text-sm font-semibold text-ink">AI 인사이트</h3>
+          <p className="text-sm text-ink-muted">
+            블로그 데이터를 AI가 요약해주는 인사이트는 유료회원 전용이에요. 구독하면 볼 수 있어요.
           </p>
+          <Link href="/subscribe" className="text-sm font-semibold text-primary hover:underline">
+            구독하러 가기 →
+          </Link>
         </div>
+      ) : (
+        insightReport && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 sm:p-5">
+            <h3 className="mb-2 text-sm font-semibold text-ink">AI 인사이트</h3>
+            <p className="whitespace-pre-wrap text-sm text-ink">{insightReport}</p>
+            <p className="mt-2 text-xs text-ink-muted">
+              위 데이터를 바탕으로 AI가 요약한 참고용 의견이에요 — 네이버 공식 진단이 아니에요.
+            </p>
+          </div>
+        )
       )}
 
       {!mine && (

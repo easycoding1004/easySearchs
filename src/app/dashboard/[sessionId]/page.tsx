@@ -15,6 +15,8 @@ import { recommendTitleAndTags, sortByVolumeDesc, MAX_CLUSTER_NODES } from "@/li
 import { mapWithConcurrency } from "@/lib/utils/concurrency";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 import { NAVER_OPENAPI_CONCURRENCY } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/auth/session";
+import { isPaidSubscriber } from "@/lib/notion/users";
 import type { RadarScore } from "@/lib/dashboard/contentDiagnostics";
 import type { BlogProfileStats } from "@/lib/naver/blogProfileScraper";
 
@@ -169,8 +171,12 @@ export default async function BlogScoreResultPage({
 }) {
   const { sessionId } = await params;
 
-  const session = await getBlogScoreSessionById(sessionId);
+  const [session, viewer] = await Promise.all([getBlogScoreSessionById(sessionId), getCurrentUser()]);
   if (!session) notFound();
+  // 2026-08 추가(토스페이먼츠 월 구독제) — AI 인사이트는 세션을 만든 사람이
+  // 아니라 "지금 이 화면을 보고 있는 사람"의 구독 상태로 열람 가능 여부를
+  // 판단함(공유 URL을 통한 무료 열람 방지, BlogScorePanel.tsx 참고).
+  const insightLocked = !viewer || !isPaidSubscriber(viewer);
 
   const records = await getRecordsForBlogScoreSession(sessionId);
 
@@ -257,6 +263,7 @@ export default async function BlogScoreResultPage({
                     avgRecentShares={avgRecentShares}
                     topTerms={topTerms}
                     insightReport={session.insightReport}
+                    insightLocked={insightLocked}
                   />
                 </ExportableImage>
                 <EmbedBadgeCard sessionId={sessionId} />

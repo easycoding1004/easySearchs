@@ -18,13 +18,14 @@ const MAX_TOTAL_IMAGE_BYTES = 200 * 1024 * 1024; // 200MB (원본 합계 sanity 
 const MAX_COMPRESSED_BASE64_BYTES = 30 * 1024 * 1024;
 const MAX_INSTRUCTION_LENGTH = 300;
 const MAX_KEYWORD_LENGTH = 50;
-// 최초 생성은 하루 1회 제한(§16)으로 막혀 있지만, 이미 생성한 그 글을 다듬는
-// 수정 요청까지 매번 새 "하루 1회"를 또 쓰게 하면 사실상 못 쓰는 기능이 됨 —
-// 그래서 수정 요청은 hasUsedToday와 별개로 취급하되, 무제한 재호출로 비용이
-// 새는 걸 막기 위해 이 라우트 자체에 별도의 낮은 상한을 둠(사용자 요청,
-// 2026-07 추가). 클라이언트가 보낸 revisionCount를 그대로 신뢰하진 않고
-// 여기서 다시 검증 — 신뢰 수준은 로그인+이메일 인증까지 요구하는 이 기능의
-// 기존 방어선(§16)과 동일선상.
+// 최초 생성은 무료 3회/유료 월 10회 제한(canUseWrite, 토스페이먼츠 월
+// 구독제)으로 막혀 있지만, 이미 생성한 그 글을 다듬는 수정 요청까지 매번
+// 이 카운터를 또 쓰게 하면 사실상 못 쓰는 기능이 됨 — 그래서 수정 요청은
+// canUseWrite와 별개로 취급하되, 무제한 재호출로 비용이 새는 걸 막기 위해
+// 이 라우트 자체에 별도의 낮은 상한을 둠(사용자 요청, 2026-07 추가).
+// 클라이언트가 보낸 revisionCount를 그대로 신뢰하진 않고 여기서 다시 검증 —
+// 신뢰 수준은 로그인+이메일 인증까지 요구하는 이 기능의 기존 방어선(§16)과
+// 동일선상.
 const MAX_REVISIONS = 5;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
