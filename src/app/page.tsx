@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import SearchForm from "@/components/search/SearchForm";
 import SiteHeader from "@/components/SiteHeader";
@@ -60,32 +61,18 @@ const USE_CASES = [
   {
     title: "블로그 운영자",
     desc: "다음 글감을 감이 아니라 실제 검색량 기준으로 정하세요.",
-    icon: (
-      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-    ),
   },
   {
     title: "소상공인 사장님",
     desc: "우리 가게 관련 검색어를 확인하고, 블로그지수로 경쟁사와 비교해보세요.",
-    icon: (
-      <path d="M3 21h18M4 21V9l8-6 8 6v12M9 21v-6h6v6" />
-    ),
   },
   {
     title: "마케터",
     desc: "캠페인을 시작하기 전에 키워드 검색량으로 수요를 미리 가늠하세요.",
-    icon: (
-      <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />
-    ),
   },
   {
     title: "예비 창업자",
     desc: "관심 있는 아이템의 실제 검색 관심도를 데이터로 확인하세요.",
-    icon: (
-      <>
-        <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
-      </>
-    ),
   },
 ];
 
@@ -103,6 +90,41 @@ const STEPS = [
     desc: "CSV로 내려받거나, 블로그지수에서 경쟁사와 바로 비교해보세요.",
   },
 ];
+
+// FEATURES/USE_CASES 아이콘 svg 래퍼가 반복돼서 하나로 뽑음.
+function FeatureIcon({ children, className = "h-5 w-5" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {children}
+    </svg>
+  );
+}
+
+// "3단계로 시작하세요" 카드 사이를 잇는 점선 화살표 — PainPointPromo.tsx의
+// Arrow와 같은 시각 모티프를 재사용해 페이지 전체의 일관된 신호로 둠.
+function StepArrow() {
+  return (
+    <svg width="28" height="16" viewBox="0 0 28 16" fill="none" aria-hidden className="hidden text-hairline sm:block">
+      <line x1="0" y1="8" x2="18" y2="8" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" />
+      <path
+        d="M16 3l6 5-6 5"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default async function Home() {
   const [siteStats, trending] = await Promise.all([
@@ -200,40 +222,48 @@ export default async function Home() {
           ]}
         />
 
-        {/* Features */}
+        {/* Features — 첫 항목을 넓은 "플래그십" 카드로 강조하고 나머지 3개를
+            아래 서브 그리드로 두는 비대칭 레이아웃. 4칸이 전부 똑같은 크기의
+            아이콘+제목+설명 카드로 반복되던 걸 위계가 드러나게 바꿈. */}
         <section className="w-full border-t border-hairline bg-surface px-4 py-16 sm:px-6 sm:py-20">
           <Reveal className="mx-auto flex max-w-4xl flex-col items-center gap-10">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                Features
-              </span>
+              <span className="text-xs font-bold tracking-wide text-primary">핵심 기능</span>
               <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                 이런 기능을 제공해요
               </h2>
             </div>
-            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="flex flex-col gap-3 rounded-lg border border-hairline bg-bg p-4 sm:p-5"
+            <div className="flex w-full flex-col gap-4">
+              <div className="relative flex flex-col items-start gap-4 overflow-hidden rounded-xl border border-hairline bg-bg p-6 sm:flex-row sm:items-center sm:gap-6 sm:p-8">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -top-6 -right-2 text-8xl font-extrabold text-primary/5 sm:text-9xl"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-white">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-5 w-5"
-                    >
-                      {f.icon}
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-semibold text-ink">{f.title}</h3>
-                  <p className="text-sm text-ink-muted">{f.desc}</p>
+                  01
+                </span>
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
+                  <FeatureIcon className="h-7 w-7">{FEATURES[0].icon}</FeatureIcon>
                 </div>
-              ))}
+                <div className="relative flex flex-col gap-1.5">
+                  <h3 className="text-lg font-bold text-ink">{FEATURES[0].title}</h3>
+                  <p className="text-sm text-ink-muted sm:text-base">{FEATURES[0].desc}</p>
+                </div>
+              </div>
+
+              <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
+                {FEATURES.slice(1).map((f, i) => {
+                  const tint = ["bg-primary/10 text-primary", "bg-accent/20 text-on-brand", "bg-ink/5 text-ink"][i];
+                  return (
+                    <div key={f.title} className="flex flex-col gap-3 rounded-lg border border-hairline bg-bg p-4 sm:p-5">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-md ${tint}`}>
+                        <FeatureIcon>{f.icon}</FeatureIcon>
+                      </div>
+                      <h3 className="text-base font-semibold text-ink">{f.title}</h3>
+                      <p className="text-sm text-ink-muted">{f.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </Reveal>
         </section>
@@ -248,75 +278,74 @@ export default async function Home() {
                 <div className="text-2xl font-bold text-white sm:text-3xl">
                   {f.value}
                 </div>
-                <div className="mt-1 text-sm text-white/80">{f.label}</div>
+                <div className="mt-1 text-sm text-white/90">{f.label}</div>
               </div>
             ))}
           </Reveal>
         </section>
 
-        {/* Use cases */}
+        {/* Use cases — Features 섹션과 리듬이 겹치지 않도록 아이콘 사각형
+            대신 큰 고스트 넘버 + 좌측 컬러 바로 카드를 구분하고, 모바일에서는
+            가로 스냅 스크롤로 훑어보게 함(4칸을 좁은 화면에 욱여넣지 않음). */}
         <section className="w-full border-t border-hairline px-4 py-16 sm:px-6 sm:py-20">
           <Reveal className="mx-auto flex max-w-4xl flex-col items-center gap-10">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                Use Cases
-              </span>
+              <span className="text-xs font-bold tracking-wide text-primary">이용 사례</span>
               <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                 이런 분들이 쓰고 있어요
               </h2>
             </div>
-            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-              {USE_CASES.map((u) => (
+            <div className="-mx-4 flex w-[calc(100%+2rem)] snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:w-full sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0">
+              {USE_CASES.map((u, i) => (
                 <div
                   key={u.title}
-                  className="flex items-start gap-4 rounded-lg border border-hairline bg-surface p-5"
+                  className={`relative w-[78%] shrink-0 snap-start overflow-hidden rounded-lg border-l-4 bg-surface p-5 shadow-sm sm:w-auto sm:shrink ${
+                    i % 2 === 0 ? "border-l-primary" : "border-l-accent"
+                  }`}
                 >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-white">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-5 w-5"
-                    >
-                      {u.icon}
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-ink">{u.title}</h3>
-                    <p className="mt-1 text-sm text-ink-muted">{u.desc}</p>
-                  </div>
+                  <span
+                    aria-hidden
+                    className={`pointer-events-none absolute -top-3 -right-1 text-5xl font-extrabold ${
+                      i % 2 === 0 ? "text-primary/10" : "text-accent/20"
+                    }`}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="relative text-base font-semibold text-ink">{u.title}</h3>
+                  <p className="relative mt-1.5 text-sm text-ink-muted">{u.desc}</p>
                 </div>
               ))}
             </div>
           </Reveal>
         </section>
 
-        {/* How it works */}
+        {/* How it works — Features/Use cases와 세 번째로 똑같은 카드 그리드가
+            반복되지 않도록, 카드 사이에 PainPointPromo와 같은 점선 화살표를
+            둬서 "이어지는 순서"라는 느낌을 시각적으로 준다. */}
         <section className="w-full px-4 py-16 sm:px-6 sm:py-20">
           <Reveal className="mx-auto flex max-w-4xl flex-col items-center gap-10">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                How it works
-              </span>
+              <span className="text-xs font-bold tracking-wide text-primary">이용 방법</span>
               <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                 3단계로 시작하세요
               </h2>
             </div>
-            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid w-full grid-cols-1 items-center gap-6 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:gap-3">
               {STEPS.map((s, i) => (
-                <div
-                  key={s.title}
-                  className="flex flex-col items-center gap-3 rounded-lg border border-hairline bg-surface p-6 text-center"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg text-sm font-bold text-primary">
-                    {i + 1}
+                <Fragment key={s.title}>
+                  <div className="flex flex-col items-center gap-3 rounded-lg border border-hairline bg-surface p-6 text-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+                      {i + 1}
+                    </div>
+                    <h3 className="text-base font-semibold text-ink">{s.title}</h3>
+                    <p className="text-sm text-ink-muted">{s.desc}</p>
                   </div>
-                  <h3 className="text-base font-semibold text-ink">{s.title}</h3>
-                  <p className="text-sm text-ink-muted">{s.desc}</p>
-                </div>
+                  {i < STEPS.length - 1 && (
+                    <div className="hidden justify-center sm:flex">
+                      <StepArrow />
+                    </div>
+                  )}
+                </Fragment>
               ))}
             </div>
           </Reveal>
