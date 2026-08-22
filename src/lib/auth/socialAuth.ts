@@ -55,3 +55,46 @@ export async function verifyAndConsumeOAuthState(
     return { ok: false, redirectTo: DEFAULT_REDIRECT };
   }
 }
+
+// 2026-08 추가(약관 동의 기반 가입 절차) — 소셜 로그인 콜백이 처음 보는
+// providerId를 만나면 바로 createSocialUser()를 부르지 않고, 실제 계정
+// 생성에 필요한 정보(가입방식/소셜ID/이메일·표시이름/원래 목적지)를 이
+// httpOnly 쿠키에 잠깐 담아둔 뒤 /signup/agree로 보낸다. 클라이언트 JS가
+// 절대 못 읽고 못 바꾸는 값이라(같은 STATE_COOKIE와 동일한 신뢰 모델) 별도
+// 서명/CSRF 토큰 없이도 위조가 안 됨 — 서버가 실제 OAuth 검증을 마친 뒤에만
+// 이 쿠키를 세팅하기 때문.
+const PENDING_SIGNUP_COOKIE = "write_pending_signup";
+const PENDING_SIGNUP_MAX_AGE_SECONDS = 10 * 60;
+
+export interface PendingSignup {
+  provider: string;
+  providerId: string;
+  email: string;
+  redirectTo: string;
+}
+
+export async function issuePendingSignup(payload: PendingSignup): Promise<void> {
+  const store = await cookies();
+  store.set(PENDING_SIGNUP_COOKIE, JSON.stringify(payload), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: PENDING_SIGNUP_MAX_AGE_SECONDS,
+  });
+}
+
+// 소비(읽고 즉시 삭제) — /signup/agree 화면에서 동의를 완료해 실제 계정을
+// 만들 때 한 번만 쓰임. 쿠키가 없거나(만료·이미 소비됨) 손상됐으면 null —
+// 호출부가 "가입 요청이 만료됐어요, 처음부터 다시 시도해 주세요"로 안내함.
+export async function consumePendingSignup(): Promise<PendingSignup | null> {
+  const store = await cookies();
+  const raw = store.get(PENDING_SIGNUP_COOKIE)?.value;
+  store.delete(PENDING_SIGNUP_COOKIE);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PendingSignup;
+  } catch {
+    return null;
+  }
+}

@@ -168,6 +168,10 @@ export const USER_PROPS = {
   // 게시판 글·댓글에 보일 별도의 공개용 닉네임 필드. 없으면 최초 게시글
   // 작성 시점에 설정을 요구함(scripts/add-user-nickname-prop.ts로 마이그레이션).
   nickname: "닉네임",
+  // 2026-08 추가(약관 동의 기반 가입 절차) — 소셜 로그인으로 신규 계정이
+  // 만들어지는 시점(=이용약관·개인정보처리방침에 동의한 시점, `/signup/agree`)을
+  // 기록. `scripts/add-user-terms-agreed-prop.ts`로 마이그레이션.
+  termsAgreedAt: "약관동의일시",
   // 2026-08 추가(토스페이먼츠 월 구독제) — AI 블로그 자동글쓰기/블로그지수
   // AI 인사이트 유료화. `scripts/add-user-subscription-props.ts`로 마이그레이션.
   // select 옵션은 자동 생성 안 되므로(§CLAUDE.md 18.1) 마이그레이션 스크립트가

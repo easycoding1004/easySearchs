@@ -97,6 +97,9 @@ export default function DashboardHomePage() {
             <Link href="/privacy" className="hover:text-primary">
               개인정보처리방침
             </Link>
+            <Link href="/terms" className="hover:text-primary">
+              이용약관
+            </Link>
           </div>
         </div>
       </footer>

@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
 import { canUseWrite } from "@/lib/notion/users";
 import { getWriteHistoryForUser } from "@/lib/notion/writeHistory";
+import { AI_WRITE_ENABLED } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "AI 블로그 자동글쓰기",
@@ -38,6 +39,26 @@ async function getInitialStyleDefaults(userId: string): Promise<InitialStyleDefa
 
 export default async function WritePage() {
   const [user, admin] = await Promise.all([getCurrentUser(), isAdminAuthed()]);
+
+  // 2026-08 — 사용자 요청으로 AI 블로그 자동글쓰기를 임시로 "개발중" 처리
+  // (AI_WRITE_ENABLED, src/lib/constants.ts). 관리자(/admin 비밀번호 쿠키)는
+  // 이 사이트의 다른 기능들과 같은 원칙으로 계속 테스트·시연할 수 있게
+  // 예외로 둠 — 일반 방문자만 이 안내 화면을 봄.
+  if (!AI_WRITE_ENABLED && !admin) {
+    return (
+      <div className="flex flex-1 flex-col items-center font-sans">
+        <SiteHeader />
+        <main className="flex w-full flex-1 flex-col items-center gap-4 px-4 py-24 text-center sm:px-6 sm:py-32">
+          <span className="rounded-full bg-hairline px-3 py-1 text-xs font-semibold text-ink-muted">개발중</span>
+          <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">AI 블로그 자동글쓰기</h1>
+          <p className="max-w-md text-sm text-ink-muted">
+            지금 열심히 준비하고 있는 기능이에요. 조금만 기다려 주시면 곧 다시 찾아뵐게요.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
   const initialStyleDefaults = user ? await getInitialStyleDefaults(user.pageId) : undefined;
 
   return (

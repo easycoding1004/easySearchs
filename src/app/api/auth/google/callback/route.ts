@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { findUserByProvider, createSocialUser, setSession } from "@/lib/notion/users";
+import { findUserByProvider, setSession } from "@/lib/notion/users";
 import { AUTH_PROVIDER } from "@/lib/notion/schema";
-import { verifyAndConsumeOAuthState } from "@/lib/auth/socialAuth";
+import { verifyAndConsumeOAuthState, issuePendingSignup } from "@/lib/auth/socialAuth";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getErrorMessage } from "@/lib/utils/errors";
 
@@ -62,11 +62,20 @@ export async function GET(request: Request) {
 
     const providerId = profileData.sub;
     const existingUser = await findUserByProvider(AUTH_PROVIDER.google, providerId);
-    const pageId = existingUser
-      ? existingUser.pageId
-      : await createSocialUser(profileData.email ?? `google_${providerId}`, AUTH_PROVIDER.google, providerId);
 
-    const sessionToken = await setSession(pageId);
+    if (!existingUser) {
+      // 신규 계정 — 바로 만들지 않고 이용약관·개인정보처리방침 동의를 먼저
+      // 받음(CLAUDE.md §19 참고). 실제 계정 생성은 /api/auth/agree에서.
+      await issuePendingSignup({
+        provider: AUTH_PROVIDER.google,
+        providerId,
+        email: profileData.email ?? `google_${providerId}`,
+        redirectTo,
+      });
+      return NextResponse.redirect(`${SITE_URL}/signup/agree`);
+    }
+
+    const sessionToken = await setSession(existingUser.pageId);
     const response = NextResponse.redirect(`${SITE_URL}${redirectTo}`);
     response.cookies.set(SESSION_COOKIE, sessionToken, {
       httpOnly: true,

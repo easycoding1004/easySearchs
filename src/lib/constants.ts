@@ -1,3 +1,10 @@
+// 2026-08 — 사용자 요청으로 AI 블로그 자동글쓰기(`/write`)를 임시로
+// "개발중" 상태로 표시. 이 플래그 하나로 진입점(SiteHeader/MobileNavMenu/
+// FeatureShowcase)의 버튼·아이콘을 비활성화하고 "개발중" 배지를 붙이며,
+// /write 페이지 자체도 폼 대신 안내 문구만 보여줌. 준비되면 true로 되돌릴 것
+// — 그 외 코드(라우트·컴포넌트) 자체는 그대로 남겨둠.
+export const AI_WRITE_ENABLED = false;
+
 export const MAX_KEYWORD_RESULTS = 50;
 export const NOTION_WRITE_CONCURRENCY = 3;
 // Naver's keywordstool API accepts at most 5 comma-separated hintKeywords per call.

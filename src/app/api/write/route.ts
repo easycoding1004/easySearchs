@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canUseWrite, recordWriteUse } from "@/lib/notion/users";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
+import { AI_WRITE_ENABLED } from "@/lib/constants";
 import { generateBlogPost, type BlogWriterImage, type StyleReference } from "@/lib/write/blogWriter";
 import { isBlogCategory, type BlogCategory } from "@/lib/write/blogCategories";
 import { getWriteHistoryForUser } from "@/lib/notion/writeHistory";
@@ -52,11 +53,20 @@ export async function POST(request: Request) {
   if (!user.emailVerified) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
+  const admin = await isAdminAuthed();
+  // 2026-08 — AI 블로그 자동글쓰기를 임시로 "개발중" 처리(write/page.tsx의
+  // UI 잠금과 짝, AI_WRITE_ENABLED). UI만 막으면 API를 직접 호출해 우회할
+  // 수 있으니 여기서도 방어함 — 관리자는 계속 테스트할 수 있게 예외.
+  if (!AI_WRITE_ENABLED && !admin) {
+    return NextResponse.json(
+      { error: "AI 블로그 자동글쓰기는 현재 준비 중이에요." },
+      { status: 503 }
+    );
+  }
   // 유료 API 남용 방지 — 무료회원 누적 3회, 유료회원 결제주기당 10회
   // (토스페이먼츠 월 구독제, CLAUDE.md 신규 섹션). 관리자(/admin 비밀번호
   // 쿠키 — 게시판 관리자 권한과 같은 정의, §18.6.1)는 이 제한에서 제외해서
   // 계속 테스트·시연용으로 쓸 수 있게 함(2026-08, 사용자 요청).
-  const admin = await isAdminAuthed();
   if (!admin) {
     const usage = canUseWrite(user);
     if (!usage.allowed) {

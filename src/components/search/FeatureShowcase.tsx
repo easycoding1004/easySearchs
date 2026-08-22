@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { AI_WRITE_ENABLED } from "@/lib/constants";
 
 // 2026-08 추가 — 히어로 검색창 바로 아래 있던 CategoryTopKeywordsPanel(카테고리별
 // 인기 검색어 탭)을 치우고 그 자리에 넣는 "3대 기능 쇼케이스"(사용자 요청, 3개
@@ -182,6 +183,11 @@ export default function FeatureShowcase() {
           >
             {tab.tabIcon}
             {tab.label}
+            {tab.id === "write" && !AI_WRITE_ENABLED && (
+              <span className="rounded-full bg-hairline px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                개발중
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -202,13 +208,25 @@ export default function FeatureShowcase() {
             ))}
           </ol>
           <div className="mt-1 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
-            <Link
-              href={active.ctaHref}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
-            >
-              {active.ctaLabel}
-              {active.membersOnly && <span className="font-normal text-white/80"> (회원 전용)</span>}
-            </Link>
+            {active.id === "write" && !AI_WRITE_ENABLED ? (
+              <span
+                title="AI 자동글쓰기는 현재 준비 중이에요."
+                className="flex cursor-not-allowed items-center gap-1.5 rounded-md bg-hairline px-4 py-2 text-sm font-semibold text-ink-muted"
+              >
+                {active.ctaLabel}
+                <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                  개발중
+                </span>
+              </span>
+            ) : (
+              <Link
+                href={active.ctaHref}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
+              >
+                {active.ctaLabel}
+                {active.membersOnly && <span className="font-normal text-white/80"> (회원 전용)</span>}
+              </Link>
+            )}
             {active.secondaryHref && active.secondaryLabel && (
               <Link href={active.secondaryHref} className="text-xs font-medium text-ink-muted hover:text-primary">
                 {active.secondaryLabel} →

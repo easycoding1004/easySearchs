@@ -40,6 +40,7 @@ export interface User {
   naverBlogId: string;
   nickname: string;
   createdAt: string; // ISO — 관리자 대시보드 가입 현황용
+  termsAgreedAt: string; // ISO, "" 이면 이 계정 생성 전(약관 동의 절차 도입 전) 레거시 계정
   subscriptionStatus: SubscriptionStatusValue | "";
   cancelPending: boolean;
   tossCustomerKey: string;
@@ -95,6 +96,9 @@ function parseUser(page: PageObjectResponse): User {
   const createdAtProp = props[USER_PROPS.createdAt];
   const createdAt = createdAtProp?.type === "date" ? createdAtProp.date?.start ?? "" : "";
 
+  const termsAgreedAtProp = props[USER_PROPS.termsAgreedAt];
+  const termsAgreedAt = termsAgreedAtProp?.type === "date" ? termsAgreedAtProp.date?.start ?? "" : "";
+
   const subStatusProp = props[USER_PROPS.subscriptionStatus];
   const subscriptionStatus =
     subStatusProp?.type === "select" ? (subStatusProp.select?.name as SubscriptionStatusValue) ?? "" : "";
@@ -134,6 +138,7 @@ function parseUser(page: PageObjectResponse): User {
     naverBlogId,
     nickname,
     createdAt,
+    termsAgreedAt,
     subscriptionStatus,
     cancelPending,
     tossCustomerKey,
@@ -179,11 +184,18 @@ export async function findUserByProvider(
 // 바로 true로 세팅하고 별도 인증 메일을 안 보냄. 비밀번호 로그인 자체가
 // 없어졌으니(2026-08) passwordHash는 항상 빈 문자열. 반환값은 세션 발급까지
 // 바로 이어갈 수 있게 pageId.
+// 2026-08부터 이 함수는 오직 /api/auth/agree(약관 동의 절차)에서만 호출됨 —
+// 소셜 로그인 콜백이 신규 사용자를 발견해도 여기서 바로 계정을 만들지 않고
+// /signup/agree로 보내 이용약관·개인정보처리방침 동의를 먼저 받음
+// (src/lib/auth/socialAuth.ts의 pending-signup 쿠키 참고). 그래서 계정
+// 생성 = 약관 동의 시점이 항상 같으므로 별도 플래그 없이 여기서 바로
+// 약관동의일시를 지금 시각으로 찍음.
 export async function createSocialUser(
   email: string,
   provider: AuthProviderValue,
   providerId: string
 ): Promise<string> {
+  const now = new Date().toISOString();
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: usersDataSourceId() },
     properties: {
@@ -191,7 +203,8 @@ export async function createSocialUser(
       [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: true },
       [USER_PROPS.authProvider]: { type: "select", select: { name: provider } },
       [USER_PROPS.providerId]: { type: "rich_text", rich_text: [{ type: "text", text: { content: providerId } }] },
-      [USER_PROPS.createdAt]: { type: "date", date: { start: new Date().toISOString() } },
+      [USER_PROPS.createdAt]: { type: "date", date: { start: now } },
+      [USER_PROPS.termsAgreedAt]: { type: "date", date: { start: now } },
     },
   });
   return page.id;

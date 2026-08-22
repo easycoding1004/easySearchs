@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdminAuthed } from "@/lib/auth/adminAuth";
+import { AI_WRITE_ENABLED } from "@/lib/constants";
 import { reviseBlogPost, type BlogWriterImage } from "@/lib/write/blogWriter";
 import { isBlogCategory } from "@/lib/write/blogCategories";
 import { compressImage } from "@/lib/write/compressImage";
@@ -38,6 +39,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "이메일 인증을 먼저 완료해 주세요." }, { status: 403 });
   }
 
+  const admin = await isAdminAuthed();
+  // /api/write와 동일한 방어(2026-08, AI_WRITE_ENABLED — write/page.tsx의
+  // UI 잠금 참고). 관리자는 계속 테스트할 수 있게 예외.
+  if (!AI_WRITE_ENABLED && !admin) {
+    return NextResponse.json(
+      { error: "AI 블로그 자동글쓰기는 현재 준비 중이에요." },
+      { status: 503 }
+    );
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -67,7 +78,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "잘못된 요청이에요." }, { status: 400 });
   }
   // 관리자는 이 상한도 면제(§16의 하루 1회 제한 예외와 같은 정의/이유).
-  const admin = await isAdminAuthed();
   if (!admin && revisionCount >= MAX_REVISIONS) {
     return NextResponse.json(
       { error: `이 글은 수정 요청을 최대 ${MAX_REVISIONS}번까지만 반영할 수 있어요.` },
