@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 // 2026-08 — 이메일+비밀번호 가입/로그인을 완전히 제거하고 간편로그인(네이버/
@@ -43,6 +44,26 @@ export default function AuthForms() {
           구글로 계속하기
         </a>
       </div>
+
+      {/* 2026-08 추가 — OAuth를 시작하기 전에 약관을 미리 고지함(사용자
+          요청 — "게시판 글쓰기/AI 글쓰기 진입 시 로그인 전에 약관 동의
+          흐름"). 신규 가입자인지 기존 회원인지는 OAuth가 끝나야만 알 수
+          있어서, 매번 이 앞에 별도 "회원가입" 화면을 끼워넣으면 기존
+          회원도 재로그인할 때마다 가입하는 것처럼 보이는 화면을 거치게
+          됨 — 그래서 화면 전환 대신 이 문구만 추가하고, 실제 체크박스
+          동의(termsAgreedAt 기록)는 지금처럼 진짜 신규 가입자에게만
+          /signup/agree에서 받음(§CLAUDE.md 16.7 참고).*/}
+      <p className="text-center text-xs text-ink-muted">
+        계속 진행하면{" "}
+        <Link href="/terms" target="_blank" className="underline hover:text-primary">
+          이용약관
+        </Link>
+        과{" "}
+        <Link href="/privacy" target="_blank" className="underline hover:text-primary">
+          개인정보처리방침
+        </Link>
+        에 동의하는 것으로 간주돼요.
+      </p>
 
       {error && <p className="text-center text-sm text-error">{error}</p>}
     </div>
