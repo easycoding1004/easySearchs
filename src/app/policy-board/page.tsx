@@ -21,12 +21,13 @@ const CATEGORY_TABS = [
 ] as const;
 
 // /board/page.tsx의 이전/다음 커서 스택 패턴 그대로(§CLAUDE.md 신규 섹션) —
-// 카테고리 필터도 같이 실어서 넘김.
-function buildHref(cursor: string, prevCursors: string[], category?: string): string {
+// 카테고리 필터·검색어도 같이 실어서 넘김.
+function buildHref(cursor: string, prevCursors: string[], category?: string, q?: string): string {
   const params = new URLSearchParams();
   if (cursor) params.set("cursor", cursor);
   if (prevCursors.length > 0) params.set("prev", prevCursors.join(","));
   if (category) params.set("category", category);
+  if (q) params.set("q", q);
   const qs = params.toString();
   return qs ? `/policy-board?${qs}` : "/policy-board";
 }
@@ -34,21 +35,24 @@ function buildHref(cursor: string, prevCursors: string[], category?: string): st
 export default async function PolicyBoardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string; prev?: string; category?: string }>;
+  searchParams: Promise<{ cursor?: string; prev?: string; category?: string; q?: string }>;
 }) {
-  const { cursor, prev, category } = await searchParams;
+  const { cursor, prev, category, q } = await searchParams;
   const validCategory = (Object.values(POLICY_CATEGORY) as string[]).includes(category ?? "")
     ? (category as PolicyCategory)
     : undefined;
+  const search = q?.trim() || undefined;
   const prevCursors = prev ? prev.split(",") : [];
-  const { posts, nextCursor } = await getPolicyPosts(cursor, validCategory);
+  const { posts, nextCursor } = await getPolicyPosts(cursor, validCategory, search);
 
   const pageNumber = prevCursors.length + 1;
   const prevHref =
     prevCursors.length > 0
-      ? buildHref(prevCursors[prevCursors.length - 1], prevCursors.slice(0, -1), validCategory)
+      ? buildHref(prevCursors[prevCursors.length - 1], prevCursors.slice(0, -1), validCategory, search)
       : null;
-  const nextHref = nextCursor ? buildHref(nextCursor, [...prevCursors, cursor ?? ""], validCategory) : null;
+  const nextHref = nextCursor
+    ? buildHref(nextCursor, [...prevCursors, cursor ?? ""], validCategory, search)
+    : null;
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -65,7 +69,7 @@ export default async function PolicyBoardPage({
           {CATEGORY_TABS.map((tab) => (
             <Link
               key={tab.label}
-              href={buildHref("", [], tab.value)}
+              href={buildHref("", [], tab.value, search)}
               className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition sm:text-sm ${
                 validCategory === tab.value
                   ? "bg-primary text-white"
@@ -77,10 +81,26 @@ export default async function PolicyBoardPage({
           ))}
         </div>
 
+        <form action="/policy-board" className="flex w-full max-w-2xl gap-2">
+          {validCategory && <input type="hidden" name="category" value={validCategory} />}
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="공고 제목으로 검색 (예: 대출, 청년, 공모전)"
+            className="h-11 flex-1 rounded-sm border border-hairline bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="h-11 shrink-0 rounded-md border border-hairline px-4 text-sm font-semibold text-ink transition hover:bg-bg"
+          >
+            검색
+          </button>
+        </form>
+
         <div className="flex w-full max-w-2xl flex-col gap-2">
           {posts.length === 0 ? (
             <p className="rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center text-sm text-ink-muted">
-              아직 등록된 공고가 없어요. 매일 아침 자동으로 채워져요.
+              {search ? "검색 결과가 없어요." : "아직 등록된 공고가 없어요. 매일 아침 자동으로 채워져요."}
             </p>
           ) : (
             posts.map((post) => (

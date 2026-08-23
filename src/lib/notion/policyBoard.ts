@@ -129,13 +129,22 @@ export async function getPolicyPost(id: string): Promise<PolicyPost | null> {
 
 const PAGE_SIZE = 20;
 
+// search는 제목(title 속성) 부분일치 — hotdeal.ts의 모델명 검색과 같은
+// 원칙. category와 함께 걸리면 and로 묶음(§CLAUDE.md 15의 Notion 날짜 필터
+// AND 버그와 다른 얘기 — 이건 select+title 조합이라 그 함정은 해당 없음).
 export async function getPolicyPosts(
   cursor?: string,
-  category?: PolicyCategory
+  category?: PolicyCategory,
+  search?: string
 ): Promise<{ posts: PolicyPost[]; nextCursor: string | null }> {
+  const conditions = [];
+  if (category) conditions.push({ property: POLICY_POST_PROPS.category, select: { equals: category } });
+  if (search) conditions.push({ property: POLICY_POST_PROPS.title, title: { contains: search } });
+  const filter = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : { and: conditions };
+
   const res = await notion.dataSources.query({
     data_source_id: postsDataSourceId(),
-    filter: category ? { property: POLICY_POST_PROPS.category, select: { equals: category } } : undefined,
+    filter,
     sorts: [{ property: POLICY_POST_PROPS.postedAt, direction: "descending" }],
     start_cursor: cursor,
     page_size: PAGE_SIZE,

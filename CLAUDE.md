@@ -665,6 +665,7 @@ Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉�
 - `src/lib/scheduler/policyBoardJob.ts` — `instrumentation.ts`에 snapshotJob과 같은 패턴(서버 시작 시 즉시 1회 + `POLICY_BOARD_JOB_INTERVAL_MS`=1일마다, `constants.ts`)으로 등록. billingJob과 달리 즉시 실행해도 돈이 나가는 게 아니라 콘텐츠가 빨리 채워지는 것뿐이라 안전함. `BIZINFO_API_KEY` 미설정 시 `fetchBizinfoAnnouncements()`가 빈 배열을 반환해 조용히 무동작(Pixabay/OpenAI 이미지와 동일 계약).
 - 매 실행마다 `findPolicyPostBySourceId()`로 이미 게시된 공고를 걸러내고 새 것만 생성 — 재실행해도 중복 안 쌓임(실측 확인).
 - `/policy-board`·`/board` 둘 다 Notion 커서 기반 페이지네이션이라(오프셋/임의 페이지 점프 불가) "이전/다음" 양방향 이동 + 현재 페이지 번호로 구현(§CLAUDE.md 18 게시판에도 이번에 같이 적용) — URL의 `prev` 파라미터에 이전 페이지들의 진입 커서를 쉼표로 스택처럼 쌓아서 서버 상태 없이 새로고침·공유·북마크가 안전하게 동작함. `/policy-board`는 여기에 카테고리 탭(`?category=`)까지 같이 실어서 페이징함.
+- **제목 검색**(2026-08 추가, 사용자 요청) — `?q=` 쿼리로 공고 제목 부분일치 검색(`getPolicyPosts(cursor, category, search)`, Notion `title.contains` 필터 — hotdeal.ts의 모델명 검색과 같은 원칙이지만 대상 속성 타입이 `title`이라 필터 문법이 다름: `rich_text.contains`가 아니라 `title.contains`). 카테고리 필터와 동시에 걸리면 `and`로 묶임 — 실측으로 카테고리+검색어 동시 필터, 검색 결과 0건 케이스까지 실제 라이브 데이터로 확인함.
 
 ### 20.4 노출 지점
 
