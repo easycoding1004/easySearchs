@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { postId } = await params;
   const post = await getPolicyPost(postId);
-  return { title: post?.title ?? "정책정보" };
+  return { title: post?.title ?? "소상공인 정책정보" };
 }
 
 export default async function PolicyBoardPostPage({ params }: { params: Promise<{ postId: string }> }) {
