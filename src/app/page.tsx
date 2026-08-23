@@ -12,6 +12,8 @@ import MobileStickyCta from "@/components/MobileStickyCta";
 import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
 import { getSiteStats } from "@/lib/notion/stats";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
+import { getPolicyPosts } from "@/lib/notion/policyBoard";
+import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const TRENDING_PREVIEW_COUNT = 4;
 
@@ -126,10 +128,15 @@ function StepArrow() {
   );
 }
 
+const POLICY_PREVIEW_COUNT = 4;
+
 export default async function Home() {
-  const [siteStats, trending] = await Promise.all([
+  const [siteStats, trending, policyPreview] = await Promise.all([
     getSiteStats().catch(() => null),
     fetchTrendingKeywordsWithNaverVolume().catch(() => null),
+    getPolicyPosts()
+      .then((r) => r.posts.slice(0, POLICY_PREVIEW_COUNT))
+      .catch(() => []),
   ]);
 
   return (
@@ -180,6 +187,34 @@ export default async function Home() {
                 </Link>
               </div>
               <TrendingKeywordsCards items={trending.slice(0, TRENDING_PREVIEW_COUNT)} />
+            </Reveal>
+          </section>
+        )}
+
+        {policyPreview.length > 0 && (
+          <section className="w-full border-t border-hairline bg-surface px-4 py-12 sm:px-6 sm:py-16">
+            <Reveal className="mx-auto flex max-w-4xl flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">소상공인 정책정보</h2>
+                <Link href="/policy-board" className="text-sm font-medium text-primary hover:underline">
+                  더보기 →
+                </Link>
+              </div>
+              <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+                {policyPreview.map((post) => (
+                  <Link
+                    key={post.id}
+                    href={`/policy-board/${post.id}`}
+                    className="flex flex-col gap-1 rounded-lg border border-hairline bg-bg p-4 transition hover:border-primary"
+                  >
+                    <span className="w-fit rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-ink-muted">
+                      {post.category || "소상공인뉴스"}
+                    </span>
+                    <p className="text-sm font-semibold text-ink">{post.title}</p>
+                    <span className="text-xs text-ink-muted">{formatKstDateTime(post.postedAt)}</span>
+                  </Link>
+                ))}
+              </div>
             </Reveal>
           </section>
         )}

@@ -45,3 +45,12 @@ export const MAX_TREND_BADGE_KEYWORDS = 10;
 // 안 되므로). 하루 1회면 "다음결제일<=오늘" 판정을 놓치지 않기에 충분함.
 export const BILLING_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1일
 export const BILLING_JOB_CONCURRENCY = 2;
+
+// 소상공인 정책정보 게시판 — 기업마당 공고를 매일 훑어 자동 게시.
+// snapshotJob과 같은 패턴(서버 시작 시 즉시 1회 + 이후 주기) — billingJob과
+// 달리 즉시 실행해도 돈이 나가는 게 아니라 콘텐츠가 빨리 채워지는 것뿐이라
+// 안전함. setInterval 기반이라 "매일 아침"처럼 특정 시각을 보장하진 않고
+// 서버가 켜진 시점 기준 24시간마다 도는 것 — newsletterJob과 동일한
+// 트레이드오프.
+export const POLICY_BOARD_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1일
+export const POLICY_BOARD_JOB_CONCURRENCY = 2;

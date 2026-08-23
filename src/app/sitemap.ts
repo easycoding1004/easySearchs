@@ -17,6 +17,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // 개별 게시글까지 동적으로 열거하는 건 이번 범위 밖(§CLAUDE.md 16) — 목록
     // 페이지만 우선 추가.
     { url: `${BASE_URL}/board`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
+    { url: `${BASE_URL}/policy-board`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
+    { url: `${BASE_URL}/hotdeal`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE_URL}/trending`, lastModified: now, changeFrequency: "hourly", priority: 0.6 },
     { url: `${BASE_URL}/keywords`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     ...CATEGORIES.map((category) => ({

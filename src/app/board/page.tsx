@@ -17,13 +17,36 @@ export const dynamic = "force-dynamic";
 // 사용법 Q&A"에 가깝게 문구를 다듬음(실제로 시드/실사용 게시글 대부분이
 // 이런 성격이라 §CLAUDE.md 18에도 같은 관찰이 적혀 있음). 자유롭게 다른
 // 글도 쓸 수 있는 기능 자체는 그대로 유지 — 프레이밍만 바꿈.
+//
+// 2026-08 추가(사용자 요청 — "페이징 기능") — Notion 데이터소스 쿼리는
+// 커서 기반이라(오프셋/임의 페이지 점프 불가) "1 2 3 4 5" 같은 숫자
+// 페이지네이션은 만들 수 없음 — 대신 이전 페이지들의 진입 커서를 URL의
+// `prev` 파라미터에 스택으로 쌓아서(쉼표 구분, 빈 문자열 = 1페이지)
+// "이전/다음"을 양방향으로 오갈 수 있게 함. 서버 상태 없이 URL만으로
+// 페이지 위치가 정해져서 새로고침·공유·북마크에도 안전함.
+function buildBoardHref(cursor: string, prevCursors: string[]): string {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (prevCursors.length > 0) params.set("prev", prevCursors.join(","));
+  const qs = params.toString();
+  return qs ? `/board?${qs}` : "/board";
+}
+
 export default async function BoardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{ cursor?: string; prev?: string }>;
 }) {
-  const { cursor } = await searchParams;
+  const { cursor, prev } = await searchParams;
+  const prevCursors = prev ? prev.split(",") : [];
   const { posts, nextCursor } = await getBoardPosts(cursor);
+
+  const pageNumber = prevCursors.length + 1;
+  const prevHref =
+    prevCursors.length > 0
+      ? buildBoardHref(prevCursors[prevCursors.length - 1], prevCursors.slice(0, -1))
+      : null;
+  const nextHref = nextCursor ? buildBoardHref(nextCursor, [...prevCursors, cursor ?? ""]) : null;
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -71,13 +94,34 @@ export default async function BoardPage({
           )}
         </div>
 
-        {nextCursor && (
-          <Link
-            href={`/board?cursor=${encodeURIComponent(nextCursor)}`}
-            className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg"
-          >
-            더 보기
-          </Link>
+        {(prevHref || nextHref) && (
+          <div className="flex w-full max-w-2xl items-center justify-center gap-4">
+            {prevHref ? (
+              <Link
+                href={prevHref}
+                className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg"
+              >
+                ← 이전
+              </Link>
+            ) : (
+              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">
+                ← 이전
+              </span>
+            )}
+            <span className="text-sm text-ink-muted">{pageNumber}페이지</span>
+            {nextHref ? (
+              <Link
+                href={nextHref}
+                className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg"
+              >
+                다음 →
+              </Link>
+            ) : (
+              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">
+                다음 →
+              </span>
+            )}
+          </div>
         )}
       </main>
     </div>

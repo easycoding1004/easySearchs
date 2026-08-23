@@ -238,6 +238,80 @@ export const BOARD_COMMENT_PROPS = {
   postedAt: "표시일시",
 } as const;
 
+// 소상공인 정책정보 게시판(`/policy-board`, 2026-08 추가) — 기업마당
+// 오픈API(bizinfoApi.do)를 매일 아침 스케줄드 잡으로 조회해 자동 등록.
+// 댓글은 로그인 회원만, 대댓글(스레드) 지원 — BOARD_COMMENT_PROPS와 달리
+// Notion relation 자기참조 대신 부모댓글 ID를 rich_text로 저장해서 트리를
+// 클라이언트에서 구성함(자기참조 relation의 dual_property 복잡성을 피함).
+export const POLICY_POST_PROPS = {
+  title: "제목",
+  body: "내용",
+  category: "카테고리",
+  sourceUrl: "원문링크",
+  organization: "공고기관",
+  deadline: "마감일",
+  // 기업마당 RSS의 원본 항목을 식별하는 값(guid 등) — 매일 재조회할 때 이미
+  // 등록된 공고를 중복 게시하지 않기 위한 dedup 키.
+  sourceId: "원본ID",
+  postedAt: "게시일시",
+  // BOARD_POST_PROPS.commentCount와 동일한 트릭 — 댓글 DB의 "소속게시글"
+  // relation을 dual_property로 만들 때 Notion이 자동 생성해주는 역방향
+  // relation을 그대로 댓글 수로 씀.
+  commentCount: "댓글",
+} as const;
+
+export const POLICY_CATEGORY = {
+  loan: "대출정보",
+  subsidy: "정부지원금",
+  contest: "공모전",
+  news: "소상공인뉴스",
+} as const;
+
+export const POLICY_COMMENT_PROPS = {
+  title: "내용",
+  authorNickname: "작성자닉네임",
+  post: "소속게시글",
+  // 빈 문자열 = 최상위 댓글, 값이 있으면 그 댓글 ID에 달린 대댓글.
+  parentCommentId: "부모댓글ID",
+  postedAt: "작성일시",
+} as const;
+
+// 핫딜정보 게시판(`/hotdeal`, 2026-08 추가) — 원래는 11번가·쿠팡파트너스
+// API로 시스템이 자동 검색·비교글 생성을 하려 했으나, 두 API 모두 사업자
+// 등록이 있어야 발급된다는 걸 사용자가 실제로 확인함(개인 불가) — 그래서
+// 뽐뿌·알구몬 같은 실제 한국 핫딜 커뮤니티와 동일하게 **회원이 직접
+// 상품명·가격·구매링크를 등록하는 방식**으로 전환함(사용자와 논의 후 확정).
+// `source` 속성으로 회원 등록 글과 향후 추가될 수 있는 자동 수집 글을
+// 구분해둠 — 지금은 회원등록만 실제로 씀.
+export const HOTDEAL_POST_PROPS = {
+  title: "제목",
+  body: "본문",
+  modelName: "모델명",
+  authorNickname: "작성자닉네임",
+  authorId: "작성자ID",
+  // JSON 문자열([{platform, price, url}, ...]) — 화면에서 표로 렌더링.
+  // 본문(body)엔 소개·후기를 자유롭게 쓰고, 실제 비교 데이터는 구조화해
+  // 저장해서 파싱 없이 바로 표를 그릴 수 있게 함.
+  comparisons: "가격비교",
+  lowestPrice: "최저가",
+  source: "출처",
+  postedAt: "게시일시",
+  commentCount: "댓글",
+} as const;
+
+export const HOTDEAL_SOURCE = {
+  member: "회원등록",
+  crawled: "자동수집",
+} as const;
+
+export const HOTDEAL_COMMENT_PROPS = {
+  title: "내용",
+  authorNickname: "작성자닉네임",
+  post: "소속게시글",
+  parentCommentId: "부모댓글ID",
+  postedAt: "작성일시",
+} as const;
+
 // AI 블로그 자동글쓰기 히스토리(`/write/history`, 2026-08 추가, 사용자 요청 —
 // "게시에 적용한 글들을 히스토리로 저장하고, 그걸 기반으로 앞으로 스타일을
 // 미리 정해줬으면"). "이 버전으로 확정하기" 클릭 시점에 1건씩 쌓임(BOARD_POST_PROPS와

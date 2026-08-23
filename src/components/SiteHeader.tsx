@@ -10,6 +10,8 @@ export const NAV_LINKS = [
   { href: "/trending", label: "급상승" },
   { href: "/write", label: "AI 자동글쓰기" },
   { href: "/board", label: "게시판" },
+  { href: "/policy-board", label: "정책정보" },
+  { href: "/hotdeal", label: "핫딜정보" },
   { href: "/guide", label: "가이드" },
   { href: "/contact", label: "문의하기" },
 ];
