@@ -54,3 +54,9 @@ export const BILLING_JOB_CONCURRENCY = 2;
 // 트레이드오프.
 export const POLICY_BOARD_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1일
 export const POLICY_BOARD_JOB_CONCURRENCY = 2;
+
+// 핫딜정보 게시판 — 루리웹 핫딜/예판 게시판 공식 RSS를 1시간마다 훑어 자동
+// 게시(사용자 요청). policyBoardJob과 같은 이유로 서버 시작 시 즉시 1회도
+// 실행함(돈이 나가는 잡이 아님).
+export const HOTDEAL_CRAWL_JOB_INTERVAL_MS = 60 * 60 * 1000; // 1시간
+export const HOTDEAL_CRAWL_JOB_CONCURRENCY = 2;

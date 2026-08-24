@@ -3,6 +3,7 @@ import {
   NEWSLETTER_JOB_INTERVAL_MS,
   BILLING_JOB_INTERVAL_MS,
   POLICY_BOARD_JOB_INTERVAL_MS,
+  HOTDEAL_CRAWL_JOB_INTERVAL_MS,
 } from "./lib/constants";
 
 // Next.js가 서버 프로세스 시작 시 정확히 1회 호출하는 공식 훅. 이 프로젝트
@@ -60,4 +61,16 @@ export async function register() {
       console.error("[instrumentation] scheduled policy board job failed:", err);
     });
   }, POLICY_BOARD_JOB_INTERVAL_MS);
+
+  // 핫딜정보 게시판 — 루리웹 RSS를 1시간마다 훑어 자동 게시(사용자 요청).
+  // policyBoardJob과 같은 이유로 시작 시 즉시 1회도 실행.
+  const { runHotdealCrawlJob } = await import("./lib/scheduler/hotdealCrawlJob");
+  runHotdealCrawlJob().catch((err) => {
+    console.error("[instrumentation] initial hotdeal crawl job failed:", err);
+  });
+  setInterval(() => {
+    runHotdealCrawlJob().catch((err) => {
+      console.error("[instrumentation] scheduled hotdeal crawl job failed:", err);
+    });
+  }, HOTDEAL_CRAWL_JOB_INTERVAL_MS);
 }

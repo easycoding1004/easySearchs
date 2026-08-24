@@ -2,6 +2,8 @@ import { isFullPage } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { HOTDEAL_POST_PROPS, HOTDEAL_COMMENT_PROPS, HOTDEAL_SOURCE } from "./schema";
+
+export type HotdealSourceValue = (typeof HOTDEAL_SOURCE)[keyof typeof HOTDEAL_SOURCE];
 import {
   createThreadedComment,
   getThreadedCommentsForPost,
@@ -37,6 +39,7 @@ export interface HotdealPost {
   authorId: string;
   comparisons: PriceEntry[];
   lowestPrice: number | null;
+  source: HotdealSourceValue | "";
   postedAt: string;
   commentCount: number;
 }
@@ -77,6 +80,9 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
   const commentCountProp = props[HOTDEAL_POST_PROPS.commentCount];
   const commentCount = commentCountProp?.type === "relation" ? commentCountProp.relation.length : 0;
 
+  const sourceProp = props[HOTDEAL_POST_PROPS.source];
+  const source = sourceProp?.type === "select" ? (sourceProp.select?.name as HotdealSourceValue) ?? "" : "";
+
   return {
     id: page.id,
     title,
@@ -86,6 +92,7 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
     authorId: richText(props[HOTDEAL_POST_PROPS.authorId]),
     comparisons: parseComparisons(richText(props[HOTDEAL_POST_PROPS.comparisons])),
     lowestPrice,
+    source,
     postedAt,
     commentCount,
   };
@@ -94,7 +101,8 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
 // 회원이 직접 상품명·가격비교·구매링크를 입력해 등록(§CLAUDE.md 신규 섹션 —
 // 11번가·쿠팡파트너스 API가 사업자 전용이라 자동화 대신 이 방식으로 전환).
 // 최저가는 서버에서 comparisons로부터 계산(클라이언트 값을 그대로 믿지
-// 않음).
+// 않음). hotdealCrawlJob.ts(루리웹 RSS 자동 수집)도 이 함수를 그대로 재사용
+// — source/sourceId를 넘기면 자동수집 글로 표시되고 dedup 대상이 됨.
 export async function createHotdealPost(input: {
   title: string;
   body: string;
@@ -102,6 +110,8 @@ export async function createHotdealPost(input: {
   authorNickname: string;
   authorId: string;
   comparisons: PriceEntry[];
+  source?: HotdealSourceValue;
+  sourceId?: string;
 }): Promise<string> {
   const lowestPrice = input.comparisons.length > 0 ? Math.min(...input.comparisons.map((c) => c.price)) : null;
 
@@ -127,11 +137,26 @@ export async function createHotdealPost(input: {
         rich_text: [{ type: "text", text: { content: JSON.stringify(input.comparisons) } }],
       },
       [HOTDEAL_POST_PROPS.lowestPrice]: { type: "number", number: lowestPrice },
-      [HOTDEAL_POST_PROPS.source]: { type: "select", select: { name: HOTDEAL_SOURCE.member } },
+      [HOTDEAL_POST_PROPS.source]: { type: "select", select: { name: input.source ?? HOTDEAL_SOURCE.member } },
+      [HOTDEAL_POST_PROPS.sourceId]: {
+        type: "rich_text",
+        rich_text: input.sourceId ? [{ type: "text", text: { content: input.sourceId } }] : [],
+      },
       [HOTDEAL_POST_PROPS.postedAt]: { type: "date", date: { start: new Date().toISOString() } },
     },
   });
   return page.id;
+}
+
+// 루리웹 RSS를 매일 다시 훑을 때 이미 게시한 글을 중복 게시하지 않기 위한
+// dedup 체크 — policyBoard.ts의 findPolicyPostBySourceId와 동일한 패턴.
+export async function findHotdealPostBySourceId(sourceId: string): Promise<boolean> {
+  const res = await notion.dataSources.query({
+    data_source_id: postsDataSourceId(),
+    filter: { property: HOTDEAL_POST_PROPS.sourceId, rich_text: { equals: sourceId } },
+    page_size: 1,
+  });
+  return res.results.length > 0;
 }
 
 export async function getHotdealPost(id: string): Promise<HotdealPost | null> {

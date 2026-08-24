@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import CommentThread from "@/components/CommentThread";
 import { getHotdealPost, getCommentsForHotdealPost } from "@/lib/notion/hotdeal";
+import { HOTDEAL_SOURCE } from "@/lib/notion/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 
@@ -36,7 +37,14 @@ export default async function HotdealPostPage({ params }: { params: Promise<{ po
       <main className="flex w-full flex-1 flex-col items-center gap-6 px-4 py-12 sm:px-6 sm:py-16">
         <article className="flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
           <div className="flex flex-col gap-2 border-b border-hairline pb-3">
-            <span className="w-fit rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-fit rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
+              {post.source === HOTDEAL_SOURCE.crawled && (
+                <span className="w-fit rounded-full bg-accent/20 px-2 py-0.5 text-xs font-medium text-on-brand">
+                  루리웹 자동수집
+                </span>
+              )}
+            </div>
             <h1 className="text-xl font-bold text-ink">{post.title}</h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
               <span>{post.authorNickname || "익명"}</span>
@@ -73,7 +81,10 @@ export default async function HotdealPostPage({ params }: { params: Promise<{ po
           {post.body && <p className="whitespace-pre-wrap text-sm text-ink">{post.body}</p>}
 
           <p className="text-xs text-ink-muted">
-            회원이 직접 등록한 정보예요. 실제 가격·재고는 구매 전 각 쇼핑몰에서 다시 한번 확인해 주세요.
+            {post.source === HOTDEAL_SOURCE.crawled
+              ? "루리웹 핫딜 게시판에서 자동으로 가져온 글이에요. 자세한 내용과 댓글은 원문 링크에서 확인해 주세요."
+              : "회원이 직접 등록한 정보예요."}{" "}
+            실제 가격·재고는 구매 전 각 쇼핑몰에서 다시 한번 확인해 주세요.
           </p>
         </article>
 
