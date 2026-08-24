@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
 
-// SiteHeader의 nav가 5개 링크로 늘어나면서 좁은 모바일 화면에서는 로고+nav가
-// 뷰포트 폭을 넘어서 버렸음 — sm: 미만에서는 이 햄버거 메뉴로 대체.
+// SiteHeader의 nav가 10개 항목(9개 메뉴+로그인)까지 늘어나면서, 헤더
+// 컨테이너 폭(max-w-4xl — 사이트 전체 콘텐츠 폭과 맞춤)이 넓어져도 항목이
+// 한 줄에 다 안 들어가 라벨 내부에서 줄바꿈되는 문제가 있었음(2026-08 실측
+// 확인) — 데스크톱 전체 nav는 `lg:`(1024px)부터만 보여주고, 그 미만에서는
+// 폭에 상관없이 이 햄버거 메뉴로 통일.
 export default function MobileNavMenu({
   links,
 }: {
@@ -14,7 +17,7 @@ export default function MobileNavMenu({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="relative sm:hidden">
+    <div className="relative lg:hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

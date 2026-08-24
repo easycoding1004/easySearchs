@@ -24,7 +24,7 @@ export default function SiteHeader() {
         <Link href="/" className="flex items-center">
           <Image src="/ezzsearch_logo.png" alt="이지서치" width={94} height={32} priority />
         </Link>
-        <nav className="hidden items-center gap-5 text-sm font-medium text-ink-muted sm:flex">
+        <nav className="hidden items-center gap-4 whitespace-nowrap text-sm font-medium text-ink-muted lg:flex">
           {NAV_LINKS.map((link) =>
             link.href === "/write" && !AI_WRITE_ENABLED ? (
               <span
