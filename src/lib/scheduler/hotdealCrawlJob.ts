@@ -9,10 +9,21 @@ const TITLE_MAX_LENGTH = 120;
 const MODEL_NAME_MAX_LENGTH = 80;
 const PRODUCT_PREVIEW_MAX_LENGTH = 150;
 
+// 2026-08 추가(사용자 요청 — "게시자의 닉네임은 루리웹 닉네임 말고 우리
+// 사이트에 가입자의 닉네임으로") — 실제 회원 계정을 임의로 골라 그 사람
+// 이름으로 자동수집 글을 게시하면 본인 동의 없는 프라이버시 문제가 되므로
+// (§CLAUDE.md 18.7.1의 게시판 데모 시드와 달리 실제 계정이 걸림), 사용자와
+// 논의 후 전용 표시계정을 하나 새로 만들어 그 닉네임을 고정으로 씀
+// (scripts/create-hotdeal-display-account.ts로 생성, 로그인 불가 계정).
+const DISPLAY_ACCOUNT_NICKNAME = "dealscout";
+const DISPLAY_ACCOUNT_ID = "3c65ac20-1cc9-8184-ac78-eb1aba26528f";
+
 export interface CrawledDealContent {
   body: string;
   comparisons: PriceEntry[];
   thumbnailUrl: string;
+  authorNickname: string;
+  authorId: string;
 }
 
 // 딜 하나(가격이 확정된 것)를 게시/업데이트에 필요한 필드로 가공 —
@@ -53,7 +64,13 @@ export async function buildCrawledDealContent(deal: RuliwebDeal & { price: numbe
     ? [{ platform: deriveShopLabel(detail.purchaseLink), price: deal.price, url: detail.purchaseLink }]
     : [{ platform: "루리웹", price: deal.price, url: deal.link }];
 
-  return { body, comparisons, thumbnailUrl: deal.thumbnailUrl || previewImage || "" };
+  return {
+    body,
+    comparisons,
+    thumbnailUrl: deal.thumbnailUrl || previewImage || "",
+    authorNickname: DISPLAY_ACCOUNT_NICKNAME,
+    authorId: DISPLAY_ACCOUNT_ID,
+  };
 }
 
 // 루리웹 핫딜/예판 게시판 RSS를 1시간마다 훑어 아직 게시하지 않은 딜만
@@ -82,14 +99,17 @@ export async function runHotdealCrawlJob(): Promise<void> {
       const alreadyPosted = await findHotdealPostBySourceId(deal.sourceId);
       if (alreadyPosted) return;
 
-      const { body, comparisons, thumbnailUrl } = await buildCrawledDealContent({ ...deal, price: deal.price });
+      const { body, comparisons, thumbnailUrl, authorNickname, authorId } = await buildCrawledDealContent({
+        ...deal,
+        price: deal.price,
+      });
 
       await createHotdealPost({
         title: deal.title.slice(0, TITLE_MAX_LENGTH),
         body,
         modelName: deal.title.slice(0, MODEL_NAME_MAX_LENGTH),
-        authorNickname: deal.author || "루리웹",
-        authorId: "",
+        authorNickname,
+        authorId,
         comparisons,
         source: HOTDEAL_SOURCE.crawled,
         sourceId: deal.sourceId,

@@ -736,6 +736,9 @@ Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉�
 - 위 요약·구매링크 기능을 붙이기 전에 이미 게시돼 있던 자동수집 글들은 본문이 비어 있고 가격비교도 루리웹 링크였음 — `scripts/backfill-hotdeal-crawled-details.ts`(원본ID=루리웹 URL로 재스크래핑해 `updateHotdealPost()`로 덮어씀, 멱등이라 재실행해도 무해)로 소급 적용. 실측: 기존 23건 전부 재스크래핑해 본문·가격비교·썸네일 갱신 확인(예: "[카카오]롯데 칠성..." 글이 본문 없음/`루리웹→ruliweb.com`이던 것에서 실제 요약 본문+`store.kakao.com` 가격비교로 바뀜).
 - `HotdealPost.sourceId`가 기존엔 파싱 안 되고 있었음(Notion엔 저장돼 있었지만 `parseHotdealPost()`가 안 읽었음) — 백필 스크립트가 원본 루리웹 URL을 알아야 해서 이번에 추가.
 
+**2026-08 후속 — 작성자를 전용 표시계정으로 통일** (사용자 요청 — "게시자의 닉네임은 루리웹의 닉네임 말고 우리 사이트에 가입자의 닉네임으로"): 원래 `deal.author || "루리웹"`(루리웹 원 게시자의 실제 닉네임)을 그대로 썼는데, "가입자의 닉네임"이 구체적으로 무엇을 뜻하는지(실제 일반 회원 계정을 임의로 골라 쓰는 건 본인 동의 없이 프라이버시를 침해하는 것이라 §18.7.1의 게시판 데모 시드—가짜 페르소나—와는 성격이 다름) AskUserQuestion으로 확인 후 **전용 표시계정을 새로 만드는 쪽**으로 확정함. `scripts/create-hotdeal-display-account.ts`(1회 실행, find-or-create라 재실행해도 무해)가 로그인 불가 계정(`hotdeal-curator@ezzsearch.local`, 이메일 인증됨으로 생성, 닉네임 `dealscout` — 기존 시드 페르소나처럼 영문 핸들 스타일)을 `사용자 계정` DB에 만들고, 그 pageId를 `hotdealCrawlJob.ts`의 `DISPLAY_ACCOUNT_ID`/`DISPLAY_ACCOUNT_NICKNAME` 상수로 하드코딩함(매 실행마다 Notion 조회 없이 바로 씀 — 계정 자체는 사실상 안 바뀌는 값이라). `buildCrawledDealContent()`가 이제 `authorNickname`/`authorId`도 함께 반환해서 신규 게시·백필 양쪽에 자동 반영됨 — `updateHotdealPost()`도 이 두 필드를 받도록 확장. 기존 24건 전부 백필 재실행으로 `dealscout`로 통일 확인(실측: 크롤링 글 전체의 `authorNickname`이 `dealscout` 하나로 수렴, `authorId`도 해당 계정 pageId로 일치).
+- **매일 자동 업데이트 관련**: 사용자가 "매일 자동으로 업데이트"를 요청했으나, 확인 결과 이미 `HOTDEAL_CRAWL_JOB_INTERVAL_MS`(1시간마다, §21.6)로 자동 갱신되고 있었음 — AskUserQuestion으로 주기를 하루 1회로 바꿀지 확인했고, 사용자가 "지금처럼 1시간마다 유지"를 선택해 **주기 변경 없음**(이미 요구사항을 만족하고 있었던 케이스).
+
 ### 21.7 스코프 밖
 
 - 게시글 수정·삭제(§18.6.1과 같은 패턴으로 나중에 추가 가능, 이번 범위 밖).

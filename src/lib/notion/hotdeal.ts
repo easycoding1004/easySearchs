@@ -162,7 +162,13 @@ export async function createHotdealPost(input: {
 // createHotdealPost와 달리 부분 업데이트만 하고 postedAt/source 등은 안 건드림.
 export async function updateHotdealPost(
   id: string,
-  input: { body?: string; comparisons?: PriceEntry[]; thumbnailUrl?: string }
+  input: {
+    body?: string;
+    comparisons?: PriceEntry[];
+    thumbnailUrl?: string;
+    authorNickname?: string;
+    authorId?: string;
+  }
 ): Promise<void> {
   const properties: Parameters<typeof notion.pages.update>[0]["properties"] = {};
   if (input.body !== undefined) {
@@ -178,6 +184,18 @@ export async function updateHotdealPost(
     };
     const lowestPrice = input.comparisons.length > 0 ? Math.min(...input.comparisons.map((c) => c.price)) : null;
     properties[HOTDEAL_POST_PROPS.lowestPrice] = { type: "number", number: lowestPrice };
+  }
+  if (input.authorNickname !== undefined) {
+    properties[HOTDEAL_POST_PROPS.authorNickname] = {
+      type: "rich_text",
+      rich_text: input.authorNickname ? [{ type: "text", text: { content: input.authorNickname } }] : [],
+    };
+  }
+  if (input.authorId !== undefined) {
+    properties[HOTDEAL_POST_PROPS.authorId] = {
+      type: "rich_text",
+      rich_text: input.authorId ? [{ type: "text", text: { content: input.authorId } }] : [],
+    };
   }
   if (input.thumbnailUrl !== undefined) {
     properties[HOTDEAL_POST_PROPS.thumbnailUrl] = { type: "url", url: input.thumbnailUrl || null };
