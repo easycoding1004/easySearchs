@@ -43,6 +43,16 @@ export default function SiteHeader() {
               </Link>
             )
           )}
+          {/* 2026-08 추가(§CLAUDE.md 22) — 로그인 상태를 표시하려면 페이지마다
+              Notion 세션 조회가 필요해서(비용/지연), 사이트 대부분이 완전
+              공개·무상태인 이 프로젝트 원칙(§10.2)과 맞지 않음 — 그래서
+              SiteHeader는 로그인 여부와 무관하게 항상 같은 "로그인" 링크만
+              보여주는 정적 항목으로 둠. 실제 로그인/로그아웃 상태는 이미
+              로그인이 필요한 각 기능 페이지(예: /write의 BlogWriterForm) 안에서만
+              확인·표시함. */}
+          <Link href="/login" className="font-semibold text-ink transition-colors hover:text-primary">
+            로그인
+          </Link>
         </nav>
         <MobileNavMenu links={NAV_LINKS} />
       </div>

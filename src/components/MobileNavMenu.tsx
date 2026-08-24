@@ -59,6 +59,13 @@ export default function MobileNavMenu({
               </Link>
             )
           )}
+          <Link
+            href="/login"
+            onClick={() => setOpen(false)}
+            className="block border-t border-hairline px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-bg hover:text-primary"
+          >
+            로그인
+          </Link>
         </div>
       )}
     </div>

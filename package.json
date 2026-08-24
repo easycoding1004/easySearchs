@@ -18,6 +18,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@notionhq/client": "^5.23.2",
+    "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "fast-xml-parser": "^5.10.1",
     "garu-ko": "^0.9.11",
@@ -31,7 +32,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

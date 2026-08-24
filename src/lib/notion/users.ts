@@ -181,9 +181,10 @@ export async function findUserByProvider(
 }
 
 // 네이버/카카오/구글 로그인 — 발급처가 이미 신원을 확인했으므로 emailVerified를
-// 바로 true로 세팅하고 별도 인증 메일을 안 보냄. 비밀번호 로그인 자체가
-// 없어졌으니(2026-08) passwordHash는 항상 빈 문자열. 반환값은 세션 발급까지
-// 바로 이어갈 수 있게 pageId.
+// 바로 true로 세팅하고 별도 인증 메일을 안 보냄(이메일+비밀번호 계정은 아래
+// createUser()가 별도로 처리 — 그쪽은 이메일 소유를 우리가 직접 확인해야
+// 하므로 인증 메일을 보냄, §CLAUDE.md 22). 이 함수는 passwordHash를 항상
+// 빈 문자열로 둠(소셜 계정은 비밀번호 자체가 없음).
 // 2026-08부터 이 함수는 오직 /api/auth/agree(약관 동의 절차)에서만 호출됨 —
 // 소셜 로그인 콜백이 신규 사용자를 발견해도 여기서 바로 계정을 만들지 않고
 // /signup/agree로 보내 이용약관·개인정보처리방침 동의를 먼저 받음
@@ -208,6 +209,73 @@ export async function createSocialUser(
     },
   });
   return page.id;
+}
+
+// 이메일+비밀번호 계정 조회 — 로그인 시도 시 이메일로 계정을 찾는 용도.
+// 소셜 계정도 title(이메일)이 겹치면 걸릴 수 있어(예: 네이버로 가입한
+// 이메일과 같은 주소로 이메일+비밀번호 가입을 시도) 호출부가 authProvider를
+// 확인해 "다른 방식으로 가입된 계정"임을 안내해야 함.
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const res = await notion.dataSources.query({
+    data_source_id: usersDataSourceId(),
+    filter: { property: USER_PROPS.title, title: { equals: email } },
+    page_size: 1,
+  });
+  const page = res.results.find(isFullPage);
+  return page ? parseUser(page) : null;
+}
+
+// 이메일+비밀번호 회원가입 — 2026-08 부활(§CLAUDE.md 22). 소셜 로그인과
+// 달리 이메일 소유를 우리가 확인해야 하므로 emailVerified=false로 시작하고
+// verificationToken을 발급해둠(/api/auth/signup이 이 토큰으로 인증 메일을
+// 보냄). 약관 동의는 가입 폼 자체에 체크박스로 있어(소셜 로그인의 OAuth
+// 리다이렉트 이후 별도 화면과 다른 이유 — 이쪽은 리다이렉트 제약이 없어서
+// 굳이 따로 뺄 필요가 없음) 호출 시점에 이미 동의가 끝난 상태 — createSocialUser와
+// 동일하게 여기서 바로 약관동의일시를 지금 시각으로 찍음.
+export async function createUser(
+  email: string,
+  passwordHash: string,
+  verificationToken: string
+): Promise<string> {
+  const now = new Date().toISOString();
+  const page = await notion.pages.create({
+    parent: { type: "data_source_id", data_source_id: usersDataSourceId() },
+    properties: {
+      [USER_PROPS.title]: { type: "title", title: [{ type: "text", text: { content: email } }] },
+      [USER_PROPS.passwordHash]: { type: "rich_text", rich_text: [{ type: "text", text: { content: passwordHash } }] },
+      [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: false },
+      [USER_PROPS.verificationToken]: {
+        type: "rich_text",
+        rich_text: [{ type: "text", text: { content: verificationToken } }],
+      },
+      [USER_PROPS.authProvider]: { type: "select", select: { name: AUTH_PROVIDER.email } },
+      [USER_PROPS.createdAt]: { type: "date", date: { start: now } },
+      [USER_PROPS.termsAgreedAt]: { type: "date", date: { start: now } },
+    },
+  });
+  return page.id;
+}
+
+export async function findUserByVerificationToken(token: string): Promise<User | null> {
+  if (!token) return null;
+  const res = await notion.dataSources.query({
+    data_source_id: usersDataSourceId(),
+    filter: { property: USER_PROPS.verificationToken, rich_text: { equals: token } },
+    page_size: 1,
+  });
+  const page = res.results.find(isFullPage);
+  return page ? parseUser(page) : null;
+}
+
+// 인증 완료 — 토큰은 1회용이라 확인 즉시 비움(재사용/추측 공격 방지).
+export async function markEmailVerified(pageId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    properties: {
+      [USER_PROPS.emailVerified]: { type: "checkbox", checkbox: true },
+      [USER_PROPS.verificationToken]: { type: "rich_text", rich_text: [] },
+    },
+  });
 }
 
 // One active session per account (MVP scope — logging in again elsewhere

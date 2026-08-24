@@ -1,19 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-// 2026-08 — 이메일+비밀번호 가입/로그인을 완전히 제거하고 간편로그인(네이버/
-// 카카오/구글) 3종만 남김(사용자 요청 — 소셜 3종은 이미 이메일 인증 없이
-// 바로 가입되는데, 이메일+비밀번호만 별도로 인증 절차를 거치게 하는 게
-// 일관성이 없다는 지적). 비밀번호 해싱·인증메일 발송·인증 라우트까지
-// 통째로 걷어냈으니(session.ts/users.ts 참고) 되살리려면 그 커밋을 먼저
-// 확인할 것 — 이 컴포넌트는 이제 순수 소셜 로그인 진입점만 담당.
+// 2026-08 부활(사용자 요청 — "ID PW 기입이 있는 로그인 페이지로 전면 변경,
+// 아래 간편 로그인을 달아주는 형태로 현시스템을 전부 변경") — 한 번 걷어냈던
+// 이메일+비밀번호 로그인을 이 컴포넌트에 다시 얹음(§CLAUDE.md 22). 이
+// 컴포넌트는 여전히 여러 곳(게시판/AI 글쓰기/핫딜 글쓰기/구독)에 인라인으로
+// 임베드되고, 동시에 새 전용 `/login` 페이지도 이 컴포넌트를 그대로 씀 —
+// 하나의 컴포넌트로 "인라인 로그인 프롬프트"와 "전용 로그인 페이지" 둘 다
+// 커버해서 로직 중복을 피함.
 export default function AuthForms() {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [error] = useState<string | null>(searchParams.get("error"));
+  const [oauthError] = useState<string | null>(searchParams.get("error"));
+  const [formError, setFormError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // 이 페이지 URL 자체에 ?redirect=가 실려 있으면(다른 곳에서 "로그인하러
   // 가기" 링크로 여기로 보낸 경우) 그 값을 우선하고, 없으면 지금 렌더링되고
@@ -22,8 +29,81 @@ export default function AuthForms() {
   const effectiveRedirect = explicitRedirect || (pathname && pathname !== "/write" ? pathname : "");
   const redirectParam = effectiveRedirect ? `?redirect=${encodeURIComponent(effectiveRedirect)}` : "";
 
+  async function handleLogin(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    setNeedsVerification(false);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormError(data.error ?? "로그인에 실패했어요.");
+        setNeedsVerification(Boolean(data.needsVerification));
+        return;
+      }
+      router.push(effectiveRedirect || "/write");
+      router.refresh();
+    } catch {
+      setFormError("로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <div className="flex w-full max-w-sm flex-col gap-3">
+    <div className="flex w-full max-w-sm flex-col gap-4">
+      <form onSubmit={handleLogin} className="flex flex-col gap-2">
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="이메일"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="h-11 rounded-md border border-hairline bg-surface px-3 text-sm text-ink outline-none focus:border-primary"
+        />
+        <input
+          type="password"
+          required
+          autoComplete="current-password"
+          placeholder="비밀번호"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="h-11 rounded-md border border-hairline bg-surface px-3 text-sm text-ink outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex h-11 items-center justify-center rounded-md bg-primary text-sm font-semibold text-white transition ease-spring hover:opacity-90 motion-safe:active:scale-[0.97] disabled:opacity-60"
+        >
+          {submitting ? "로그인 중..." : "로그인"}
+        </button>
+        {formError && (
+          <p className="text-center text-sm text-error">
+            {formError}
+            {needsVerification && (
+              <>
+                {" "}
+                <Link href="/signup" className="underline">
+                  가입 다시 하기
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+      </form>
+
+      <div className="flex items-center gap-3 text-xs text-ink-muted">
+        <span className="h-px flex-1 bg-hairline" />
+        또는 간편 로그인
+        <span className="h-px flex-1 bg-hairline" />
+      </div>
+
       <div className="flex flex-col gap-2">
         <a
           href={`/api/auth/naver${redirectParam}`}
@@ -45,6 +125,13 @@ export default function AuthForms() {
         </a>
       </div>
 
+      <p className="text-center text-xs text-ink-muted">
+        계정이 없으신가요?{" "}
+        <Link href={`/signup${redirectParam}`} className="underline hover:text-primary">
+          회원가입
+        </Link>
+      </p>
+
       {/* 2026-08 추가 — OAuth를 시작하기 전에 약관을 미리 고지함(사용자
           요청 — "게시판 글쓰기/AI 글쓰기 진입 시 로그인 전에 약관 동의
           흐름"). 신규 가입자인지 기존 회원인지는 OAuth가 끝나야만 알 수
@@ -65,7 +152,7 @@ export default function AuthForms() {
         에 동의하는 것으로 간주돼요.
       </p>
 
-      {error && <p className="text-center text-sm text-error">{error}</p>}
+      {oauthError && <p className="text-center text-sm text-error">{oauthError}</p>}
     </div>
   );
 }

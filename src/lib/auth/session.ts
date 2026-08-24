@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { findUserBySessionToken, type User } from "@/lib/notion/users";
 
@@ -8,15 +10,36 @@ export const SESSION_COOKIE = "write_session";
 // 기능이 쓰면 공유). SESSION_COOKIE 값("write_session")은 이름을 바꾸면
 // 지금 로그인돼 있는 기존 사용자 세션이 전부 끊기므로 그대로 유지 — 새
 // 기능(게시판)도 이 쿠키를 그대로 읽고 씀.
-//
-// 이메일+비밀번호 로그인(hashPassword/verifyPassword/isValidEmail 등)은
-// 2026-08에 완전히 제거됨 — 소셜 로그인(네이버/카카오/구글) 3종만 남음
-// (사용자 요청: 소셜은 이미 이메일 인증 없이 바로 가입되는데 이메일+비밀번호만
-// 별도 인증 절차를 거치게 하는 게 일관성이 없다는 이유). 되살리려면 이 커밋
-// 이전 버전을 참고할 것.
 export async function getCurrentUser(): Promise<User | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return findUserBySessionToken(token);
+}
+
+// 2026-08 부활(사용자 요청 — "ID PW 기입이 있는 로그인 페이지로 전면 변경") —
+// 한 번 완전히 제거했던 이메일+비밀번호 로그인을 되살림(§CLAUDE.md 22 참고).
+// 이번엔 소셜 로그인과의 "인증 절차 비일관성" 문제를 이메일 인증을 없애는
+// 대신 이메일+비밀번호 계정에도 정식으로 인증 메일을 보내는 쪽으로 해결—
+// 비밀번호 기반 계정은 이메일 소유 확인이 안 되면 비밀번호 찾기 등 후속
+// 기능이 애초에 안전하지 않아서(사용자와 논의 후 확정).
+export const MIN_PASSWORD_LENGTH = 8;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL_PATTERN.test(email);
+}
+
+const BCRYPT_SALT_ROUNDS = 10;
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+export function generateVerificationToken(): string {
+  return randomUUID();
 }
