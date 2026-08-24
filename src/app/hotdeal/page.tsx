@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import HotdealThumbnail from "@/components/hotdeal/HotdealThumbnail";
 import { getHotdealPosts } from "@/lib/notion/hotdeal";
 
 export const metadata: Metadata = {
@@ -81,19 +82,7 @@ export default async function HotdealPage({
                 href={`/hotdeal/${post.id}`}
                 className="flex items-center gap-3 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
               >
-                {post.thumbnailUrl ? (
-                  // 외부(루리웹) 썸네일이라 next/image remotePatterns 설정 없이 그대로 씀
-                  // (§CLAUDE.md 18.3의 board 이미지와 같은 패턴)
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={post.thumbnailUrl}
-                    alt=""
-                    className="h-16 w-16 shrink-0 rounded-md border border-hairline object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="h-16 w-16 shrink-0 rounded-md border border-hairline bg-bg" aria-hidden />
-                )}
+                <HotdealThumbnail src={post.thumbnailUrl} alt="" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
