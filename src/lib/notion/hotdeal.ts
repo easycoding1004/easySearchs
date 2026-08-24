@@ -40,6 +40,7 @@ export interface HotdealPost {
   comparisons: PriceEntry[];
   lowestPrice: number | null;
   source: HotdealSourceValue | "";
+  thumbnailUrl: string;
   postedAt: string;
   commentCount: number;
 }
@@ -83,6 +84,9 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
   const sourceProp = props[HOTDEAL_POST_PROPS.source];
   const source = sourceProp?.type === "select" ? (sourceProp.select?.name as HotdealSourceValue) ?? "" : "";
 
+  const thumbnailProp = props[HOTDEAL_POST_PROPS.thumbnailUrl];
+  const thumbnailUrl = thumbnailProp?.type === "url" ? thumbnailProp.url ?? "" : "";
+
   return {
     id: page.id,
     title,
@@ -93,6 +97,7 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
     comparisons: parseComparisons(richText(props[HOTDEAL_POST_PROPS.comparisons])),
     lowestPrice,
     source,
+    thumbnailUrl,
     postedAt,
     commentCount,
   };
@@ -112,6 +117,7 @@ export async function createHotdealPost(input: {
   comparisons: PriceEntry[];
   source?: HotdealSourceValue;
   sourceId?: string;
+  thumbnailUrl?: string;
 }): Promise<string> {
   const lowestPrice = input.comparisons.length > 0 ? Math.min(...input.comparisons.map((c) => c.price)) : null;
 
@@ -142,6 +148,7 @@ export async function createHotdealPost(input: {
         type: "rich_text",
         rich_text: input.sourceId ? [{ type: "text", text: { content: input.sourceId } }] : [],
       },
+      [HOTDEAL_POST_PROPS.thumbnailUrl]: { type: "url", url: input.thumbnailUrl || null },
       [HOTDEAL_POST_PROPS.postedAt]: { type: "date", date: { start: new Date().toISOString() } },
     },
   });

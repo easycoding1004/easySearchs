@@ -298,6 +298,10 @@ export const HOTDEAL_POST_PROPS = {
   // 2026-08 추가(루리웹 RSS 자동 수집) — 원본 게시글 URL을 dedup 키로 씀.
   // 회원등록 글은 빈 문자열(중복 체크 대상 아님). scripts/add-hotdeal-source-id-prop.ts로 마이그레이션.
   sourceId: "원본ID",
+  // 2026-08 추가(루리웹 RSS의 og:image/description 썸네일) — 목록 카드에
+  // 제품 사진을 보여주기 위함. 회원등록 글은 빈 값(입력 폼에 사진 업로드
+  // 필드가 없음). scripts/add-hotdeal-thumbnail-prop.ts로 마이그레이션.
+  thumbnailUrl: "썸네일URL",
   postedAt: "게시일시",
   commentCount: "댓글",
 } as const;

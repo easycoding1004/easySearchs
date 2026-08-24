@@ -79,20 +79,35 @@ export default async function HotdealPage({
               <Link
                 key={post.id}
                 href={`/hotdeal/${post.id}`}
-                className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
+                className="flex items-center gap-3 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
               >
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
-                  {post.commentCount > 0 && (
-                    <span className="text-xs font-semibold text-primary">[{post.commentCount}]</span>
-                  )}
-                </div>
-                <p className="text-sm font-semibold text-ink">{post.title}</p>
-                <div className="flex items-center gap-2 text-xs text-ink-muted">
-                  {post.lowestPrice != null && (
-                    <span className="font-semibold text-primary">{post.lowestPrice.toLocaleString()}원~</span>
-                  )}
-                  <span>{post.authorNickname || "익명"}</span>
+                {post.thumbnailUrl ? (
+                  // 외부(루리웹) 썸네일이라 next/image remotePatterns 설정 없이 그대로 씀
+                  // (§CLAUDE.md 18.3의 board 이미지와 같은 패턴)
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.thumbnailUrl}
+                    alt=""
+                    className="h-16 w-16 shrink-0 rounded-md border border-hairline object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="h-16 w-16 shrink-0 rounded-md border border-hairline bg-bg" aria-hidden />
+                )}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
+                    {post.commentCount > 0 && (
+                      <span className="text-xs font-semibold text-primary">[{post.commentCount}]</span>
+                    )}
+                  </div>
+                  <p className="truncate text-sm font-semibold text-ink">{post.title}</p>
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                    {post.lowestPrice != null && (
+                      <span className="font-semibold text-primary">{post.lowestPrice.toLocaleString()}원~</span>
+                    )}
+                    <span>{post.authorNickname || "익명"}</span>
+                  </div>
                 </div>
               </Link>
             ))

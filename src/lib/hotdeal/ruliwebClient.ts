@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import * as cheerio from "cheerio";
 
 // 루리웹 핫딜/예판 게시판 공식 RSS — 인증 불필요, 루리웹이 의도적으로
 // 공개하는 피드라 스크래핑보다 안전함(googleTrends/client.ts의 구글 트렌드
@@ -89,4 +90,70 @@ export async function fetchRuliwebDeals(): Promise<RuliwebDeal[]> {
     .map(parseItem)
     .filter((item): item is RuliwebDeal => item !== null)
     .filter((item) => !item.category.includes(EXCLUDED_CATEGORY_KEYWORD));
+}
+
+// 2026-08 추가(사용자 요청 — "본문 내용을 그대로 웹크롤링해서 넣어줘") —
+// 사용자와 논의 후 **원문 전체를 그대로 재게시하지 않고 짧은 요약만** 만들어
+// 넣기로 확정함(§CLAUDE.md 21.6에서 뽐뿌를 저작권 우려로 제외했던 것과
+// 같은 이유가 루리웹 원문 전문 재게시에도 그대로 적용되기 때문). 이 함수는
+// 게시물 페이지에서 본문 텍스트 + 게시자가 지정한 구매 링크를 함께 뽑아옴
+// (2026-08 추가 요청 — "구입 링크를 직접 연결해서 상품 내용을 스크랩해줘",
+// 구매 링크는 productPreview.ts가 best-effort로 따라감). 실제 "요약"(자르기)은
+// summarizeText()가 호출부에서 담당 — 여기서는 원문을 그대로 반환.
+// 실측 확인(2026-08): 본문은 `.view_content` 안에 <p> 위주로 들어있고,
+// 이미지/외부링크 태그가 섞여 있어 cheerio로 텍스트만 뽑아냄.
+const USER_AGENT_POST = "ezzsearch.com (hotdeal board)";
+
+export interface RuliwebPostDetail {
+  bodyText: string;
+  // 게시자가 붙인 "출처" 구매 링크 — 실측 확인(2026-08): .source_url 블록에
+  // 있는 링크가 게시자 스스로 지정한 구매처라 본문 안에 섞인 다른 링크(제품
+  // 이미지 원본, 관련 딜 언급 등)보다 신뢰도가 높음. 없으면 본문 안 첫
+  // 외부(http) 링크로 폴백.
+  purchaseLink: string | null;
+}
+
+export async function fetchRuliwebPostDetail(url: string): Promise<RuliwebPostDetail | null> {
+  try {
+    const response = await fetch(url, { headers: { "User-Agent": USER_AGENT_POST } });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const content = $(".view_content").first();
+    if (content.length === 0) return null;
+
+    let purchaseLink = $(".source_url a[href^='http']").first().attr("href") ?? null;
+    if (!purchaseLink) {
+      purchaseLink = content.find("a[href^='http']").first().attr("href") ?? null;
+    }
+
+    content.find("script, style").remove();
+    const nbsp = String.fromCharCode(160);
+    const bodyText = content
+      .text()
+      .split(nbsp)
+      .join(" ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n+/g, "\n")
+      .trim();
+
+    return { bodyText, purchaseLink };
+  } catch {
+    return null;
+  }
+}
+
+const SUMMARY_MAX_LENGTH = 200;
+
+// 원문을 그대로 저장하지 않고 짧게 잘라 요약처럼 보이게 함 — AI 요약이
+// 아니라 단순 절단(단어 경계에서 자름)이지만, 원문 대비 재생산되는 분량을
+// 크게 줄여 저작권 리스크를 낮추는 목적에는 충분함(비용도 안 듦 — 시간당
+// 20여 건마다 Claude를 부르지 않음).
+export function summarizeText(text: string, maxLength: number = SUMMARY_MAX_LENGTH): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= maxLength) return collapsed;
+  const cut = collapsed.slice(0, maxLength);
+  const lastSpace = cut.lastIndexOf(" ");
+  const safeCut = lastSpace > maxLength * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return `${safeCut}…`;
 }
