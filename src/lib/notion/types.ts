@@ -6,6 +6,7 @@ export interface SearchSession {
   keyword: string;
   searchedAt: string;
   resultCount: number;
+  authorId: string;
 }
 
 export type KeywordKind = "시드 키워드" | "연관 키워드" | "추론 키워드";

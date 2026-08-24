@@ -4,6 +4,12 @@ export const SESSION_PROPS = {
   searchedAt: "검색일시",
   resultCount: "결과 개수",
   relatedRecords: "관련 레코드",
+  // 2026-08 추가(사용자 요청 — "키워드 검색 기록을 계정에 새로 연결") — 로그인한
+  // 상태로 검색하면 이 세션을 그 계정에 귀속시켜 /mypage에서 "내 검색 기록"으로
+  // 보여줌. 개인 도구 자체는 여전히 로그인 없이 완전 공개(§10.2 원칙 그대로) —
+  // 비로그인 검색은 이 값이 빈 문자열로 남고 지금까지와 동일하게 동작함.
+  // scripts/add-session-author-id-prop.ts로 마이그레이션.
+  authorId: "작성자ID",
 } as const;
 
 export const RECORD_PROPS = {

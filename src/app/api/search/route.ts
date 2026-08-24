@@ -11,6 +11,7 @@ import {
   NOTION_WRITE_CONCURRENCY,
 } from "@/lib/constants";
 import { createSearchSession } from "@/lib/notion/sessions";
+import { getCurrentUser } from "@/lib/auth/session";
 import { createKeywordRecord, getRecordsForSession } from "@/lib/notion/records";
 import { upsertSnapshot } from "@/lib/notion/keywordSnapshots";
 import { KEYWORD_KIND, SNAPSHOT_SOURCE } from "@/lib/notion/schema";
@@ -109,6 +110,10 @@ export async function POST(request: Request) {
     );
   }
 
+  // 로그인 상태면 이 검색을 그 계정에 귀속시켜 /mypage에서 볼 수 있게 함 —
+  // 비로그인 사용자는 지금까지와 동일하게 완전히 익명으로 동작(§10.2 원칙).
+  const user = await getCurrentUser();
+
   const { stream, send, close } = createSseStream();
 
   (async () => {
@@ -193,6 +198,7 @@ export async function POST(request: Request) {
           title: `${keywordLabel} - ${today}`,
           keyword: keywordLabel,
           resultCount: capped.length,
+          authorId: user?.pageId ?? "",
         });
       } catch (err) {
         const message = getErrorMessage(err);

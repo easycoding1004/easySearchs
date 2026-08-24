@@ -173,6 +173,27 @@ export async function getBoardPosts(
   };
 }
 
+// /mypage의 "게시판 내 게시물" — 작성자ID는 원래 §18.2에서 "나중에 '내 글만
+// 보기' 등을 붙일 수 있도록" 남겨둔 필드였음(2026-08, 이제 실제로 씀).
+export async function getBoardPostsByAuthor(authorId: string): Promise<BoardPost[]> {
+  const posts: BoardPost[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: postsDataSourceId(),
+      filter: { property: BOARD_POST_PROPS.authorId, rich_text: { equals: authorId } },
+      sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    posts.push(...res.results.filter(isFullPage).map(parseBoardPost));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return posts;
+}
+
 export async function createComment(input: {
   postId: string;
   content: string;

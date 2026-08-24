@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ScrollProgressBar from "./ScrollProgressBar";
 import MobileNavMenu from "./MobileNavMenu";
+import AuthNavLink from "./AuthNavLink";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
 
 export const NAV_LINKS = [
@@ -16,6 +17,13 @@ export const NAV_LINKS = [
   { href: "/contact", label: "문의하기" },
 ];
 
+// 2026-08 — 로그인 상태에 따라 "로그인"/"내 정보"를 보여주되(사용자 요청),
+// SiteHeader 자체는 여전히 순수 정적 컴포넌트로 유지함 — 세션 쿠키를 읽는
+// 로직을 여기 넣으면(async Server Component화) 이 컴포넌트를 쓰는 모든
+// 페이지(홈페이지 포함)가 정적 생성에서 빠져 요청마다 서버 렌더링되는 걸
+// 실측(next build)으로 확인했음(§10.2 "대부분 완전 공개·무상태" 원칙과
+// 정면으로 충돌). 로그인 표시는 AuthNavLink.tsx(client)가 마운트 후
+// /api/auth/me를 가볍게 fetch해서 따로 처리 — 페이지 자체는 그대로 정적.
 export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface/85 backdrop-blur">
@@ -43,16 +51,7 @@ export default function SiteHeader() {
               </Link>
             )
           )}
-          {/* 2026-08 추가(§CLAUDE.md 22) — 로그인 상태를 표시하려면 페이지마다
-              Notion 세션 조회가 필요해서(비용/지연), 사이트 대부분이 완전
-              공개·무상태인 이 프로젝트 원칙(§10.2)과 맞지 않음 — 그래서
-              SiteHeader는 로그인 여부와 무관하게 항상 같은 "로그인" 링크만
-              보여주는 정적 항목으로 둠. 실제 로그인/로그아웃 상태는 이미
-              로그인이 필요한 각 기능 페이지(예: /write의 BlogWriterForm) 안에서만
-              확인·표시함. */}
-          <Link href="/login" className="font-semibold text-ink transition-colors hover:text-primary">
-            로그인
-          </Link>
+          <AuthNavLink variant="desktop" />
         </nav>
         <MobileNavMenu links={NAV_LINKS} />
       </div>

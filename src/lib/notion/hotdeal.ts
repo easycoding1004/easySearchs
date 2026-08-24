@@ -245,6 +245,28 @@ export async function getHotdealPosts(
   };
 }
 
+// /mypage의 "핫딜정보 내 게시물" — 회원등록 글만 걸림(자동수집 글은
+// authorId가 전용 표시계정 고정값이라, 특정 회원 개인의 mypage에는 안 뜨는
+// 게 맞는 동작).
+export async function getHotdealPostsByAuthor(authorId: string): Promise<HotdealPost[]> {
+  const posts: HotdealPost[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: postsDataSourceId(),
+      filter: { property: HOTDEAL_POST_PROPS.authorId, rich_text: { equals: authorId } },
+      sorts: [{ property: HOTDEAL_POST_PROPS.postedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    posts.push(...res.results.filter(isFullPage).map(parseHotdealPost));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return posts;
+}
+
 export async function createHotdealComment(input: {
   postId: string;
   content: string;

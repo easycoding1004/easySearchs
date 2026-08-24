@@ -38,13 +38,17 @@ function parseSession(page: PageObjectResponse): SearchSession {
   const countProp = props[SESSION_PROPS.resultCount];
   const resultCount = countProp?.type === "number" ? countProp.number ?? 0 : 0;
 
-  return { id: page.id, title, keyword, searchedAt, resultCount };
+  const authorIdProp = props[SESSION_PROPS.authorId];
+  const authorId = authorIdProp?.type === "rich_text" ? authorIdProp.rich_text.map((t) => t.plain_text).join("") : "";
+
+  return { id: page.id, title, keyword, searchedAt, resultCount, authorId };
 }
 
 export async function createSearchSession(input: {
   title: string;
   keyword: string;
   resultCount: number;
+  authorId?: string;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: sessionsDataSourceId() },
@@ -65,9 +69,34 @@ export async function createSearchSession(input: {
         type: "number",
         number: input.resultCount,
       },
+      [SESSION_PROPS.authorId]: {
+        type: "rich_text",
+        rich_text: input.authorId ? [{ type: "text", text: { content: input.authorId } }] : [],
+      },
     },
   });
   return page.id;
+}
+
+// /mypage의 "내 검색 기록" — 로그인 상태로 진행한 검색만 여기 걸림(§10.2
+// 원칙상 비로그인 검색은 계정에 안 걸리는 게 정상).
+export async function getSessionsByAuthor(authorId: string): Promise<SearchSession[]> {
+  const sessions: SearchSession[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: sessionsDataSourceId(),
+      filter: { property: SESSION_PROPS.authorId, rich_text: { equals: authorId } },
+      sorts: [{ property: SESSION_PROPS.searchedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    sessions.push(...res.results.filter(isFullPage).map(parseSession));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return sessions;
 }
 
 export async function getSessionById(

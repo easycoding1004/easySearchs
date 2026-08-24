@@ -768,7 +768,33 @@ Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉�
 - **`AuthForms.tsx` 자체를 ID/PW 폼 + 소셜 버튼 아래 배치 형태로 전면 개편** — 이 컴포넌트는 `/write`·`/write/history`·`/board/write`·`/hotdeal/write`·`/subscribe` 5곳에 인라인으로 임베드돼 있던 기존 진입점이라, 이 컴포넌트 하나를 바꾸는 것만으로 "현시스템을 전부 변경"이 5곳 모두에 자동 반영됨(사이트 구조를 리다이렉트 기반으로 갈아엎지 않고 컴포넌트 레벨에서 해결 — 위험도가 낮고 기존 페이지들의 다른 로직에 영향 없음). 로그인 성공 시 `router.push` + `router.refresh()`로 서버 컴포넌트가 새 세션을 인식하게 함. 하단에 "회원가입" 링크(`/signup`)를 추가.
 - **`SignupForm.tsx`(신규)** — 로그인 폼과 별개 컴포넌트로 분리(비밀번호 확인·약관 체크박스·"인증 메일 보냈어요" 성공 상태처럼 가입 전용 상태가 로그인과 섞이면 오히려 복잡해짐). 제출 성공 시 리다이렉트하지 않고 "인증 메일을 보냈어요" 안내 카드로 전환(아직 로그인이 안 된 상태이므로).
 - **전용 페이지 `/login`, `/signup`(신규)** — 각각 `AuthForms`/`SignupForm`을 감싸는 얇은 레이아웃. 이미 로그인된 사용자가 방문하면 `redirect` 쿼리(또는 기본값 `/write`)로 즉시 리다이렉트. `robots: {index:false}`(§12.4의 `/privacy`와 같은 원칙 — 로그인 페이지는 검색 노출 불필요).
-- **`SiteHeader.tsx`/`MobileNavMenu.tsx`에 정적 "로그인" 링크 추가** — `/login`으로 항상 연결됨. **의도적으로 로그인/로그아웃 상태를 표시하지 않음**: 이걸 하려면 `SiteHeader`가 모든 페이지에서 매번 Notion 세션 조회를 해야 하는데, 이 프로젝트는 대부분의 페이지가 완전 공개·무상태라는 원칙(§10.2)을 지키고 있고 SiteHeader는 홈페이지·`/result`·`/dashboard` 등 트래픽이 많은 페이지에도 전부 들어가는 공유 컴포넌트라 여기에 세션 조회를 얹으면 사이트 전체에 불필요한 지연·Notion 호출이 추가됨 — 그래서 로그인 상태 표시는 지금처럼 실제로 로그인이 필요한 개별 기능 페이지(예: `/write`의 `BlogWriterForm`이 자체적으로 로그아웃 버튼을 보여주는 것) 안에서만 하는 기존 패턴을 그대로 유지함.
+- **`SiteHeader.tsx`/`MobileNavMenu.tsx`에 정적 "로그인" 링크 추가** — `/login`으로 항상 연결됨. ~~의도적으로 로그인/로그아웃 상태를 표시하지 않음~~ — **2026-08 후속(§23)에서 이 결정을 뒤집어 로그인 상태를 표시하게 됨**, 다만 `SiteHeader` 자체를 세션을 읽는 동적 컴포넌트로 만들지는 않고 클라이언트 사이드에서 별도로 처리함 — 자세한 내용과 그 이유는 §23 참고.
 - **로그아웃**: 기존 `/api/auth/logout` 라우트를 그대로 재사용(변경 없음) — 소셜/이메일 계정 구분 없이 세션 쿠키 하나로 통일 관리되므로 이번 변경으로 영향 없음.
 - **비밀번호 찾기("비밀번호를 잊으셨나요")는 이번 범위에 포함 안 함** — 스코프 밖으로 명시적으로 남겨둠, 필요하면 별도로 요청할 것.
 - `tsc --noEmit -p .`/`eslint`(신규·수정 파일 전체)/`next build` 클린 확인(`/login`·`/signup`·`/api/auth/{signup,verify,login}` 라우트가 빌드 결과에 정상 등록됨). **아직 실사용 검증 전** — 실제 브라우저로 회원가입 → 인증 메일 수신·클릭 → 자동 로그인 → 로그아웃 → 재로그인까지, 그리고 소셜 계정 이메일로 이메일+비밀번호 로그인 시도 시 정상적으로 거부되는지 다음 실사용 때 확인 필요.
+
+## 23. 내 정보 페이지 (`/mypage`, 2026-08 신규)
+
+로그인하면 헤더에 "내 정보" 버튼이 뜨고, 클릭하면 검색 기록·게시판별 내 게시물·로그아웃을 모아 볼 수 있는 개인 허브 페이지(사용자 요청). `/write/history`(§16)와 같은 패턴 — 완전 비공개(`robots: {index:false}`), 로그인 필수(비로그인은 `AuthForms`로 안내).
+
+### 23.1 SiteHeader 로그인 상태 표시 — async Server Component가 아니라 클라이언트 사이드 체크로 구현
+
+**처음엔 `SiteHeader`를 `async function`으로 바꿔 `getCurrentUser()`를 직접 호출했다가, `next build` 실측으로 심각한 회귀를 발견하고 되돌림** — `SiteHeader`는 홈페이지를 포함해 사이트 전체 페이지에 들어가는 공유 컴포넌트인데, 이 컴포넌트가 쿠키를 읽으면(Next.js는 요청별로 달라질 수 있는 값을 읽는 페이지를 정적 생성 대상에서 제외함) `/`·`/guide`·`/guide/[slug]`·`/keywords`·`/privacy`·`/terms`·`/dashboard`·`/contact`·`/admin/login`처럼 지금까지 정적 생성(`○`/`●`)되던 페이지들이 전부 매 요청마다 서버 렌더링되는(`ƒ`) 페이지로 바뀌어버림 — §10.2의 "대부분 완전 공개·무상태" 원칙과 정면으로 충돌하는 광범위한 성능 회귀였음. §22를 쓸 당시 "로그인 상태 표시는 비용이 크다"고 판단해 일부러 안 넣었던 게 바로 이 문제였다는 게 이번에 실측으로 재확인된 셈.
+
+**해결**: `SiteHeader.tsx`는 순수 정적 컴포넌트로 그대로 두고(쿠키 읽는 코드 없음), 로그인 상태 표시만 새 클라이언트 컴포넌트 `src/components/AuthNavLink.tsx`로 분리 — 마운트 후 `GET /api/auth/me`(신규, `getCurrentUser()`를 감싸 `{loggedIn: boolean}`만 반환 — 이메일·닉네임 등 개인정보는 절대 안 담아서 응답 자체가 캐시되거나 노출돼도 무해함)를 fetch해서 "로그인"/"내 정보" 링크를 스스로 결정함. 기본값은 "로그인"(방문자 대부분이 비로그인이라 깜빡임이 적음) — 실제 로그인 상태면 fetch 응답이 오는 대로 "내 정보"로 바뀜. `SiteHeader`의 데스크톱 nav와 `MobileNavMenu.tsx`의 모바일 드롭다운 둘 다 `<AuthNavLink variant="desktop"|"mobile" />` 하나를 공유해서 로직이 두 곳에서 따로 관리되지 않음.
+
+세션 쿠키가 `httpOnly`라(§16, XSS 방지) 클라이언트 JS가 `document.cookie`로 직접 못 읽어서, 로그인 여부를 알려면 반드시 서버 왕복이 필요함 — `/api/auth/me`가 그 왕복을 최소한으로 좁힌 것(단일 boolean만).
+
+- `error.tsx`(Next.js 요구사항상 반드시 Client Component)는 SiteHeader가 다시 정적/동기 컴포넌트가 되면서 원래대로 `<SiteHeader />`를 직접 렌더링하도록 되돌림(중간에 async였을 때 잠깐 자체 미니 헤더로 대체했었으나 불필요해짐).
+- `src/app/admin/login/page.tsx`는 SiteHeader 문제와 별개로, 폼 로직이 페이지 자체에 있어서 `"use client"`였던 걸 이번 기회에 `AdminLoginForm.tsx`(client)로 분리하고 `page.tsx`는 Server Component로 되돌림 — `/login`·`/signup`과 같은 "page(server) + form(client)" 분리 패턴을 맞춘 것, 이 분리 자체는 SiteHeader가 나중에 다시 async가 되더라도 안전함.
+- **교훈**: 공유 레이아웃 컴포넌트(특히 모든 페이지에 들어가는 것)에 쿠키/세션을 읽는 로직을 넣기 전엔 반드시 `next build` 결과의 정적/동적 페이지 목록을 실제로 비교해볼 것 — "로그인 안 한 사용자는 어차피 Notion 호출이 없으니 공짜"라는 판단만으로는 부족하고(맞는 말이지만 별개 문제), 정적 생성 자체가 깨지는 건 완전히 다른 종류의 비용임.
+
+### 23.2 데이터 — 계정에 처음으로 연결되는 개인 도구 검색 기록
+
+- **검색 기록정보**: 개인 도구(`/`)의 키워드 검색은 원래 로그인과 완전히 무관한 1회성 기능(§1, §10.2)이라 계정에 연결된 적이 없었음 — "검색 기록정보"가 정확히 뭘 뜻하는지(AI 글쓰기 히스토리처럼 이미 있는 기능에 링크만 걸지, 아니면 키워드 검색 자체를 계정에 새로 연결할지) AskUserQuestion으로 확인 후 **후자(새로 연결)**로 확정함. `SESSION_PROPS.authorId`(rich_text, `scripts/add-session-author-id-prop.ts`로 마이그레이션) 추가 — `/api/search`가 `getCurrentUser()`로 로그인 여부를 확인해 있으면 그 pageId를 세션에 같이 저장(`createSearchSession`의 `authorId` 인자, 없으면 빈 문자열 — 비로그인 검색은 지금까지와 동일하게 완전 익명). `getSessionsByAuthor()`(`sessions.ts`)로 조회. **기존에 이미 만들어진 검색 세션은 소급 연결 안 됨**(로그인 개념이 없던 시절 데이터라 애초에 귀속시킬 계정이 없음) — 이 계정으로 로그인한 이후의 검색부터 여기 쌓임.
+- **게시판 내 게시물**: `getBoardPostsByAuthor()`(`board.ts`, 신규) — §18.2에서 "나중에 '내 글만 보기' 등을 붙일 수 있도록" 남겨뒀던 `작성자ID` 필드를 이번에 처음 실제로 씀.
+- **핫딜정보 내 게시물**: `getHotdealPostsByAuthor()`(`hotdeal.ts`, 신규) — 회원등록 글만 걸림. 자동수집 글은 `authorId`가 전용 표시계정(dealscout, §21) 고정값이라 특정 회원 개인의 mypage에는 안 뜨는 게 맞는 동작(실측 확인: dealscout 계정으로 조회하면 자동수집 36건이 모두 걸리지만, 이건 관리 목적의 검증이지 실제 mypage 화면에 노출하려는 게 아님).
+- **소상공인 정책정보는 "내 게시물" 섹션이 없음** — §20의 정책정보 게시글은 전부 자동 수집(bizinfo API)이고 회원이 직접 쓰는 게 아니라서(댓글만 회원이 씀), 애초에 "내가 쓴 게시물"이 존재할 수 없는 게시판이라 의도적으로 제외함.
+- 세 목록 다 이미 있는 `PaginatedCardGrid`(§12.2)를 그대로 재사용해 10개씩 페이지네이션 — `src/components/mypage/My{SearchHistory,BoardPost,HotdealPost}Cards.tsx` 3개가 각각 "use client"로, `/mypage/page.tsx`(Server Component)가 미리 조회한 배열을 props로 넘김. **함수(`renderItem` 등)를 Server→Client로 못 넘긴다는 걸 §12.2 admin 페이지 크래시로 이미 배운 뒤라, 처음부터 세 컴포넌트를 client로 만들어서 같은 문제를 재발시키지 않음.**
+- `LogoutButton.tsx`(신규 공유 컴포넌트) — `BlogWriterForm.tsx`의 기존 로그아웃 패턴(POST `/api/auth/logout` → `router.refresh()`)과 같되, `/mypage`는 로그인 전용 페이지라 로그아웃 후 그 자리에 남을 이유가 없어 `router.push("/")`도 같이 함.
+- 실측 검증(2026-08): 실제 로그인 세션으로 `/api/auth/me`가 `{loggedIn:true}`, `/mypage`가 세 섹션 모두 정상 렌더링되는 것 확인. `createSearchSession`+`authorId` → `getSessionsByAuthor` 왕복, `getBoardPostsByAuthor`/`getHotdealPostsByAuthor` 필터 쿼리도 실제 라이브 데이터로 확인함. `tsc`/`eslint`/`next build` 클린, `next build` 결과의 정적/동적 페이지 목록이 이 기능 추가 전과 동일함(`/mypage`만 새로 `ƒ`로 추가됨)을 직접 비교해 확인.

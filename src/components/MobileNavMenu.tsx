@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
+import AuthNavLink from "./AuthNavLink";
 
 // SiteHeader의 nav가 10개 항목(9개 메뉴+로그인)까지 늘어나면서, 헤더
 // 컨테이너 폭(max-w-4xl — 사이트 전체 콘텐츠 폭과 맞춤)이 넓어져도 항목이
@@ -62,13 +63,7 @@ export default function MobileNavMenu({
               </Link>
             )
           )}
-          <Link
-            href="/login"
-            onClick={() => setOpen(false)}
-            className="block border-t border-hairline px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-bg hover:text-primary"
-          >
-            로그인
-          </Link>
+          <AuthNavLink variant="mobile" />
         </div>
       )}
     </div>
