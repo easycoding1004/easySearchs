@@ -113,6 +113,31 @@ export interface RuliwebPostDetail {
   purchaseLink: string | null;
 }
 
+// 실측 확인(2026-08, 사용자 신고 — "가격비교에 롯데온이 아니라
+// web.ruliweb.com이 뜬다") — 루리웹이 외부 링크를 자체 클릭추적
+// 리다이렉터(`https://web.ruliweb.com/link.php?ol=<실제URL 인코딩>&bbs=...`)로
+// 감싸서 내보내는 걸 확인함. 이 리다이렉터 자체를 구매 링크로 쓰면 우리
+// 사이트 방문자가 눌러도 여전히 루리웹을 거치고, deriveShopLabel()도
+// "web.ruliweb.com"이라는 엉뚱한 라벨을 뽑아냄 — `ol` 쿼리 파라미터를
+// 풀어서 진짜 목적지 URL을 대신 씀.
+// 실측 확인(2026-08, 사용자 신고 — 맥도날드 딜에서 이미지 CDN 링크
+// "i2.ruliweb.com/img/....webp"가 구매 링크로 잘못 뽑힘) — 본문의 `<a
+// class="img_load">`는 사진을 확대해서 보여주는 라이트박스 링크일 뿐 구매
+// 링크가 아님. `link.php` 리다이렉터를 푼 뒤에도 여전히 루리웹 자체
+// 도메인이면(이미지 CDN 포함) 구매 링크로 볼 수 없어 버림.
+function unwrapRuliwebRedirect(link: string): string | null {
+  try {
+    const parsed = new URL(link);
+    if (parsed.hostname.endsWith("ruliweb.com") && parsed.pathname.includes("link.php")) {
+      const target = parsed.searchParams.get("ol");
+      if (target) return target;
+    }
+    return parsed.hostname.endsWith("ruliweb.com") ? null : link;
+  } catch {
+    return link;
+  }
+}
+
 export async function fetchRuliwebPostDetail(url: string): Promise<RuliwebPostDetail | null> {
   try {
     const response = await fetch(url, { headers: { "User-Agent": USER_AGENT_POST } });
@@ -124,8 +149,10 @@ export async function fetchRuliwebPostDetail(url: string): Promise<RuliwebPostDe
 
     let purchaseLink = $(".source_url a[href^='http']").first().attr("href") ?? null;
     if (!purchaseLink) {
-      purchaseLink = content.find("a[href^='http']").first().attr("href") ?? null;
+      // img_load(사진 확대용 링크)는 구매 링크 후보에서 제외.
+      purchaseLink = content.find("a[href^='http']:not(.img_load)").first().attr("href") ?? null;
     }
+    if (purchaseLink) purchaseLink = unwrapRuliwebRedirect(purchaseLink);
 
     content.find("script, style").remove();
     const nbsp = String.fromCharCode(160);
