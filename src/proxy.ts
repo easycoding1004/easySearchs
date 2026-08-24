@@ -32,6 +32,25 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     return NextResponse.next();
   }
 
+  // 2026-08 수정(사용자 신고 — "방문자수가 실제 조회수만큼 잡히는 것 같다")
+  // — Next.js가 뷰포트에 보이는 모든 <Link>를 자동으로 프리페치하는데(예:
+  // SiteHeader 내비게이션 10개 항목), 이 프리페치 요청도 미들웨어를 그대로
+  // 통과해서 지금까지 "방문"으로 잡히고 있었음. 실제 클릭 네비게이션과 달리
+  // 프리페치 요청은 next-router-prefetch 헤더가 붙는다는 걸 Next.js 소스
+  // (app-router-headers.d.ts, 이 프로젝트가 쓰는 Next 16.2.11 기준)로 확인함
+  // — 특히 신규 방문자가 페이지에 처음 들어온 순간, 방문 쿠키를 세팅한
+  // 응답이 브라우저에 아직 반영되기 전에 여러 링크의 프리페치가 거의
+  // 동시에 발생하면 전부 "쿠키 없음"으로 보여서 각각 별도 방문으로
+  // 중복 등록됐을 가능성이 높음. 프리페치 요청은 여기서 아예 건너뛰어서
+  // 실제 네비게이션(클릭/최초 진입)만 방문으로 집계되게 함.
+  const isPrefetch =
+    request.headers.get("next-router-prefetch") !== null ||
+    request.headers.get("next-router-segment-prefetch") !== null ||
+    request.headers.get("purpose") === "prefetch";
+  if (isPrefetch) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
   if (!request.cookies.get(VISITOR_COOKIE)) {
     const visitorId = crypto.randomUUID();
