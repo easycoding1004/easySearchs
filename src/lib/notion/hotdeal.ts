@@ -40,6 +40,7 @@ export interface HotdealPost {
   comparisons: PriceEntry[];
   lowestPrice: number | null;
   source: HotdealSourceValue | "";
+  sourceId: string;
   thumbnailUrl: string;
   postedAt: string;
   commentCount: number;
@@ -97,6 +98,7 @@ function parseHotdealPost(page: PageObjectResponse): HotdealPost {
     comparisons: parseComparisons(richText(props[HOTDEAL_POST_PROPS.comparisons])),
     lowestPrice,
     source,
+    sourceId: richText(props[HOTDEAL_POST_PROPS.sourceId]),
     thumbnailUrl,
     postedAt,
     commentCount,
@@ -153,6 +155,34 @@ export async function createHotdealPost(input: {
     },
   });
   return page.id;
+}
+
+// 2026-08 추가(사용자 요청 — 요약·구매링크 상품정보 기능을 붙이기 전에 이미
+// 올라와 있던 자동수집 글들을 뒤늦게 채워 넣는 백필용, scripts/backfill-hotdeal-crawled-details.ts).
+// createHotdealPost와 달리 부분 업데이트만 하고 postedAt/source 등은 안 건드림.
+export async function updateHotdealPost(
+  id: string,
+  input: { body?: string; comparisons?: PriceEntry[]; thumbnailUrl?: string }
+): Promise<void> {
+  const properties: Parameters<typeof notion.pages.update>[0]["properties"] = {};
+  if (input.body !== undefined) {
+    properties[HOTDEAL_POST_PROPS.body] = {
+      type: "rich_text",
+      rich_text: input.body ? [{ type: "text", text: { content: input.body } }] : [],
+    };
+  }
+  if (input.comparisons !== undefined) {
+    properties[HOTDEAL_POST_PROPS.comparisons] = {
+      type: "rich_text",
+      rich_text: [{ type: "text", text: { content: JSON.stringify(input.comparisons) } }],
+    };
+    const lowestPrice = input.comparisons.length > 0 ? Math.min(...input.comparisons.map((c) => c.price)) : null;
+    properties[HOTDEAL_POST_PROPS.lowestPrice] = { type: "number", number: lowestPrice };
+  }
+  if (input.thumbnailUrl !== undefined) {
+    properties[HOTDEAL_POST_PROPS.thumbnailUrl] = { type: "url", url: input.thumbnailUrl || null };
+  }
+  await notion.pages.update({ page_id: id, properties });
 }
 
 // 루리웹 RSS를 매일 다시 훑을 때 이미 게시한 글을 중복 게시하지 않기 위한

@@ -732,6 +732,10 @@ Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉�
   - 게시물 본문에서 구매 링크는 `.source_url` 블록(게시자가 지정한 "출처" 링크, 실측으로 가장 신뢰도 높은 위치 확인)을 우선하고 없으면 본문 안 첫 외부 링크로 폴백(`fetchRuliwebPostDetail()`, 옛 `fetchRuliwebPostBody()`를 대체 — 본문 텍스트와 구매 링크를 한 번의 fetch로 같이 뽑음).
   - 성공하면 `[구매처 미리보기]\n{title — description 요약}`을 루리웹 요약 뒤에 이어붙이고(둘 다 `summarizeText()`로 절단), `og:image`가 있으면 RSS 썸네일이 없을 때의 폴백으로 씀(`deal.thumbnailUrl || previewImage || ""`). 실패해도(차단·타임아웃·OG 태그 없음) 조용히 건너뛰고 루리웹 요약만으로 게시 — 딜 자체가 이 부가 정보에 의존하지 않음.
 
+**2026-08 후속 — 가격비교 = 실제 구매 링크로 전환 + 기존 글 백필** (사용자 요청 — "루리웹 링크를 없애줘, 그리고 본문 스크래핑 내용을 넣어줘"): 상세 페이지의 "가격 비교"가 여전히 `{platform:"루리웹", url: deal.link}`(원본 게시글)로 걸려 있어서 여전히 "루리웹" 티가 났음 — `buildCrawledDealContent()`(`hotdealCrawlJob.ts`에서 분리, 백필 스크립트와 공유)가 구매 링크를 찾으면 `{platform: deriveShopLabel(purchaseLink), url: purchaseLink}`로 바꿔치기하도록 고침(`productPreview.ts`의 `deriveShopLabel()`이 URL 호스트명을 그대로 라벨로 씀 — 사이트별 이름 매핑 없이 정직하게). 구매 링크를 못 찾은 경우에만 루리웹 링크로 폴백(빈 가격비교표보단 나음).
+- 위 요약·구매링크 기능을 붙이기 전에 이미 게시돼 있던 자동수집 글들은 본문이 비어 있고 가격비교도 루리웹 링크였음 — `scripts/backfill-hotdeal-crawled-details.ts`(원본ID=루리웹 URL로 재스크래핑해 `updateHotdealPost()`로 덮어씀, 멱등이라 재실행해도 무해)로 소급 적용. 실측: 기존 23건 전부 재스크래핑해 본문·가격비교·썸네일 갱신 확인(예: "[카카오]롯데 칠성..." 글이 본문 없음/`루리웹→ruliweb.com`이던 것에서 실제 요약 본문+`store.kakao.com` 가격비교로 바뀜).
+- `HotdealPost.sourceId`가 기존엔 파싱 안 되고 있었음(Notion엔 저장돼 있었지만 `parseHotdealPost()`가 안 읽었음) — 백필 스크립트가 원본 루리웹 URL을 알아야 해서 이번에 추가.
+
 ### 21.7 스코프 밖
 
 - 게시글 수정·삭제(§18.6.1과 같은 패턴으로 나중에 추가 가능, 이번 범위 밖).

@@ -64,3 +64,15 @@ export async function fetchProductPreview(url: string): Promise<ProductPreview |
     clearTimeout(timeout);
   }
 }
+
+// 2026-08 추가(사용자 요청 — "가격비교의 루리웹 링크를 없애줘") — 가격비교
+// 표에 "루리웹"(원본 게시글) 대신 실제 구매 링크를 넣기로 하면서, 그 링크의
+// 플랫폼명으로 쓸 짧은 라벨이 필요해졌음. 사이트마다 이름이 달라 매핑표를
+// 만드는 대신 호스트명을 그대로 씀(과장/추측 없는 정직한 라벨).
+export function deriveShopLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "구매처";
+  }
+}
