@@ -1,3 +1,5 @@
+"use client";
+
 import type { User } from "@/lib/notion/users";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 import PaginatedCardGrid from "./PaginatedCardGrid";

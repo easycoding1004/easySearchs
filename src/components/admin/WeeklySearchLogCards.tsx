@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type { SearchSession } from "@/lib/notion/types";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
