@@ -11,7 +11,6 @@ const SHARE_PATH =
   "M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14";
 
 const AXIS_ICONS: Record<AxisKey, React.ReactNode> = {
-  exposureRank: <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 3M17 6h3a3 3 0 01-3 3" />,
   postCount: <path d="M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v6h6M8 13h8M8 17h5" />,
   engagement: (
     <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
@@ -361,7 +360,7 @@ export default function BlogScorePanel({
         <div>
           <h2 className="text-base font-semibold text-ink">블로그 지수</h2>
           <p className="text-sm text-ink-muted">
-            검색 키워드 기반 콘텐츠 진단 {RADAR_AXES.length}개 지표를 종합해 10점 만점으로 환산한 자체 점수예요 (네이버
+            최근 게시물 활동량 기반 콘텐츠 진단 {RADAR_AXES.length}개 지표를 종합해 10점 만점으로 환산한 자체 점수예요 (네이버
             공식 지표나 다른 블로그 지수 서비스의 점수와는 산정 방식이 다릅니다). 순위도 이번에 함께 조회한
             블로그끼리 비교한 것으로, 네이버 전체 블로그 대비 순위가 아니에요.
           </p>

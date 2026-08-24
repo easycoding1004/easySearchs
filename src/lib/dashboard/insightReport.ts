@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { RadarScore, GapMessage } from "./contentDiagnostics";
+import { RADAR_AXES, type RadarScore, type GapMessage } from "./contentDiagnostics";
 
 const MODEL = "claude-sonnet-5";
 // 3~5문장짜리 짧은 요약이라 blogWriter.ts(8192)보다 훨씬 작게 잡음 — 비용을
@@ -49,13 +49,11 @@ export function buildInsightReportInput(
   return {
     domain: mine.domain,
     compositeScore: compositeScoreValue,
-    axisScores: [
-      { label: "검색 상위노출", value: mine.exposureRank },
-      { label: "게시글 수", value: mine.postCount },
-      { label: "댓글 수", value: mine.engagement },
-      { label: "공감 수", value: mine.reactionScore },
-      { label: "공유수", value: mine.shareScore },
-    ],
+    // RADAR_AXES에서 뽑아 씀 — 2026-08 후속으로 "검색 상위노출"이 컴포짓
+    // 점수에서 빠지면서 이 배열도 4개로 자동으로 줄어듦(하드코딩해뒀으면
+    // Claude에게 더 이상 점수에 안 들어가는 값을 5번째 지표인 것처럼
+    // 잘못 전달할 뻔함).
+    axisScores: RADAR_AXES.map(({ key, label }) => ({ label, value: mine[key] })),
     postCount: profile?.postCount ?? null,
     avgRecentComments,
     avgRecentReactions,

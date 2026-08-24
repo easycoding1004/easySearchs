@@ -44,8 +44,19 @@ export interface RadarScore {
   shareScore: number; // 공유수 — 0-100, 최근 게시물 평균 공유수 상대값
 }
 
-export const RADAR_AXES: { key: keyof Omit<RadarScore, "domain" | "label" | "isMine">; label: string }[] = [
-  { key: "exposureRank", label: "검색 상위노출" },
+// 2026-08 후속 — 사용자 요청 — "키워드입력과는 무관한 블로그 지수값을
+// 계산해서 넣어줘": 검색 상위노출 축이 입력한 키워드에 따라 달라지는 건
+// 원래 설계 의도(그 키워드로 몇 위에 뜨는지를 재는 축)였지만, 사용자가
+// 키워드 입력 여부와 무관하게 안정적인 점수를 원해서 이 축을 컴포짓
+// 점수에서 완전히 제외하고 나머지 4개(게시글수·댓글수·공감수·공유수 —
+// 전부 키워드와 무관한 소스)로 재분배하기로 확정함(AskUserQuestion으로
+// "축 제거 후 재분배" vs "축은 유지하되 고정값" 중 전자를 선택받음). 이
+// 배열이 compositeScore()/buildGapMessages()/BlogScorePanel.tsx의 카드
+// 그리드를 전부 구동하므로, 여기서 빼는 것만으로 화면의 "검색 상위노출"
+// 카드도 자동으로 사라짐. exposureRank 필드 자체는 RadarScore/Notion
+// 스키마에서 지우지 않고 그대로 둠(additive-only 원칙, §CLAUDE.md 10.1 —
+// 이미 저장된 세션의 값도 남고, 계산은 계속하되 컴포짓/화면에는 안 씀).
+export const RADAR_AXES: { key: keyof Omit<RadarScore, "domain" | "label" | "isMine" | "exposureRank">; label: string }[] = [
   { key: "postCount", label: "게시글 수" },
   { key: "engagement", label: "댓글 수" },
   { key: "reactionScore", label: "공감 수" },
