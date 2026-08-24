@@ -23,7 +23,7 @@ export default async function SignupPage({
   const user = await getCurrentUser();
   const { redirect: redirectTo } = await searchParams;
   if (user) {
-    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/write");
+    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/");
   }
 
   return (

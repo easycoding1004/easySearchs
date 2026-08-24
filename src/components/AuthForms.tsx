@@ -24,9 +24,15 @@ export default function AuthForms() {
 
   // 이 페이지 URL 자체에 ?redirect=가 실려 있으면(다른 곳에서 "로그인하러
   // 가기" 링크로 여기로 보낸 경우) 그 값을 우선하고, 없으면 지금 렌더링되고
-  // 있는 페이지 경로(게시판 글쓰기 페이지에 직접 임베드된 경우 등)를 씀.
+  // 있는 페이지 경로(예: /write·/board/write에 직접 임베드된 경우)를 씀 —
+  // 단 이 컴포넌트 자체가 서 있는 전용 /login 페이지(pathname="/login")는
+  // 스스로를 목적지로 잡으면 로그인 후 다시 로그인 페이지로 돌아가 버리는
+  // 순환이 생기므로 제외. 어느 쪽도 없으면(=전용 /login을 맥락 없이 바로
+  // 방문한 경우) 아래 handleLogin의 최종 폴백(홈)으로 감 — 사용자 신고
+  // (2026-08) "로그인하면 항상 /write로 빠진다"를 고쳐서, /write에 갇혀
+  // 있던 옛 기본값 대신 홈으로 보냄.
   const explicitRedirect = searchParams.get("redirect");
-  const effectiveRedirect = explicitRedirect || (pathname && pathname !== "/write" ? pathname : "");
+  const effectiveRedirect = explicitRedirect || (pathname && pathname !== "/login" ? pathname : "");
   const redirectParam = effectiveRedirect ? `?redirect=${encodeURIComponent(effectiveRedirect)}` : "";
 
   async function handleLogin(event: FormEvent) {
@@ -46,7 +52,7 @@ export default function AuthForms() {
         setNeedsVerification(Boolean(data.needsVerification));
         return;
       }
-      router.push(effectiveRedirect || "/write");
+      router.push(effectiveRedirect || "/");
       router.refresh();
     } catch {
       setFormError("로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");

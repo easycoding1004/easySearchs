@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 // flow; no reason to keep it around longer.
 const STATE_COOKIE = "write_oauth_state";
 const STATE_MAX_AGE_SECONDS = 10 * 60;
-const DEFAULT_REDIRECT = "/write";
+const DEFAULT_REDIRECT = "/";
 
 interface OAuthStatePayload {
   state: string;

@@ -5,7 +5,7 @@ import { getErrorMessage } from "@/lib/utils/errors";
 
 const SITE_URL = "https://ezzsearch.com";
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
-const DEFAULT_REDIRECT = "/write";
+const DEFAULT_REDIRECT = "/";
 
 // AgreeForm.tsx의 sanitizeRedirect와 같은 원칙 — 클라이언트가 준 값이라
 // 오픈 리다이렉트 벡터가 되지 않도록 내부 경로만 허용.
