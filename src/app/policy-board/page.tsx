@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import CursorPageNav from "@/components/CursorPageNav";
 import { getPolicyPosts, type PolicyCategory } from "@/lib/notion/policyBoard";
 import { POLICY_CATEGORY } from "@/lib/notion/schema";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
@@ -42,14 +43,12 @@ export default async function PolicyBoardPage({
     ? (category as PolicyCategory)
     : undefined;
   const search = q?.trim() || undefined;
-  const prevCursors = prev ? prev.split(",") : [];
+  // 버그 수정 — board/page.tsx와 동일한 이유(prev="" vs prev 없음을
+  // 구분해야 함, 실측 확인).
+  const prevCursors = prev !== undefined ? prev.split(",") : [];
   const { posts, nextCursor } = await getPolicyPosts(cursor, validCategory, search);
 
   const pageNumber = prevCursors.length + 1;
-  const prevHref =
-    prevCursors.length > 0
-      ? buildHref(prevCursors[prevCursors.length - 1], prevCursors.slice(0, -1), validCategory, search)
-      : null;
   const nextHref = nextCursor
     ? buildHref(nextCursor, [...prevCursors, cursor ?? ""], validCategory, search)
     : null;
@@ -128,25 +127,12 @@ export default async function PolicyBoardPage({
           )}
         </div>
 
-        {(prevHref || nextHref) && (
-          <div className="flex w-full max-w-2xl items-center justify-center gap-4">
-            {prevHref ? (
-              <Link href={prevHref} className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg">
-                ← 이전
-              </Link>
-            ) : (
-              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">← 이전</span>
-            )}
-            <span className="text-sm text-ink-muted">{pageNumber}페이지</span>
-            {nextHref ? (
-              <Link href={nextHref} className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg">
-                다음 →
-              </Link>
-            ) : (
-              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">다음 →</span>
-            )}
-          </div>
-        )}
+        <CursorPageNav
+          pageNumber={pageNumber}
+          prevCursors={prevCursors}
+          nextHref={nextHref}
+          buildHref={(c, p) => buildHref(c, p, validCategory, search)}
+        />
       </main>
     </div>
   );

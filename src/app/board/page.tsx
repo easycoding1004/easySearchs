@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import CursorPageNav from "@/components/CursorPageNav";
 import { getBoardPosts } from "@/lib/notion/board";
 import { stripPostBodyPreview } from "@/lib/board/parsePost";
 
@@ -38,14 +39,18 @@ export default async function BoardPage({
   searchParams: Promise<{ cursor?: string; prev?: string }>;
 }) {
   const { cursor, prev } = await searchParams;
-  const prevCursors = prev ? prev.split(",") : [];
+  // 2026-08 버그 수정(실측 확인) — prev 파라미터가 빈 문자열("")인 경우와
+  // 아예 없는 경우를 구분해야 함. 페이지 1의 커서는 원래 없어서 빈
+  // 문자열("")로 스택에 쌓이는데(다음 페이지로 넘어갈 때 [...prevCursors,
+  // cursor ?? ""]), 그 빈 문자열 하나만 있는 상태가 URL로는 `prev=`(빈
+  // 값)로 직렬화됨 — `prev`가 JS에서 falsy라 `prev ? ... : []`로 파싱하면
+  // "파라미터 자체가 없음"과 구분이 안 돼 [] 로 잘못 읽혀서, 페이지 2가
+  // "1페이지"로 잘못 표시되고 이전 버튼도 사라지는 버그가 있었음(숫자
+  // 페이지네이션을 붙이면서 실제로 재현·확인함). undefined 여부로 구분.
+  const prevCursors = prev !== undefined ? prev.split(",") : [];
   const { posts, nextCursor } = await getBoardPosts(cursor);
 
   const pageNumber = prevCursors.length + 1;
-  const prevHref =
-    prevCursors.length > 0
-      ? buildBoardHref(prevCursors[prevCursors.length - 1], prevCursors.slice(0, -1))
-      : null;
   const nextHref = nextCursor ? buildBoardHref(nextCursor, [...prevCursors, cursor ?? ""]) : null;
 
   return (
@@ -94,35 +99,12 @@ export default async function BoardPage({
           )}
         </div>
 
-        {(prevHref || nextHref) && (
-          <div className="flex w-full max-w-2xl items-center justify-center gap-4">
-            {prevHref ? (
-              <Link
-                href={prevHref}
-                className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg"
-              >
-                ← 이전
-              </Link>
-            ) : (
-              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">
-                ← 이전
-              </span>
-            )}
-            <span className="text-sm text-ink-muted">{pageNumber}페이지</span>
-            {nextHref ? (
-              <Link
-                href={nextHref}
-                className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink transition hover:bg-bg"
-              >
-                다음 →
-              </Link>
-            ) : (
-              <span className="rounded-md border border-hairline px-4 py-2 text-sm font-semibold text-ink-muted/40">
-                다음 →
-              </span>
-            )}
-          </div>
-        )}
+        <CursorPageNav
+          pageNumber={pageNumber}
+          prevCursors={prevCursors}
+          nextHref={nextHref}
+          buildHref={buildBoardHref}
+        />
       </main>
     </div>
   );

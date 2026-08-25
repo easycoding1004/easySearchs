@@ -35,6 +35,15 @@ export default function PaginatedCardGrid<T>({
   const currentPage = Math.min(page, totalPages - 1);
   const pageItems = items.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
 
+  // 2026-08 추가(사용자 요청 — "페이징을 1,2,3,4,5,6,7,8,9,>> 형태로") — 데이터가
+  // 이미 다 로드돼 있어서(서버가 전체 기간을 통째로 내려줌) 임의 페이지로
+  // 바로 점프하는 게 아무 추가 비용 없이 가능함. 9개씩 창을 옮겨가며
+  // 보여주고 «/»로 창 자체를 넘김 — 창 안의 숫자는 클릭 한 번에 바로 이동.
+  const WINDOW_SIZE = 9;
+  const windowStart = Math.floor(currentPage / WINDOW_SIZE) * WINDOW_SIZE;
+  const windowEnd = Math.min(windowStart + WINDOW_SIZE, totalPages);
+  const windowPages = Array.from({ length: windowEnd - windowStart }, (_, i) => windowStart + i);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -43,26 +52,42 @@ export default function PaginatedCardGrid<T>({
         ))}
       </div>
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 text-sm">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={currentPage === 0}
-            className="rounded-md border border-hairline px-3 py-1.5 font-semibold text-ink transition hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ← 이전
-          </button>
-          <span className="text-ink-muted">
-            {currentPage + 1} / {totalPages}페이지 · 총 {items.length}건
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={currentPage >= totalPages - 1}
-            className="rounded-md border border-hairline px-3 py-1.5 font-semibold text-ink transition hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            다음 →
-          </button>
+        <div className="flex flex-wrap items-center justify-center gap-1.5 text-sm">
+          {windowStart > 0 && (
+            <button
+              type="button"
+              onClick={() => setPage(windowStart - WINDOW_SIZE)}
+              className="rounded-md border border-hairline px-2.5 py-1.5 font-semibold text-ink transition hover:bg-bg"
+              aria-label="이전 페이지 묶음"
+            >
+              «
+            </button>
+          )}
+          {windowPages.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPage(p)}
+              aria-current={p === currentPage ? "page" : undefined}
+              className={`min-w-8 rounded-md border px-2.5 py-1.5 font-semibold transition ${
+                p === currentPage
+                  ? "border-primary bg-primary text-white"
+                  : "border-hairline text-ink hover:bg-bg"
+              }`}
+            >
+              {p + 1}
+            </button>
+          ))}
+          {windowEnd < totalPages && (
+            <button
+              type="button"
+              onClick={() => setPage(windowEnd)}
+              className="rounded-md border border-hairline px-2.5 py-1.5 font-semibold text-ink transition hover:bg-bg"
+              aria-label="다음 페이지 묶음"
+            >
+              »
+            </button>
+          )}
         </div>
       )}
     </div>
