@@ -3,7 +3,6 @@ import {
   NEWSLETTER_JOB_INTERVAL_MS,
   BILLING_JOB_INTERVAL_MS,
   POLICY_BOARD_JOB_INTERVAL_MS,
-  HOTDEAL_CRAWL_JOB_INTERVAL_MS,
 } from "./lib/constants";
 
 // Next.js가 서버 프로세스 시작 시 정확히 1회 호출하는 공식 훅. 이 프로젝트
@@ -62,15 +61,11 @@ export async function register() {
     });
   }, POLICY_BOARD_JOB_INTERVAL_MS);
 
-  // 핫딜정보 게시판 — 루리웹 RSS를 1시간마다 훑어 자동 게시(사용자 요청).
-  // policyBoardJob과 같은 이유로 시작 시 즉시 1회도 실행.
-  const { runHotdealCrawlJob } = await import("./lib/scheduler/hotdealCrawlJob");
-  runHotdealCrawlJob().catch((err) => {
-    console.error("[instrumentation] initial hotdeal crawl job failed:", err);
-  });
-  setInterval(() => {
-    runHotdealCrawlJob().catch((err) => {
-      console.error("[instrumentation] scheduled hotdeal crawl job failed:", err);
-    });
-  }, HOTDEAL_CRAWL_JOB_INTERVAL_MS);
+  // 2026-08 중단(사용자 요청) — 루리웹 RSS 자동수집 잡을 배포 환경(Railway)에서
+  // 돌리면 매시간 `ConnectTimeoutError: bbs.ruliweb.com:443`로 100% 실패하는
+  // 걸 실측(배포 로그)으로 확인함 — 코드 버그가 아니라 루리웹이 이 서버의
+  // 아웃바운드 IP 대역을 막고 있는 것으로 보임(실측 로그로 확인, §CLAUDE.md
+  // 21.6 참고). 사용자와 논의 후 자동수집을 포기하고 회원 직접 등록만
+  // 운영하기로 확정 — `hotdealCrawlJob.ts`/`ruliwebClient.ts`는 나중에 다시
+  // 필요해질 수 있어 삭제하지 않고 그대로 둠, 여기 등록만 빼서 안 돌게 함.
 }
