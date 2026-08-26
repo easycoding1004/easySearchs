@@ -5,6 +5,11 @@ import MobileNavMenu from "./MobileNavMenu";
 import AuthNavLink from "./AuthNavLink";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
 
+// 2026-08 — "핫딜정보" 메뉴는 사용자 요청으로 내비게이션에서 숨김(루리웹
+// 자동수집이 배포 환경 네트워크 차단으로 중단되면서 §21.6, 회원 등록
+// 콘텐츠만 남아 메뉴에서 빼기로 결정) — /hotdeal 페이지 자체와 기능은
+// 그대로 살아있고, 직접 URL로는 계속 접근 가능함. 다시 노출하려면 이
+// 배열에 `{ href: "/hotdeal", label: "핫딜정보" }`만 추가하면 됨.
 export const NAV_LINKS = [
   { href: "/", label: "키워드 검색량" },
   { href: "/dashboard", label: "블로그지수" },
@@ -12,7 +17,6 @@ export const NAV_LINKS = [
   { href: "/write", label: "AI 자동글쓰기" },
   { href: "/board", label: "게시판" },
   { href: "/policy-board", label: "소상공인 정책정보" },
-  { href: "/hotdeal", label: "핫딜정보" },
   { href: "/guide", label: "가이드" },
   { href: "/contact", label: "문의하기" },
 ];
