@@ -231,6 +231,10 @@ export const BOARD_POST_PROPS = {
   // created_time으로 폴백함 — 새 글은 API가 항상 이 값도 현재 시각으로
   // 같이 채움(scripts/add-board-posted-at-prop.ts로 마이그레이션).
   postedAt: "표시일시",
+  // 2026-08 추가(사용자 요청 — "공지사항도 테이블 상단에 공지라고 등록") —
+  // 체크된 글은 목록 상단에 페이지네이션과 무관하게 항상 고정 노출됨
+  // (getPinnedBoardPosts). scripts/add-board-notice-prop.ts로 마이그레이션.
+  isNotice: "공지여부",
 } as const;
 
 export const BOARD_COMMENT_PROPS = {

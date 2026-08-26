@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import CursorPageNav from "@/components/CursorPageNav";
-import { getBoardPosts } from "@/lib/notion/board";
-import { stripPostBodyPreview } from "@/lib/board/parsePost";
+import { getBoardPosts, getPinnedBoardPosts, BOARD_PAGE_SIZE, type BoardPost } from "@/lib/notion/board";
 
 export const metadata: Metadata = {
   title: "게시판",
@@ -48,10 +47,18 @@ export default async function BoardPage({
   // "1페이지"로 잘못 표시되고 이전 버튼도 사라지는 버그가 있었음(숫자
   // 페이지네이션을 붙이면서 실제로 재현·확인함). undefined 여부로 구분.
   const prevCursors = prev !== undefined ? prev.split(",") : [];
-  const { posts, nextCursor } = await getBoardPosts(cursor);
+  const [pinned, { posts, nextCursor }] = await Promise.all([
+    // 공지 목록 로드가 실패해도 일반 목록은 그대로 보여야 함 — 부가 섹션이라
+    // 핵심 기능(게시글 목록)을 막지 않음.
+    getPinnedBoardPosts().catch(() => []),
+    getBoardPosts(cursor),
+  ]);
 
   const pageNumber = prevCursors.length + 1;
   const nextHref = nextCursor ? buildBoardHref(nextCursor, [...prevCursors, cursor ?? ""]) : null;
+  // 번호는 페이지를 넘길수록 이어지는 "몇 번째 글" 느낌으로 — 공지는 번호
+  // 매김 대상이 아니라서 이 계산에서 제외.
+  const startIndex = (pageNumber - 1) * BOARD_PAGE_SIZE;
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -72,32 +79,31 @@ export default async function BoardPage({
           </Link>
         </div>
 
-        <div className="flex w-full max-w-2xl flex-col gap-2">
-          {posts.length === 0 ? (
-            <p className="rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center text-sm text-ink-muted">
-              아직 게시글이 없어요. 첫 글을 남겨보세요!
-            </p>
-          ) : (
-            posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/board/${post.id}`}
-                className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
-              >
-                <p className="text-sm font-semibold text-ink">
-                  {post.title}
-                  {post.commentCount > 0 && (
-                    <span className="ml-1 font-normal text-primary">[{post.commentCount}]</span>
-                  )}
-                </p>
-                <p className="text-xs text-ink-muted">{stripPostBodyPreview(post.body)}</p>
-                <div className="flex items-center gap-2 text-xs text-ink-muted">
-                  <span>{post.authorNickname || "익명"}</span>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
+        {posts.length === 0 && pinned.length === 0 ? (
+          <p className="w-full max-w-2xl rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center text-sm text-ink-muted">
+            아직 게시글이 없어요. 첫 글을 남겨보세요!
+          </p>
+        ) : (
+          <div className="w-full max-w-2xl overflow-x-auto rounded-lg border border-hairline bg-surface">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-hairline text-xs text-ink-muted">
+                  <th className="w-14 px-3 py-2 text-center font-medium">번호</th>
+                  <th className="px-3 py-2 text-left font-medium">제목</th>
+                  <th className="w-24 px-3 py-2 text-left font-medium sm:w-28">작성자</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pinned.map((post) => (
+                  <BoardRow key={post.id} post={post} numberCell={<span className="font-semibold text-primary">공지</span>} pinned />
+                ))}
+                {posts.map((post, i) => (
+                  <BoardRow key={post.id} post={post} numberCell={startIndex + i + 1} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <CursorPageNav
           pageNumber={pageNumber}
@@ -107,5 +113,28 @@ export default async function BoardPage({
         />
       </main>
     </div>
+  );
+}
+
+function BoardRow({
+  post,
+  numberCell,
+  pinned = false,
+}: {
+  post: BoardPost;
+  numberCell: React.ReactNode;
+  pinned?: boolean;
+}) {
+  return (
+    <tr className={`border-b border-hairline last:border-0 transition hover:bg-bg ${pinned ? "bg-primary/5" : ""}`}>
+      <td className="px-3 py-2.5 text-center text-ink-muted">{numberCell}</td>
+      <td className="px-3 py-2.5">
+        <Link href={`/board/${post.id}`} className="block truncate font-medium text-ink hover:text-primary">
+          {post.title}
+          {post.commentCount > 0 && <span className="ml-1 font-normal text-primary">[{post.commentCount}]</span>}
+        </Link>
+      </td>
+      <td className="px-3 py-2.5 text-ink-muted">{post.authorNickname || "익명"}</td>
+    </tr>
   );
 }

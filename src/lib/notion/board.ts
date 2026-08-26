@@ -25,6 +25,7 @@ export interface BoardPost {
   authorId: string;
   createdAt: string;
   commentCount: number;
+  isNotice: boolean;
 }
 
 export interface BoardComment {
@@ -59,6 +60,9 @@ function parseBoardPost(page: PageObjectResponse): BoardPost {
   const commentCountProp = props[BOARD_POST_PROPS.commentCount];
   const commentCount = commentCountProp?.type === "relation" ? commentCountProp.relation.length : 0;
 
+  const noticeProp = props[BOARD_POST_PROPS.isNotice];
+  const isNotice = noticeProp?.type === "checkbox" ? noticeProp.checkbox : false;
+
   return {
     id: page.id,
     title,
@@ -67,6 +71,7 @@ function parseBoardPost(page: PageObjectResponse): BoardPost {
     authorId: richText(props[BOARD_POST_PROPS.authorId]),
     createdAt: resolveDisplayDate(props, BOARD_POST_PROPS.postedAt, BOARD_POST_PROPS.createdAt),
     commentCount,
+    isNotice,
   };
 }
 
@@ -96,6 +101,9 @@ export async function createBoardPost(input: {
   // 시드/이관용 — 실제 사용자 작성 흐름에서는 안 넘기고 항상 현재 시각으로
   // 채워짐(BOARD_POST_PROPS.postedAt 주석 참고).
   postedAt?: string;
+  // 2026-08 추가 — 공지 여부(§CLAUDE.md 18.5). 실제 글쓰기 폼에는 노출 안
+  // 하고(회원이 스스로 공지를 달 수 있으면 안 되므로) 관리자용 스크립트에서만 씀.
+  isNotice?: boolean;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: postsDataSourceId() },
@@ -119,9 +127,19 @@ export async function createBoardPost(input: {
         })),
       },
       [BOARD_POST_PROPS.postedAt]: { type: "date", date: { start: input.postedAt ?? new Date().toISOString() } },
+      [BOARD_POST_PROPS.isNotice]: { type: "checkbox", checkbox: input.isNotice ?? false },
     },
   });
   return page.id;
+}
+
+// 관리자가 특정 글을 공지로 지정/해제 — 일반 글쓰기 흐름에는 없음(회원이
+// 스스로 공지를 달 수 있으면 안 되므로 §CLAUDE.md 18.5 참고).
+export async function setBoardPostNotice(id: string, isNotice: boolean): Promise<void> {
+  await notion.pages.update({
+    page_id: id,
+    properties: { [BOARD_POST_PROPS.isNotice]: { type: "checkbox", checkbox: isNotice } },
+  });
 }
 
 export async function getBoardPost(id: string): Promise<BoardPost | null> {
@@ -156,13 +174,18 @@ export async function deleteBoardPost(id: string): Promise<void> {
 // 목록 — 최신순, 페이지당 20개. Notion 커서를 그대로 노출해서 "더 보기"에
 // 씀(전체 개수를 세지 않음 — 검색 세션 등 다른 목록도 카운트가 필요 없는
 // 곳은 굳이 전체를 훑지 않는 것과 동일한 절약).
-const PAGE_SIZE = 20;
+export const BOARD_PAGE_SIZE = 20;
+const PAGE_SIZE = BOARD_PAGE_SIZE;
 
+// 공지(isNotice=true)는 여기서 제외 — getPinnedBoardPosts()가 별도로,
+// 페이지네이션과 무관하게 항상 상단에 보여줌. 안 빼면 공지가 상단에도
+// 뜨고 자기 순번이 왔을 때 목록에도 또 뜨는 중복이 생김.
 export async function getBoardPosts(
   cursor?: string
 ): Promise<{ posts: BoardPost[]; nextCursor: string | null }> {
   const res = await notion.dataSources.query({
     data_source_id: postsDataSourceId(),
+    filter: { property: BOARD_POST_PROPS.isNotice, checkbox: { equals: false } },
     sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
     start_cursor: cursor,
     page_size: PAGE_SIZE,
@@ -171,6 +194,18 @@ export async function getBoardPosts(
     posts: res.results.filter(isFullPage).map(parseBoardPost),
     nextCursor: res.has_more ? (res.next_cursor ?? null) : null,
   };
+}
+
+// 목록 상단에 페이지네이션과 무관하게 항상 고정 노출되는 공지 — 개수가
+// 적을 걸로 예상해 페이지네이션 없이 한 번에 다 가져옴.
+export async function getPinnedBoardPosts(): Promise<BoardPost[]> {
+  const res = await notion.dataSources.query({
+    data_source_id: postsDataSourceId(),
+    filter: { property: BOARD_POST_PROPS.isNotice, checkbox: { equals: true } },
+    sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
+    page_size: 20,
+  });
+  return res.results.filter(isFullPage).map(parseBoardPost);
 }
 
 // /mypage의 "게시판 내 게시물" — 작성자ID는 원래 §18.2에서 "나중에 '내 글만
