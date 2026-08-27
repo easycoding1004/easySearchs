@@ -13,6 +13,7 @@ import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
 import { getSiteStats } from "@/lib/notion/stats";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
 import { getPolicyPosts } from "@/lib/notion/policyBoard";
+import { getBoardPosts } from "@/lib/notion/board";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const TRENDING_PREVIEW_COUNT = 4;
@@ -129,13 +130,19 @@ function StepArrow() {
 }
 
 const POLICY_PREVIEW_COUNT = 4;
+const BOARD_PREVIEW_COUNT = 4;
 
 export default async function Home() {
-  const [siteStats, trending, policyPreview] = await Promise.all([
+  const [siteStats, trending, policyPreview, boardPreview] = await Promise.all([
     getSiteStats().catch(() => null),
     fetchTrendingKeywordsWithNaverVolume().catch(() => null),
     getPolicyPosts()
       .then((r) => r.posts.slice(0, POLICY_PREVIEW_COUNT))
+      .catch(() => []),
+    // 2026-08 추가(제품 감사 — "게시판이 홈페이지 어디에도 안 보인다") —
+    // 정책정보 미리보기와 같은 패턴으로 게시판 최신 글도 보여줌.
+    getBoardPosts()
+      .then((r) => r.posts.slice(0, BOARD_PREVIEW_COUNT))
       .catch(() => []),
   ]);
 
@@ -212,6 +219,36 @@ export default async function Home() {
                     </span>
                     <p className="text-sm font-semibold text-ink">{post.title}</p>
                     <span className="text-xs text-ink-muted">{formatKstDateTime(post.postedAt)}</span>
+                  </Link>
+                ))}
+              </div>
+            </Reveal>
+          </section>
+        )}
+
+        {boardPreview.length > 0 && (
+          <section className="w-full border-t border-hairline px-4 py-12 sm:px-6 sm:py-16">
+            <Reveal className="mx-auto flex max-w-4xl flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">게시판 최신 글</h2>
+                <Link href="/board" className="text-sm font-medium text-primary hover:underline">
+                  더보기 →
+                </Link>
+              </div>
+              <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+                {boardPreview.map((post) => (
+                  <Link
+                    key={post.id}
+                    href={`/board/${post.id}`}
+                    className="flex flex-col gap-1 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
+                  >
+                    <p className="text-sm font-semibold text-ink">
+                      {post.title}
+                      {post.commentCount > 0 && (
+                        <span className="ml-1 font-normal text-primary">[{post.commentCount}]</span>
+                      )}
+                    </p>
+                    <span className="text-xs text-ink-muted">{post.authorNickname || "익명"}</span>
                   </Link>
                 ))}
               </div>
@@ -429,8 +466,17 @@ export default async function Home() {
             <Link href="/keywords" className="hover:text-primary">
               업종별 키워드
             </Link>
+            <Link href="/board" className="hover:text-primary">
+              게시판
+            </Link>
+            <Link href="/policy-board" className="hover:text-primary">
+              소상공인 정책정보
+            </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드
+            </Link>
+            <Link href="/mypage" className="hover:text-primary">
+              내 정보
             </Link>
             <Link href="/contact" className="hover:text-primary">
               문의하기

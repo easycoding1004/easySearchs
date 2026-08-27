@@ -41,12 +41,12 @@ export default function SiteHeader() {
             link.href === "/write" && !AI_WRITE_ENABLED ? (
               <span
                 key={link.href}
-                title="AI 자동글쓰기는 현재 준비 중이에요."
+                title="AI 자동글쓰기는 최종 점검 중이에요. 곧 만나보실 수 있어요!"
                 className="flex cursor-not-allowed items-center gap-1.5 text-ink-muted/50"
               >
                 {link.label}
                 <span className="rounded-full bg-hairline px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
-                  개발중
+                  곧 출시
                 </span>
               </span>
             ) : (

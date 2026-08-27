@@ -69,38 +69,49 @@ export default async function HotdealPage({
           </button>
         </form>
 
-        <div className="flex w-full max-w-2xl flex-col gap-2">
-          {posts.length === 0 ? (
-            <p className="rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center text-sm text-ink-muted">
-              {q ? "검색 결과가 없어요." : "아직 등록된 핫딜이 없어요. 첫 핫딜을 등록해보세요!"}
-            </p>
-          ) : (
-            posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/hotdeal/${post.id}`}
-                className="flex items-center gap-3 rounded-lg border border-hairline bg-surface p-4 transition hover:border-primary"
-              >
-                <HotdealThumbnail src={post.thumbnailUrl} alt="" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">{post.modelName}</span>
-                    {post.commentCount > 0 && (
-                      <span className="text-xs font-semibold text-primary">[{post.commentCount}]</span>
-                    )}
-                  </div>
-                  <p className="truncate text-sm font-semibold text-ink">{post.title}</p>
-                  <div className="flex items-center gap-2 text-xs text-ink-muted">
-                    {post.lowestPrice != null && (
-                      <span className="font-semibold text-primary">{post.lowestPrice.toLocaleString()}원~</span>
-                    )}
-                    <span>{post.authorNickname || "익명"}</span>
-                  </div>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
+        {posts.length === 0 ? (
+          <p className="w-full max-w-2xl rounded-lg border-2 border-dashed border-hairline bg-surface p-8 text-center text-sm text-ink-muted">
+            {q ? "검색 결과가 없어요." : "아직 등록된 핫딜이 없어요. 첫 핫딜을 등록해보세요!"}
+          </p>
+        ) : (
+          // 2026-08 게시판(§CLAUDE.md 18.5)과 목록 골격을 통일함 — 카드 나열식
+          // 대신 표로 스캔 방식을 맞춤(제품 감사에서 발견한 화면 불일치 항목).
+          // 썸네일은 그대로 살려서 표 첫 칸에 넣음.
+          <div className="w-full max-w-2xl overflow-x-auto rounded-lg border border-hairline bg-surface">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-hairline text-xs text-ink-muted">
+                  <th className="w-16 px-3 py-2 text-left font-medium"></th>
+                  <th className="px-3 py-2 text-left font-medium">제목</th>
+                  <th className="w-24 px-3 py-2 text-right font-medium">최저가</th>
+                  <th className="w-20 px-3 py-2 text-left font-medium sm:w-24">작성자</th>
+                </tr>
+              </thead>
+              <tbody>
+                {posts.map((post) => (
+                  <tr key={post.id} className="border-b border-hairline last:border-0 transition hover:bg-bg">
+                    <td className="px-3 py-2.5">
+                      <HotdealThumbnail src={post.thumbnailUrl} alt="" />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Link href={`/hotdeal/${post.id}`} className="block truncate font-medium text-ink hover:text-primary">
+                        <span className="mr-1.5 rounded-full bg-bg px-2 py-0.5 text-xs font-medium text-ink-muted">
+                          {post.modelName}
+                        </span>
+                        {post.title}
+                        {post.commentCount > 0 && <span className="ml-1 font-normal text-primary">[{post.commentCount}]</span>}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-primary">
+                      {post.lowestPrice != null ? `${post.lowestPrice.toLocaleString()}원` : "-"}
+                    </td>
+                    <td className="px-3 py-2.5 text-ink-muted">{post.authorNickname || "익명"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <CursorPageNav
           pageNumber={pageNumber}
