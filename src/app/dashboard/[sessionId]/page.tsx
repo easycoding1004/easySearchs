@@ -252,6 +252,7 @@ export default async function BlogScoreResultPage({
               <>
                 <ExportableImage
                   fileName={`블로그지수-${session.myBlogDomain.replace(/[^a-zA-Z0-9가-힣.-]/g, "_")}`}
+                  shareTitle={`${session.myBlogDomain} 블로그지수 - 이지서치`}
                 >
                   <BlogScorePanel
                     scores={scores}

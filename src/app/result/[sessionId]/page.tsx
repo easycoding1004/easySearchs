@@ -3,12 +3,14 @@ import KeywordChart from "@/components/search/KeywordChart";
 import KeywordTable from "@/components/search/KeywordTable";
 import SearchTrendPanel from "@/components/search/SearchTrendPanel";
 import KeywordAudiencePanel from "@/components/search/KeywordAudiencePanel";
-import ShareResultButton from "@/components/search/ShareResultButton";
+import ShareResultButton from "@/components/ShareResultButton";
+import KeywordWatchButton from "@/components/search/KeywordWatchButton";
 import SiteHeader from "@/components/SiteHeader";
 import BoardPromptLink from "@/components/BoardPromptLink";
 import { getRecordsForSession } from "@/lib/notion/records";
 import { getSessionById } from "@/lib/notion/sessions";
 import { KEYWORD_KIND } from "@/lib/notion/schema";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,11 @@ export default async function ResultPage({
   const session = await getSessionById(sessionId);
   if (!session) notFound();
 
-  const records = await getRecordsForSession(sessionId);
+  const [records, user] = await Promise.all([getRecordsForSession(sessionId), getCurrentUser()]);
   const seedKeyword = records.find((r) => r.kind === KEYWORD_KIND.seed)?.keyword;
+  const seedRecords = records
+    .filter((r) => r.kind === KEYWORD_KIND.seed)
+    .map((r) => ({ keyword: r.keyword, totalCount: r.totalCount }));
 
   return (
     <div className="flex flex-1 flex-col items-center font-sans">
@@ -62,6 +67,8 @@ export default async function ResultPage({
             단어를 뽑아 실제 검색량을 조회한 결과예요.
           </p>
         )}
+
+        <KeywordWatchButton loggedIn={!!user} seedKeywords={seedRecords} />
 
         <KeywordChart records={records} />
         <KeywordTable records={records} />
