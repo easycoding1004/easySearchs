@@ -21,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/hotdeal`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE_URL}/trending`, lastModified: now, changeFrequency: "hourly", priority: 0.6 },
     { url: `${BASE_URL}/keywords`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${BASE_URL}/blog-type`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     ...CATEGORIES.map((category) => ({
       url: `${BASE_URL}/keywords/${category.id}`,
       lastModified: now,

@@ -17,6 +17,7 @@ export const NAV_LINKS = [
   { href: "/write", label: "AI 자동글쓰기" },
   { href: "/board", label: "게시판" },
   { href: "/policy-board", label: "소상공인 정책정보" },
+  { href: "/blog-type", label: "유형 진단" },
   { href: "/guide", label: "가이드" },
   { href: "/contact", label: "문의하기" },
 ];

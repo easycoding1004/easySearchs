@@ -256,6 +256,25 @@ export default async function Home() {
           </section>
         )}
 
+        {/* 2026-08 추가(§CLAUDE.md 25) — 프리랜서·자영업자 블로거를 위한
+            가벼운 "재미" 콘텐츠 진입점. 다른 섹션과 톤을 구분하려고 일부러
+            브랜드 컬러 배경(bg-primary)으로 시각적 대비를 줌. */}
+        <section className="w-full border-t border-hairline px-4 py-12 sm:px-6 sm:py-16">
+          <Reveal className="mx-auto flex max-w-4xl flex-col items-center gap-4 rounded-2xl bg-primary px-6 py-10 text-center sm:px-10">
+            <span className="text-4xl">🔍</span>
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">내 블로그 유형, 궁금하지 않으세요?</h2>
+            <p className="max-w-md text-sm text-white/85">
+              4가지 질문에 답하면 내 블로그 유형과 이번 주 글감을 알려드려요. 회원가입 없이, 30초면 충분해요.
+            </p>
+            <Link
+              href="/blog-type"
+              className="rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-primary transition ease-spring hover:bg-white/90 motion-safe:active:scale-[0.97]"
+            >
+              유형 진단 받아보기 →
+            </Link>
+          </Reveal>
+        </section>
+
         {siteStats && (
           <section className="w-full border-t border-hairline bg-surface px-4 py-10 sm:px-6">
             <Reveal className="mx-auto flex max-w-2xl flex-col items-center gap-4">
@@ -471,6 +490,9 @@ export default async function Home() {
             </Link>
             <Link href="/policy-board" className="hover:text-primary">
               소상공인 정책정보
+            </Link>
+            <Link href="/blog-type" className="hover:text-primary">
+              유형 진단
             </Link>
             <Link href="/guide" className="hover:text-primary">
               가이드
