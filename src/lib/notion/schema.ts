@@ -57,6 +57,13 @@ export const BLOG_SCORE_SESSION_PROPS = {
   // gapSummary(부족 항목, 규칙 기반 템플릿)와 달리 실제 자연어 문장이고
   // 비교 블로그가 없어도 생성됨. `insightReport.ts` 참고.
   insightReport: "AI 인사이트",
+  // 2026-08 추가(제품 감사 — "장기 제안: 블로그지수 변화 추이 기록") —
+  // 로그인 상태로 조회하면 이 세션을 계정에 귀속시켜 /mypage에서 "블로그지수
+  // 조회 기록"으로 다시 찾아볼 수 있게 함. SESSION_PROPS.authorId(개인 도구)와
+  // 완전히 동일한 패턴 — 비로그인 조회는 빈 문자열로 남고 지금까지와 동일하게
+  // 동작함(§10.2 원칙 그대로). scripts/add-blog-score-session-author-id-prop.ts로
+  // 마이그레이션.
+  authorId: "작성자ID",
 } as const;
 
 // 2026-07 블로그 지수 산정 방식 전면 개편(검색 상위노출·게시글수·댓글수·
@@ -368,4 +375,24 @@ export const BILLING_HISTORY_PROPS = {
 export const BILLING_STATUS = {
   success: "성공",
   failure: "실패",
+} as const;
+
+// 관심 키워드 구독 + 변화 알림 (2026-08 추가, 제품 감사 — "장기 제안: 관심
+// 키워드 구독 + 변화 알림"). 로그인 회원이 개인 도구 결과 화면에서 시드
+// 키워드를 "관심 키워드"로 등록하면, 매일 도는 keywordWatchJob이 그 시점
+// 검색량과 등록/마지막 알림 시점 검색량을 비교해 KEYWORD_WATCH_CHANGE_
+// THRESHOLD(constants.ts) 이상 변하면 이메일로 알려줌 — /trending의 급상승
+// 다이제스트(§6.4)가 "사이트 전체" 기준이라면 이건 "내가 고른 키워드" 기준.
+export const KEYWORD_WATCH_PROPS = {
+  title: "키워드",
+  authorId: "작성자ID",
+  // 등록 시점의 합계 검색량(PC+모바일) — 알림을 한 번도 못 받은 상태에서
+  // 변화율을 계산할 기준선.
+  baselineCount: "기준 검색량",
+  // 마지막으로 알림을 보냈을 때의 합계 검색량 — 있으면 baselineCount 대신
+  // 이 값을 기준으로 다음 변화율을 계산함(같은 상승/하락을 반복 알림하지
+  // 않도록).
+  lastNotifiedCount: "마지막 알림 검색량",
+  lastNotifiedAt: "마지막 알림일시",
+  createdAt: "등록일시",
 } as const;

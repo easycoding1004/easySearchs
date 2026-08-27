@@ -151,6 +151,11 @@ export async function POST(request: Request) {
 
       send({ status: "결과 저장 중...", progress: 92 });
 
+      // 2026-08 추가(제품 감사 — "장기 제안: 블로그지수 변화 추이 기록") —
+      // 로그인 상태로 조회하면 이 세션을 계정에 귀속시켜 /mypage에서 다시
+      // 찾아볼 수 있게 함. 비로그인 조회는 지금까지와 동일하게 동작(§10.2).
+      const sessionAuthor = await getCurrentUser();
+
       const sessionId = await createBlogScoreSession({
         title: `${myBlogDomain} - ${new Date().toISOString().slice(0, 10)}`,
         myBlogDomain,
@@ -160,6 +165,7 @@ export async function POST(request: Request) {
         businessName,
         competitorBusinessNames,
         insightReport,
+        authorId: sessionAuthor?.pageId,
       });
 
       // "결과 저장 중..." 이후 진행률 없이 침묵하던 구간 — 경쟁사가 많으면

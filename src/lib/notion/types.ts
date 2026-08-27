@@ -42,6 +42,7 @@ export interface BlogScoreSession {
   businessName: string | null;
   competitorBusinessNames: string[];
   insightReport: string | null;
+  authorId: string;
 }
 
 export interface BlogScoreRecord {

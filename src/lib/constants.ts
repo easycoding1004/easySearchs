@@ -60,3 +60,15 @@ export const POLICY_BOARD_JOB_CONCURRENCY = 2;
 // 실행함(돈이 나가는 잡이 아님).
 export const HOTDEAL_CRAWL_JOB_INTERVAL_MS = 60 * 60 * 1000; // 1시간
 export const HOTDEAL_CRAWL_JOB_CONCURRENCY = 2;
+
+// 관심 키워드 구독 + 변화 알림(2026-08 추가, 제품 감사 장기 제안) — 등록
+// 시점(또는 마지막 알림 시점) 대비 검색량이 이 비율 이상 변하면 이메일로
+// 알림. newsletterJob/billingJob과 같은 이유로 서버 시작 시 즉시 실행 안
+// 함(재배포마다 회원에게 메일이 나가면 안 되므로). 하루 1회면 충분.
+export const KEYWORD_WATCH_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1일
+export const KEYWORD_WATCH_CHANGE_THRESHOLD = 0.2; // ±20%
+// 네이버 검색광고 키워드도구 API는 hintKeywords를 한 번에 최대 5개까지만
+// 받음(§ MAX_SEED_KEYWORDS와 같은 제약) — 여러 회원의 관심 키워드를 모아
+// 조회할 때도 이 크기로 묶어서 호출.
+export const KEYWORD_WATCH_BATCH_SIZE = 5;
+export const KEYWORD_WATCH_JOB_CONCURRENCY = 3;

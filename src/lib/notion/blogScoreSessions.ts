@@ -62,6 +62,7 @@ function parseSession(page: PageObjectResponse): BlogScoreSession {
     businessName: businessName || null,
     competitorBusinessNames: parseCsv(richText(props[BLOG_SCORE_SESSION_PROPS.competitorBusinessNames])),
     insightReport: richText(props[BLOG_SCORE_SESSION_PROPS.insightReport]) || null,
+    authorId: richText(props[BLOG_SCORE_SESSION_PROPS.authorId]),
   };
 }
 
@@ -74,6 +75,7 @@ export async function createBlogScoreSession(input: {
   businessName: string | null;
   competitorBusinessNames: string[];
   insightReport: string | null;
+  authorId?: string;
 }): Promise<string> {
   const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: sessionsDataSourceId() },
@@ -128,9 +130,39 @@ export async function createBlogScoreSession(input: {
             },
           }
         : {}),
+      ...(input.authorId
+        ? {
+            [BLOG_SCORE_SESSION_PROPS.authorId]: {
+              type: "rich_text" as const,
+              rich_text: [{ type: "text" as const, text: { content: input.authorId } }],
+            },
+          }
+        : {}),
     },
   });
   return page.id;
+}
+
+// 2026-08 추가(제품 감사 — "장기 제안: 블로그지수 변화 추이 기록") —
+// /mypage의 "블로그지수 조회 기록" 섹션용. sessions.ts의
+// getSessionsByAuthor와 완전히 동일한 패턴.
+export async function getBlogScoreSessionsByAuthor(authorId: string): Promise<BlogScoreSession[]> {
+  const sessions: BlogScoreSession[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: sessionsDataSourceId(),
+      filter: { property: BLOG_SCORE_SESSION_PROPS.authorId, rich_text: { equals: authorId } },
+      sorts: [{ property: BLOG_SCORE_SESSION_PROPS.searchedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    sessions.push(...res.results.filter(isFullPage).map(parseSession));
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  return sessions;
 }
 
 export async function getBlogScoreSessionById(id: string): Promise<BlogScoreSession | null> {

@@ -5,10 +5,14 @@ import LogoutButton from "@/components/LogoutButton";
 import MySearchHistoryCards from "@/components/mypage/MySearchHistoryCards";
 import MyBoardPostCards from "@/components/mypage/MyBoardPostCards";
 import MyHotdealPostCards from "@/components/mypage/MyHotdealPostCards";
+import MyKeywordWatchCards from "@/components/mypage/MyKeywordWatchCards";
+import MyBlogScoreCards from "@/components/mypage/MyBlogScoreCards";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getSessionsByAuthor } from "@/lib/notion/sessions";
 import { getBoardPostsByAuthor } from "@/lib/notion/board";
 import { getHotdealPostsByAuthor } from "@/lib/notion/hotdeal";
+import { getKeywordWatchesByAuthor } from "@/lib/notion/keywordWatches";
+import { getBlogScoreSessionsByAuthor } from "@/lib/notion/blogScoreSessions";
 
 export const metadata: Metadata = {
   title: "내 정보",
@@ -53,10 +57,12 @@ async function MyPageContent({
   email: string;
   nickname: string;
 }) {
-  const [sessions, boardPosts, hotdealPosts] = await Promise.all([
+  const [sessions, boardPosts, hotdealPosts, keywordWatches, blogScoreSessions] = await Promise.all([
     getSessionsByAuthor(userId).catch(() => []),
     getBoardPostsByAuthor(userId).catch(() => []),
     getHotdealPostsByAuthor(userId).catch(() => []),
+    getKeywordWatchesByAuthor(userId).catch(() => []),
+    getBlogScoreSessionsByAuthor(userId).catch(() => []),
   ]);
 
   return (
@@ -72,6 +78,19 @@ async function MyPageContent({
       <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
         <h2 className="text-base font-semibold text-ink">검색 기록정보</h2>
         <MySearchHistoryCards sessions={sessions} />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+        <h2 className="text-base font-semibold text-ink">블로그지수 조회 기록</h2>
+        <MyBlogScoreCards sessions={blogScoreSessions} />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+        <h2 className="text-base font-semibold text-ink">관심 키워드</h2>
+        <p className="-mt-2 text-xs text-ink-muted">
+          검색량이 20% 이상 바뀌면 이메일로 알려드려요. 개인 도구 결과 화면에서 등록할 수 있어요.
+        </p>
+        <MyKeywordWatchCards watches={keywordWatches} />
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">

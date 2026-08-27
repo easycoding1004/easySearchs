@@ -149,6 +149,17 @@ function parseUser(page: PageObjectResponse): User {
   };
 }
 
+// 관심 키워드 알림(keywordWatchJob.ts)이 KeywordWatch.authorId로 수신자
+// 이메일을 찾을 때 씀 — 계정이 그 사이 삭제/보관됐으면 조용히 null.
+export async function findUserByPageId(pageId: string): Promise<User | null> {
+  try {
+    const page = await notion.pages.retrieve({ page_id: pageId });
+    return isFullPage(page) ? parseUser(page) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function findUserBySessionToken(token: string): Promise<User | null> {
   if (!token) return null;
   const res = await notion.dataSources.query({

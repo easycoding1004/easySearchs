@@ -3,6 +3,7 @@ import {
   NEWSLETTER_JOB_INTERVAL_MS,
   BILLING_JOB_INTERVAL_MS,
   POLICY_BOARD_JOB_INTERVAL_MS,
+  KEYWORD_WATCH_JOB_INTERVAL_MS,
 } from "./lib/constants";
 
 // Next.js가 서버 프로세스 시작 시 정확히 1회 호출하는 공식 훅. 이 프로젝트
@@ -60,6 +61,15 @@ export async function register() {
       console.error("[instrumentation] scheduled policy board job failed:", err);
     });
   }, POLICY_BOARD_JOB_INTERVAL_MS);
+
+  // 관심 키워드 구독 + 변화 알림 — newsletterJob/billingJob과 같은 이유로
+  // 시작 시 즉시 실행하지 않음(재배포마다 회원에게 메일이 나가면 안 되므로).
+  const { runKeywordWatchJob } = await import("./lib/scheduler/keywordWatchJob");
+  setInterval(() => {
+    runKeywordWatchJob().catch((err) => {
+      console.error("[instrumentation] scheduled keyword watch job failed:", err);
+    });
+  }, KEYWORD_WATCH_JOB_INTERVAL_MS);
 
   // 2026-08 중단(사용자 요청) — 루리웹 RSS 자동수집 잡을 배포 환경(Railway)에서
   // 돌리면 매시간 `ConnectTimeoutError: bbs.ruliweb.com:443`로 100% 실패하는

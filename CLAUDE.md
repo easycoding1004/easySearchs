@@ -809,3 +809,36 @@ Webhook 서명 검증 라우트, 결제 실패 시 재시도·유예 기간(즉�
 - 세 목록 다 이미 있는 `PaginatedCardGrid`(§12.2)를 그대로 재사용해 10개씩 페이지네이션 — `src/components/mypage/My{SearchHistory,BoardPost,HotdealPost}Cards.tsx` 3개가 각각 "use client"로, `/mypage/page.tsx`(Server Component)가 미리 조회한 배열을 props로 넘김. **함수(`renderItem` 등)를 Server→Client로 못 넘긴다는 걸 §12.2 admin 페이지 크래시로 이미 배운 뒤라, 처음부터 세 컴포넌트를 client로 만들어서 같은 문제를 재발시키지 않음.**
 - `LogoutButton.tsx`(신규 공유 컴포넌트) — `BlogWriterForm.tsx`의 기존 로그아웃 패턴(POST `/api/auth/logout` → `router.refresh()`)과 같되, `/mypage`는 로그인 전용 페이지라 로그아웃 후 그 자리에 남을 이유가 없어 `router.push("/")`도 같이 함.
 - 실측 검증(2026-08): 실제 로그인 세션으로 `/api/auth/me`가 `{loggedIn:true}`, `/mypage`가 세 섹션 모두 정상 렌더링되는 것 확인. `createSearchSession`+`authorId` → `getSessionsByAuthor` 왕복, `getBoardPostsByAuthor`/`getHotdealPostsByAuthor` 필터 쿼리도 실제 라이브 데이터로 확인함. `tsc`/`eslint`/`next build` 클린, `next build` 결과의 정적/동적 페이지 목록이 이 기능 추가 전과 동일함(`/mypage`만 새로 `ƒ`로 추가됨)을 직접 비교해 확인.
+
+## 24. 제품 감사 후속 조치 (2026-08)
+
+사이트 전체를 기능별 엣지·UI/UX 일관성 관점에서 감사한 결과(사용자 요청 — "프로젝트를 뜯고 싶어, 기능별 엣지도 떨어지는 것 같고... 추가되면 좋은 기능이나 개선사항을 알려줘")를 아티팩트 리포트로 정리해 제시했고, 사용자가 "전부 다" 진행하라고 확정해 지금 바로/중기/장기 제안 전부를 이번 라운드에 구현함.
+
+### 24.1 지금 바로 (발견 가능성)
+
+- **홈페이지 푸터에 게시판·소상공인 정책정보·내 정보 링크 추가** — 감사에서 발견한 실제 갭(게시판·mypage는 헤더 메뉴 말고는 어디서도 안 보였음)을 바로 고침.
+- **정책정보(`/policy-board`)·핫딜정보(`/hotdeal`) 목록을 게시판(`/board`, §18.5)과 같은 표 골격으로 통일** — 카드 나열식 3곳이 서로 다른 스캔 방식을 쓰던 걸 통일. 핫딜의 썸네일·최저가는 표 셀 안에 그대로 살림(`HotdealThumbnail` 재사용).
+- **"AI 자동글쓰기" 비활성 배지 문구를 "개발중"→"곧 출시"로, 툴팁도 "최종 점검 중이에요, 곧 만나보실 수 있어요"로** — `SiteHeader.tsx`/`MobileNavMenu.tsx`/`FeatureShowcase.tsx` 세 곳(`AI_WRITE_ENABLED` 분기가 있는 곳 전부, §16의 임시 잠금 플래그 자체는 안 건드림)에 동일 적용.
+
+### 24.2 중기
+
+- **결과 공유 버튼 통합** — 이미 `/result`에 있던 `ShareResultButton`(Web Share API + 클립보드 폴백, 카카오 SDK 앱키 발급 없이도 모바일에서 카카오톡 공유 시트가 뜸)이 `components/search/`(개인 도구 전용 폴더)에만 있던 걸, 블로그지수(`ExportableImage.tsx`의 "이미지로 저장" 버튼 옆)에서도 쓰게 되면서 공유 위치(`components/ShareResultButton.tsx`, §14 컨벤션)로 옮김 — `compact` prop으로 좁은 버튼 줄에 맞는 작은 버전도 지원. 대시보드 결과 페이지가 `shareTitle`을 넘기면 자동으로 노출됨.
+- **홈페이지 "게시판 최신 글" 미리보기 섹션 추가** — 기존 "소상공인 정책정보" 미리보기(§20.4)와 같은 패턴(`getBoardPosts()` 상위 4건, 2열 카드) — 게시판이 홈페이지 어디에도 안 보이던 갭을 메움. 감사가 제안했던 "여러 활동을 하나로 합친 통합 피드"까지는 아니고(이미 있는 급상승/정책정보 전용 섹션과 중복이 생기는 걸 피하려고 별도 섹션으로 둠), 실제로 빠져있던 게시판만 같은 자리에 추가.
+- **토스페이먼츠 실 결제 검증**은 이번 라운드에서 진행 못함 — §19.8에 이미 기록된 그대로 사용자가 아직 토스 가맹점 가입 전이라 테스트 키 자체가 없음. 코드는 완성돼 있으니 키가 발급되면 §19.8의 체크리스트대로 검증할 것.
+
+### 24.3 장기 — 관심 키워드 구독 + 변화 알림
+
+개인 도구(`/`, `/result`)는 원래 1회성 조회 도구(§1)라 매번 새로 검색해야 했는데, 로그인 회원이 결과 화면에서 "🔔 이 키워드 변화 알림 받기"를 누르면 그 세션의 시드 키워드 전체(최대 5개)를 "관심 키워드"로 등록하고, 매일 도는 `keywordWatchJob.ts`가 그 시점 검색량을 다시 조회해 등록/마지막 알림 시점 대비 `KEYWORD_WATCH_CHANGE_THRESHOLD`(±20%, `constants.ts`) 이상 바뀌면 이메일로 알려줌 — `/trending`의 급상승 다이제스트(§6.4)가 "사이트 전체 기준"이라면 이건 "내가 고른 키워드 기준"으로, 개인 도구에 처음 생기는 재방문 유도 장치.
+
+- **저장소**: 새 Notion DB "관심 키워드"(`NOTION_KEYWORD_WATCHES_DB_ID`, `scripts/setup-notion-keyword-watches.ts`) — 키워드(title)/작성자ID/기준 검색량/마지막 알림 검색량/마지막 알림일시/등록일시. `src/lib/notion/keywordWatches.ts`가 subscribers.ts와 같은 패턴(작성자+키워드 조합으로 중복 등록 방지, archive로 소프트 삭제).
+- **등록 UI**: `src/components/search/KeywordWatchButton.tsx`(`/result/[sessionId]`에 배치) — 비로그인이면 "로그인하면 알림 받을 수 있어요" 안내만, 로그인 상태면 등록 버튼. `POST /api/keyword-watch`가 세션의 시드 키워드 배열(키워드+그 시점 합계 검색량)을 한 번에 받아 배치 등록.
+- **해지 UI**: `/mypage`의 새 "관심 키워드" 섹션(`MyKeywordWatchCards.tsx`)에서 키워드별로 등록 시점/마지막 알림 정보를 보여주고 "해지" 버튼(`DELETE /api/keyword-watch/[id]`, 소유자 확인 후 archive).
+- **알림 잡**: `src/lib/scheduler/keywordWatchJob.ts` — 전체 관심 키워드를 훑어 고유 키워드만 추출 후, 네이버 검색광고 키워드도구 API가 `hintKeywords`를 한 번에 최대 5개까지만 받는 제약(`KEYWORD_WATCH_BATCH_SIZE`, §MAX_SEED_KEYWORDS와 동일 근거)에 맞춰 5개씩 청크로 순차 조회 → `/api/search`가 이미 쓰던 것과 동일한 `normalizeForMatch(row.relKeyword)` 매칭 기법으로 각 키워드의 현재 검색량을 찾음. 임계값을 넘긴 키워드가 있는 회원별로 이메일 하나(여러 키워드가 한꺼번에 바뀌어도 스팸처럼 여러 통 안 감)를 Resend로 발송(`findUserByPageId()`로 수신자 이메일 조회, `users.ts`에 신규 추가), 성공한 것만 `마지막 알림 검색량`/`마지막 알림일시` 갱신. `instrumentation.ts`에 newsletterJob/billingJob과 같은 패턴(서버 시작 시 즉시 실행 안 함, 하루 1회)으로 등록.
+- **검증**: `keywordWatches.ts`의 CRUD(생성/중복 방지/조회/알림 기록/삭제)와 `users.ts`의 `findUserByPageId`를 실제 Notion에 라이브로 왕복 테스트해 확인함(스크래치패드 임시 스크립트, `npx tsx --env-file=.env.local`로 실행 — dotenv를 스크립트 안에서 부르는 대신 Node 자체 플래그로 모듈 평가 전에 env를 주입해서 §18.7.1의 "lib 함수를 스크립트에서 바로 import하면 client.ts 싱글턴이 빈 토큰으로 굳어버리는" 함정을 피함). **잡 전체(실제 이메일 발송까지)는 실사용 검증 전** — 실제 임계값을 넘는 키워드가 쌓일 때까지 기다리거나, `다음결제일`을 과거로 세팅해 청구를 강제 트리거하는 §19.8 방식처럼 `마지막 알림 검색량`을 인위적으로 벌려서 다음 실사용 때 확인할 것.
+
+### 24.4 장기 — 블로그지수 조회 기록 (v1)
+
+블로그지수(`/dashboard`)도 개인 도구와 같은 이유로 1회성 조회 도구였는데, 로그인 상태로 조회하면 그 세션이 계정에 귀속되게 함 — §23.2의 `SESSION_PROPS.authorId`와 완전히 동일한 패턴을 `BLOG_SCORE_SESSION_PROPS.authorId`로 그대로 재사용(`scripts/add-blog-score-session-author-id-prop.ts`로 마이그레이션, `/api/blog-score/route.ts`가 세션 생성 직전 `getCurrentUser()`로 로그인 여부 확인).
+
+- **v1 스코프를 의도적으로 좁힘**: 감사가 제안한 "블로그지수가 지난달 대비 어떻게 변했는지" 추이 그래프까지는 이번에 안 만들고, `/mypage`의 새 "블로그지수 조회 기록" 섹션(`MyBlogScoreCards.tsx`)은 도메인·조회일·비교 블로그 수만 보여주고 각 결과 페이지로 링크함 — 컴포짓 점수는 세션이 아니라 "블로그지수 결과"(도메인별) DB에 따로 저장되므로(§10.1), 목록에 점수까지 얹으려면 세션 수만큼 그 DB를 추가 조회해야 하는 N+1 비용이 생김. 실사용으로 조회 기록이 쌓이는 걸 보고, 점수 비교/그래프가 실제로 필요하다고 확인되면 캐싱과 함께 재검토하기로 함 — 지금은 정직하게 "목록+링크"까지만.
+- **검증**: `createBlogScoreSession`(authorId 포함) → `getBlogScoreSessionsByAuthor` 왕복을 실제 Notion에 라이브로 확인(생성→조회→정리). `tsc`/`eslint`/`next build` 전부 클린, `next build`의 정적/동적 페이지 목록에 회귀 없음(이번 라운드 전체에서 새로 동적이 된 페이지는 `/mypage`뿐 — §23에서 이미 그랬던 것 그대로).
