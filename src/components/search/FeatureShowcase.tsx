@@ -113,7 +113,9 @@ const TABS: ShowcaseTab[] = [
       "CSV로 저장하거나 블로그지수와 비교",
     ],
     ctaLabel: "지금 검색하기",
-    ctaHref: "#hero-search",
+    // 2026-08 재설계 — 이 쇼케이스가 홈에서 /search로 이동하면서 앵커도
+    // /search의 폼 컨테이너 id(search-form)로 맞춤.
+    ctaHref: "#search-form",
     illustration: <BarChartIllustration />,
     secondaryLabel: "업종별 인기 검색어 보기",
     secondaryHref: "/keywords",
@@ -209,15 +211,17 @@ export default function FeatureShowcase() {
           </ol>
           <div className="mt-1 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
             {active.id === "write" && !AI_WRITE_ENABLED ? (
-              <span
-                title="AI 자동글쓰기는 최종 점검 중이에요. 곧 만나보실 수 있어요!"
-                className="flex cursor-not-allowed items-center gap-1.5 rounded-md bg-hairline px-4 py-2 text-sm font-semibold text-ink-muted"
+              // 2026-08 재설계 — /write에 "출시 알림 받기" 폼이 생겨서 막다른
+              // 비활성 배지 대신 클릭 가능한 링크로 전환(리드 수집 진입점).
+              <Link
+                href="/write"
+                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
               >
-                {active.ctaLabel}
-                <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                출시 알림 받기
+                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   곧 출시
                 </span>
-              </span>
+              </Link>
             ) : (
               <Link
                 href={active.ctaHref}

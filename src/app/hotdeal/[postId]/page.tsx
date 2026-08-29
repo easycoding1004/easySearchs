@@ -5,6 +5,7 @@ import CommentThread from "@/components/CommentThread";
 import { getHotdealPost, getCommentsForHotdealPost } from "@/lib/notion/hotdeal";
 import { getCurrentUser } from "@/lib/auth/session";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ export async function generateMetadata({
 }
 
 export default async function HotdealPostPage({ params }: { params: Promise<{ postId: string }> }) {
+  // 2026-08 재설계 — 노출 종료(HOTDEAL_ENABLED, constants.ts 참고).
+  if (!HOTDEAL_ENABLED) notFound();
+
   const { postId } = await params;
   const [post, comments, user] = await Promise.all([
     getHotdealPost(postId),

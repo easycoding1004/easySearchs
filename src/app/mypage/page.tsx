@@ -13,6 +13,7 @@ import { getBoardPostsByAuthor } from "@/lib/notion/board";
 import { getHotdealPostsByAuthor } from "@/lib/notion/hotdeal";
 import { getKeywordWatchesByAuthor } from "@/lib/notion/keywordWatches";
 import { getBlogScoreSessionsByAuthor } from "@/lib/notion/blogScoreSessions";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "내 정보",
@@ -60,7 +61,8 @@ async function MyPageContent({
   const [sessions, boardPosts, hotdealPosts, keywordWatches, blogScoreSessions] = await Promise.all([
     getSessionsByAuthor(userId).catch(() => []),
     getBoardPostsByAuthor(userId).catch(() => []),
-    getHotdealPostsByAuthor(userId).catch(() => []),
+    // 핫딜 노출 종료(2026-08 재설계) — 섹션을 안 보여주므로 조회도 건너뜀.
+    HOTDEAL_ENABLED ? getHotdealPostsByAuthor(userId).catch(() => []) : Promise.resolve([]),
     getKeywordWatchesByAuthor(userId).catch(() => []),
     getBlogScoreSessionsByAuthor(userId).catch(() => []),
   ]);
@@ -98,10 +100,12 @@ async function MyPageContent({
         <MyBoardPostCards posts={boardPosts} />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
-        <h2 className="text-base font-semibold text-ink">핫딜정보 내 게시물</h2>
-        <MyHotdealPostCards posts={hotdealPosts} />
-      </div>
+      {HOTDEAL_ENABLED && (
+        <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+          <h2 className="text-base font-semibold text-ink">핫딜정보 내 게시물</h2>
+          <MyHotdealPostCards posts={hotdealPosts} />
+        </div>
+      )}
     </div>
   );
 }

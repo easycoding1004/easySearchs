@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import BlogScoreForm from "@/components/dashboard/BlogScoreForm";
 import SampleResultPreview from "@/components/dashboard/SampleResultPreview";
 import PainPointPromo from "@/components/PainPointPromo";
@@ -39,7 +40,11 @@ export default function DashboardHomePage() {
           </div>
         </div>
 
-        <BlogScoreForm />
+        {/* useSearchParams(?blog= 프리필)를 쓰는 클라이언트 폼이라 Suspense
+            경계가 있어야 이 페이지의 정적 생성이 유지됨. */}
+        <Suspense>
+          <BlogScoreForm />
+        </Suspense>
       </section>
 
       <section className="w-full border-t border-hairline bg-surface px-4 py-16 sm:px-6 sm:py-20">
@@ -76,7 +81,7 @@ export default function DashboardHomePage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 text-xs text-ink-muted sm:flex-row">
           <span>© 2026 이지서치. All rights reserved.</span>
           <div className="flex gap-4">
-            <Link href="/" className="hover:text-primary">
+            <Link href="/search" className="hover:text-primary">
               키워드 검색량
             </Link>
             <Link href="/dashboard" className="hover:text-primary">

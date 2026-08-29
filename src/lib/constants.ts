@@ -5,6 +5,13 @@
 // — 그 외 코드(라우트·컴포넌트) 자체는 그대로 남겨둠.
 export const AI_WRITE_ENABLED = false;
 
+// 2026-08 재설계(1단계) — 핫딜정보는 세 타겟(소상공인·프리랜서·블로거)의
+// 문제와 직접 관련이 없는 소비자용 콘텐츠라 노출을 종료하기로 사용자와
+// 확정함(자동수집도 배포 환경 네트워크 차단으로 이미 중단된 상태였음).
+// 데이터(Notion DB)·코드는 전부 보존 — 이 플래그 하나로 /hotdeal 페이지
+// 3개와 등록/댓글 API, mypage의 핫딜 섹션이 함께 잠김. 되살리려면 true로.
+export const HOTDEAL_ENABLED = false;
+
 export const MAX_KEYWORD_RESULTS = 50;
 export const NOTION_WRITE_CONCURRENCY = 3;
 // Naver's keywordstool API accepts at most 5 comma-separated hintKeywords per call.

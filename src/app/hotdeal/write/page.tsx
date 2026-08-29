@@ -3,7 +3,9 @@ import { Suspense } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForms from "@/components/AuthForms";
 import HotdealPostForm from "@/components/hotdeal/HotdealPostForm";
+import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "핫딜 등록",
@@ -15,6 +17,9 @@ export const dynamic = "force-dynamic";
 // board/write/page.tsx와 같은 게이트 패턴(§CLAUDE.md 20) — 로그인한 회원만
 // 작성 폼을 보고, 아니면 공용 로그인 폼(AuthForms)을 보여줌.
 export default async function HotdealWritePage() {
+  // 2026-08 재설계 — 노출 종료(HOTDEAL_ENABLED, constants.ts 참고).
+  if (!HOTDEAL_ENABLED) notFound();
+
   const user = await getCurrentUser();
 
   return (

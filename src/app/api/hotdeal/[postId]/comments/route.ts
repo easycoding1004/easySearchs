@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { setNickname } from "@/lib/notion/users";
 import { createHotdealComment, getHotdealPost } from "@/lib/notion/hotdeal";
 import { getErrorMessage } from "@/lib/utils/errors";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 const MAX_CONTENT_LENGTH = 1000;
 const MAX_NICKNAME_LENGTH = 20;
@@ -10,6 +11,12 @@ const MAX_NICKNAME_LENGTH = 20;
 // 정책정보 게시판의 댓글 라우트(§CLAUDE.md 신규 섹션)와 완전히 동일한 패턴 —
 // 로그인+이메일인증 필요, 닉네임 없으면 1회 설정, parentCommentId로 대댓글.
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
+  // 2026-08 재설계 — 핫딜 노출 종료(HOTDEAL_ENABLED). UI만 막고 API가 열려
+  // 있는 반쪽 잠금이 되지 않도록 페이지와 같은 플래그로 함께 잠금.
+  if (!HOTDEAL_ENABLED) {
+    return NextResponse.json({ error: "지금은 이용할 수 없는 기능이에요." }, { status: 404 });
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });

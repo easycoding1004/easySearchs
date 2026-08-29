@@ -106,13 +106,15 @@ function ResultScreen({ group, onRestart }: { group: BlogGroup; onRestart: () =>
           이 글감으로 AI가 바로 써드릴게요 →
         </Link>
       ) : (
-        <span
-          title="AI 자동글쓰기는 최종 점검 중이에요. 곧 만나보실 수 있어요!"
-          className="flex w-fit cursor-not-allowed items-center gap-1.5 rounded-md bg-hairline px-5 py-2.5 text-sm font-semibold text-ink-muted"
+        // 2026-08 재설계 — /write에 "출시 알림 받기" 폼이 생겨서 막다른
+        // 비활성 배지 대신 클릭 가능한 링크로 전환(FeatureShowcase와 동일).
+        <Link
+          href="/write"
+          className="flex w-fit items-center gap-1.5 self-start rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
         >
-          이 글감으로 AI가 바로 써드릴게요
-          <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">곧 출시</span>
-        </span>
+          AI 자동글쓰기 출시 알림 받기
+          <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold text-white">곧 출시</span>
+        </Link>
       )}
     </div>
   );

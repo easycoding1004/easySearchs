@@ -101,7 +101,7 @@ export default async function GuideArticlePage({
           <p className="text-sm text-ink-muted">직접 키워드를 조회해보세요.</p>
           <div className="flex justify-center gap-2 sm:justify-end">
             <Link
-              href="/"
+              href="/search"
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
             >
               키워드 검색량 조회

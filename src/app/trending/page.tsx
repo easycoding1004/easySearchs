@@ -109,7 +109,7 @@ export default async function TrendingPage() {
             </h2>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/"
+                href="/search"
                 className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
               >
                 키워드 검색량 조회
@@ -129,7 +129,7 @@ export default async function TrendingPage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 text-xs text-ink-muted sm:flex-row">
           <span>© 2026 이지서치. All rights reserved.</span>
           <div className="flex gap-4">
-            <Link href="/" className="hover:text-primary">
+            <Link href="/search" className="hover:text-primary">
               키워드 검색량
             </Link>
             <Link href="/dashboard" className="hover:text-primary">

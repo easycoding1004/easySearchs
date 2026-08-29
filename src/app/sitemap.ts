@@ -16,9 +16,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/write`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     // 개별 게시글까지 동적으로 열거하는 건 이번 범위 밖(§CLAUDE.md 16) — 목록
     // 페이지만 우선 추가.
+    // 2026-08 재설계 — 키워드 검색량 조회가 홈 Hero에서 /search로 이동함.
+    { url: `${BASE_URL}/search`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${BASE_URL}/board`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE_URL}/policy-board`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
-    { url: `${BASE_URL}/hotdeal`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
+    // /hotdeal은 2026-08 재설계로 노출 종료(HOTDEAL_ENABLED=false) — 목록에서 제거.
     { url: `${BASE_URL}/trending`, lastModified: now, changeFrequency: "hourly", priority: 0.6 },
     { url: `${BASE_URL}/keywords`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${BASE_URL}/blog-type`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },

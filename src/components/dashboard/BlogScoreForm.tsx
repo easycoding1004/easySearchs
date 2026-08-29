@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MAX_BLOG_SCORE_COMPETITORS, MAX_BLOG_SCORE_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
 import SearchProgressModal from "@/components/SearchProgressModal";
@@ -12,7 +12,11 @@ function sleep(ms: number) {
 
 export default function BlogScoreForm() {
   const router = useRouter();
-  const [myBlogDomain, setMyBlogDomain] = useState("");
+  // 2026-08 재설계(1단계) — 홈 Hero의 진단 입력(GET /dashboard?blog=...)에서
+  // 넘어온 블로그 주소를 프리필. useSearchParams를 쓰므로 이 컴포넌트를
+  // 렌더링하는 페이지는 <Suspense>로 감싸야 정적 생성이 유지됨(dashboard/page.tsx).
+  const searchParams = useSearchParams();
+  const [myBlogDomain, setMyBlogDomain] = useState(() => searchParams.get("blog")?.trim() ?? "");
   const [businessName, setBusinessName] = useState("");
   const [competitorBusinessNames, setCompetitorBusinessNames] = useState("");
   const [competitors, setCompetitors] = useState("");

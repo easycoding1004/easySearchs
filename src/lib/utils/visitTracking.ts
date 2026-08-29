@@ -4,6 +4,8 @@
 // more specific prefixes must come before broader ones that would also
 // match (e.g. "/dashboard/" before bare "/dashboard").
 const LANDING_PAGE_BUCKETS: { prefix: string; label: string }[] = [
+  // 2026-08 재설계 — 키워드 검색량 조회가 홈에서 /search로 이동함.
+  { prefix: "/search", label: "키워드 검색" },
   { prefix: "/result", label: "검색 결과" },
   { prefix: "/dashboard/", label: "블로그지수 결과" },
   { prefix: "/dashboard", label: "블로그지수 입력" },

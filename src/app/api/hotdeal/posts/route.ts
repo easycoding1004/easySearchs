@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { setNickname } from "@/lib/notion/users";
 import { createHotdealPost, type PriceEntry } from "@/lib/notion/hotdeal";
 import { getErrorMessage } from "@/lib/utils/errors";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_MODEL_LENGTH = 80;
@@ -33,6 +34,12 @@ function parseComparisons(raw: unknown): PriceEntry[] | null {
 // board.ts의 게시글 작성 라우트와 동일한 로그인+닉네임 흐름, 사진 업로드가
 // 없어 FormData 대신 JSON을 씀.
 export async function POST(request: Request) {
+  // 2026-08 재설계 — 핫딜 노출 종료(HOTDEAL_ENABLED). UI만 막고 API가 열려
+  // 있는 반쪽 잠금이 되지 않도록 페이지와 같은 플래그로 함께 잠금.
+  if (!HOTDEAL_ENABLED) {
+    return NextResponse.json({ error: "지금은 이용할 수 없는 기능이에요." }, { status: 404 });
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "로그인이 필요해요." }, { status: 401 });

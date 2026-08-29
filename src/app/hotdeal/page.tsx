@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import HotdealThumbnail from "@/components/hotdeal/HotdealThumbnail";
 import CursorPageNav from "@/components/CursorPageNav";
 import { getHotdealPosts } from "@/lib/notion/hotdeal";
+import { HOTDEAL_ENABLED } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "핫딜정보",
@@ -28,6 +30,9 @@ export default async function HotdealPage({
 }: {
   searchParams: Promise<{ cursor?: string; prev?: string; q?: string }>;
 }) {
+  // 2026-08 재설계 — 노출 종료(HOTDEAL_ENABLED, constants.ts 참고).
+  if (!HOTDEAL_ENABLED) notFound();
+
   const { cursor, prev, q } = await searchParams;
   // 버그 수정 — board/page.tsx와 동일한 이유(prev="" vs prev 없음을
   // 구분해야 함, 실측 확인).

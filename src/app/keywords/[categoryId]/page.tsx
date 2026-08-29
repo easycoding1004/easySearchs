@@ -181,7 +181,7 @@ export default async function KeywordsCategoryPage({
           <p className="text-sm text-ink-muted">이 키워드들의 검색량을 직접 조회해보세요.</p>
           <div className="flex justify-center gap-2 sm:justify-end">
             <Link
-              href="/"
+              href="/search"
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition ease-spring hover:bg-primary-hover motion-safe:active:scale-[0.97]"
             >
               키워드 검색량 조회
