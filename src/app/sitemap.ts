@@ -1,15 +1,36 @@
 import type { MetadataRoute } from "next";
 import { GUIDE_ARTICLES } from "@/lib/guide/articles";
 import { CATEGORIES } from "@/lib/naver/categoryTrends";
+import { getKeywordDirectory } from "@/lib/notion/keywordSnapshots";
 
 const BASE_URL = "https://ezzsearch.com";
+
+// 키워드 사전 항목이 스냅샷 DB에 계속 추가되므로 sitemap을 빌드 시점에
+// 얼리지 않고 요청 시 생성 — 스캔 비용은 keywordSnapshots.ts의 1시간 캐시가
+// 흡수함(상주형 서버 전제, §CLAUDE.md 11).
+export const dynamic = "force-dynamic";
 
 // Only the evergreen landing pages — /result/[id] and /dashboard/[id] are
 // ephemeral, one-off pages created per search (see robots.ts: noindex'd
 // individually and disallowed here) and would just be thin/duplicate
 // content to a crawler.
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+
+  // 키워드 사전(2026-08 유입 전략) — 스냅샷이 있는 키워드 전부를 등재해
+  // 크롤러가 개별 페이지를 발견하게 함. 스캔 자체는 keywordSnapshots.ts의
+  // 1시간 캐시가 흡수하고, 실패해도 sitemap 전체가 깨지지 않게 빈 배열 폴백.
+  const keywordEntries = await getKeywordDirectory()
+    .then((directory) =>
+      directory.map((entry) => ({
+        url: `${BASE_URL}/keyword/${encodeURIComponent(entry.keyword)}`,
+        lastModified: new Date(entry.latestDate),
+        changeFrequency: "weekly" as const,
+        priority: 0.4,
+      }))
+    )
+    .catch(() => []);
+
   return [
     { url: BASE_URL, lastModified: now, changeFrequency: "daily", priority: 1 },
     { url: `${BASE_URL}/dashboard`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
@@ -23,6 +44,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // /hotdeal은 2026-08 재설계로 노출 종료(HOTDEAL_ENABLED=false) — 목록에서 제거.
     { url: `${BASE_URL}/trending`, lastModified: now, changeFrequency: "hourly", priority: 0.6 },
     { url: `${BASE_URL}/keywords`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${BASE_URL}/keyword`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE_URL}/blog-type`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     ...CATEGORIES.map((category) => ({
       url: `${BASE_URL}/keywords/${category.id}`,
@@ -38,5 +60,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.5,
     })),
     { url: `${BASE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
+    ...keywordEntries,
   ];
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MAX_SEED_KEYWORDS } from "@/lib/constants";
 import { readSseStream } from "@/lib/utils/readSseStream";
 import SearchProgressModal from "@/components/SearchProgressModal";
@@ -19,7 +19,11 @@ function sleep(ms: number) {
 
 export default function SearchForm() {
   const router = useRouter();
-  const [keyword, setKeyword] = useState("");
+  // 2026-08 재설계 — 키워드 사전(/keyword/[keyword])의 "검색량 조회" CTA가
+  // ?q=로 키워드를 넘겨줌. useSearchParams를 쓰므로 이 컴포넌트를 렌더링하는
+  // 페이지는 <Suspense>로 감싸야 정적 생성이 유지됨(BlogScoreForm과 동일).
+  const searchParams = useSearchParams();
+  const [keyword, setKeyword] = useState(() => searchParams.get("q")?.trim() ?? "");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);

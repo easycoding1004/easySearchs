@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import SearchForm from "@/components/search/SearchForm";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
@@ -44,7 +45,11 @@ export default function SearchPage() {
 
           <div id="search-form" className="flex w-full flex-col items-center gap-6">
             <div className="w-full max-w-xl">
-              <SearchForm />
+              {/* useSearchParams(?q= 프리필) 때문에 Suspense 필요 — 없으면
+                  이 페이지가 정적 생성에서 빠짐(BlogScoreForm과 동일 패턴). */}
+              <Suspense>
+                <SearchForm />
+              </Suspense>
             </div>
             <div className="w-full max-w-xl">
               <FeatureShowcase />

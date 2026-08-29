@@ -8,6 +8,7 @@ const FOOTER_LINKS = [
   { href: "/search", label: "검색량 조회" },
   { href: "/trending", label: "급상승" },
   { href: "/keywords", label: "업종별 키워드" },
+  { href: "/keyword", label: "키워드 사전" },
   { href: "/blog-type", label: "유형 진단" },
   { href: "/board", label: "게시판" },
   { href: "/policy-board", label: "소상공인 정책정보" },

@@ -6,6 +6,10 @@
 const LANDING_PAGE_BUCKETS: { prefix: string; label: string }[] = [
   // 2026-08 재설계 — 키워드 검색량 조회가 홈에서 /search로 이동함.
   { prefix: "/search", label: "키워드 검색" },
+  // 주의: "/keywords"(업종별)가 "/keyword"(사전)보다 먼저 와야 함 — 순서가
+  // 바뀌면 /keywords/*가 전부 사전으로 잘못 분류됨(상단 주석의 prefix 규칙).
+  { prefix: "/keywords", label: "업종별 키워드" },
+  { prefix: "/keyword", label: "키워드 사전" },
   { prefix: "/result", label: "검색 결과" },
   { prefix: "/dashboard/", label: "블로그지수 결과" },
   { prefix: "/dashboard", label: "블로그지수 입력" },
