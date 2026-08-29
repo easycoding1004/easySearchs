@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { GUIDE_ARTICLES } from "@/lib/guide/articles";
 import { CATEGORIES } from "@/lib/naver/categoryTrends";
 import { getKeywordDirectory } from "@/lib/notion/keywordSnapshots";
+import { getAllBoardPostsForSitemap } from "@/lib/notion/board";
 import { GROUP_SLUGS } from "@/lib/blogType/quizData";
 
 const BASE_URL = "https://ezzsearch.com";
@@ -28,6 +29,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: new Date(entry.latestDate),
         changeFrequency: "weekly" as const,
         priority: 0.4,
+      }))
+    )
+    .catch(() => []);
+
+  // 게시판 개별 글(2026-08 유입 전략) — 진짜 사용자 콘텐츠(Q&A)라 롱테일
+  // 색인 가치가 있음. 정책정보 개별 글은 기업마당 원문의 재게시라 중복
+  // 콘텐츠 성격이 있어 의도적으로 목록 페이지만 유지.
+  const boardEntries = await getAllBoardPostsForSitemap()
+    .then((posts) =>
+      posts.map((post) => ({
+        url: `${BASE_URL}/board/${post.id}`,
+        lastModified: post.createdAt ? new Date(post.createdAt) : now,
+        changeFrequency: "monthly" as const,
+        priority: 0.3,
       }))
     )
     .catch(() => []);
@@ -69,6 +84,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     })),
     { url: `${BASE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.3 },
+    ...boardEntries,
     ...keywordEntries,
   ];
 }

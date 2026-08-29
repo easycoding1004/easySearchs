@@ -206,6 +206,14 @@ export async function getKeywordDirectory(): Promise<KeywordDirectoryEntry[]> {
   return entries.sort((a, b) => b.latestCount - a.latestCount);
 }
 
+// 키워드 사전 페이지가 존재하는지(=스냅샷이 있는지) 빠르게 판별하기 위한
+// Set — 홈 티커·급상승 카드·업종별 표에서 사전으로 링크를 걸 때, 페이지가
+// 없는 키워드로 404 링크를 만들지 않기 위해 씀. 스캔 캐시를 그대로 공유.
+export async function getKeywordDirectorySet(): Promise<Set<string>> {
+  const byKeyword = await scanSnapshotsByKeyword();
+  return new Set(byKeyword.keys());
+}
+
 export interface KeywordSnapshotPoint {
   collectedAt: string; // YYYY-MM-DD
   pcCount: number;

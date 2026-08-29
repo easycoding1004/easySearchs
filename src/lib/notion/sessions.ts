@@ -5,6 +5,7 @@ import { SESSION_PROPS } from "./schema";
 import type { SearchSession } from "./types";
 import { countRowsMatching } from "./queryHelpers";
 import { kstDayRangeUtcIso } from "../utils/formatDate";
+import { createTtlCache } from "../utils/ttlCache";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -109,6 +110,41 @@ export async function getSessionById(
   } catch {
     return null;
   }
+}
+
+// 2026-08 유입 전략(활성 신호) — 홈의 "방금 조회된 키워드" 티커용. 실제
+// 검색 세션에서 키워드만 뽑아 중복 제거해 반환 — 가짜 활동을 만들지 않는다는
+// 원칙(§18.7.1)대로 진짜 조회 기록만 씀. 세션ID·작성자 등 다른 정보는 절대
+// 노출하지 않고 키워드 문자열만 반환. 홈이 force-dynamic이라 방문마다 Notion을
+// 때리지 않도록 5분 TTL 캐시.
+const RECENT_KEYWORDS_CACHE_TTL_MS = 5 * 60 * 1000;
+const recentKeywordsCache = createTtlCache<string, string[]>(RECENT_KEYWORDS_CACHE_TTL_MS);
+
+export async function getRecentSearchKeywords(limit = 12): Promise<string[]> {
+  const cached = recentKeywordsCache.get("all");
+  if (cached) return cached.slice(0, limit);
+
+  const res = await notion.dataSources.query({
+    data_source_id: sessionsDataSourceId(),
+    sorts: [{ property: SESSION_PROPS.searchedAt, direction: "descending" }],
+    page_size: 30,
+  });
+
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  for (const page of res.results.filter(isFullPage) as PageObjectResponse[]) {
+    const session = parseSession(page);
+    // 한 세션에 콤마로 여러 시드 키워드가 들어갈 수 있음(MAX_SEED_KEYWORDS).
+    for (const raw of session.keyword.split(",")) {
+      const keyword = raw.trim();
+      if (!keyword || seen.has(keyword)) continue;
+      seen.add(keyword);
+      keywords.push(keyword);
+    }
+  }
+
+  recentKeywordsCache.set("all", keywords);
+  return keywords.slice(0, limit);
 }
 
 export async function countSessionsToday(): Promise<number> {

@@ -79,3 +79,10 @@ export const KEYWORD_WATCH_CHANGE_THRESHOLD = 0.2; // ±20%
 // 조회할 때도 이 크기로 묶어서 호출.
 export const KEYWORD_WATCH_BATCH_SIZE = 5;
 export const KEYWORD_WATCH_JOB_CONCURRENCY = 3;
+
+// 주간 키워드 리포트 게시판 자동 발행(2026-08 유입 전략, weeklyReportJob.ts)
+// — 잡 자체는 12시간마다 깨어나되, 게시판에서 마지막 리포트 날짜를 직접
+// 확인해 7일이 안 지났으면 건너뜀. 그래서 부팅 시 즉시 실행해도 안전하고
+// (뉴스레터 잡과 달리) 배포가 잦아도 주기를 놓치지 않음.
+export const WEEKLY_REPORT_JOB_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12시간
+export const WEEKLY_REPORT_MIN_GAP_DAYS = 7;

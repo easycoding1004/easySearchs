@@ -7,17 +7,27 @@ function formatNaverCount(pc: number | null, mobile: number | null): string {
 }
 
 // 홈페이지용 미리보기 카드 — 전체 표는 /trending에서.
+// dictionaryKeywords(2026-08 유입 전략): 키워드 사전 페이지가 실제로 존재하는
+// 키워드 목록 — 있으면 카드가 /trending 대신 그 키워드의 사전 페이지로
+// 링크됨(내부 링크 그래프 강화). 사전에 없는 키워드는 404 링크를 만들지
+// 않도록 기존처럼 /trending으로 감.
 export default function TrendingKeywordsCards({
   items,
+  dictionaryKeywords,
 }: {
   items: TrendingKeywordWithVolume[];
+  dictionaryKeywords?: Set<string>;
 }) {
   return (
     <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
       {items.map((item) => (
         <Link
           key={item.title}
-          href="/trending"
+          href={
+            dictionaryKeywords?.has(item.title)
+              ? `/keyword/${encodeURIComponent(item.title)}`
+              : "/trending"
+          }
           className="flex flex-col gap-2 rounded-lg border border-hairline bg-bg p-4 transition ease-spring hover:border-primary motion-safe:active:scale-[0.97]"
         >
           <span className="self-start rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">

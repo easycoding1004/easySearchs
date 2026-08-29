@@ -2,6 +2,7 @@ import { isFullPage } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client";
 import { notion } from "./client";
 import { BOARD_POST_PROPS, BOARD_COMMENT_PROPS } from "./schema";
+import { createTtlCache } from "../utils/ttlCache";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -206,6 +207,53 @@ export async function getPinnedBoardPosts(): Promise<BoardPost[]> {
     page_size: 20,
   });
   return res.results.filter(isFullPage).map(parseBoardPost);
+}
+
+// 2026-08 유입 전략 — sitemap에 게시판 개별 글을 등재하기 위한 전체 목록
+// (공지 포함). id·작성/표시일시만 필요해서 가볍고, sitemap이 요청마다
+// 재생성되므로 1시간 TTL 캐시로 Notion 재조회를 막음.
+const SITEMAP_POSTS_CACHE_TTL_MS = 60 * 60 * 1000;
+const sitemapPostsCache = createTtlCache<string, { id: string; createdAt: string }[]>(
+  SITEMAP_POSTS_CACHE_TTL_MS
+);
+
+export async function getAllBoardPostsForSitemap(): Promise<{ id: string; createdAt: string }[]> {
+  const cached = sitemapPostsCache.get("all");
+  if (cached) return cached;
+
+  const entries: { id: string; createdAt: string }[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: postsDataSourceId(),
+      sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    for (const page of res.results.filter(isFullPage)) {
+      const post = parseBoardPost(page);
+      entries.push({ id: post.id, createdAt: post.createdAt });
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  sitemapPostsCache.set("all", entries);
+  return entries;
+}
+
+// 주간 키워드 리포트 잡(weeklyReportJob.ts)의 중복 발행 가드 — 같은 제목
+// 접두사를 가진 가장 최근 글 1건을 찾음. 서버 재배포가 잦아도 부팅 시마다
+// 이 가드로 "마지막 발행이 7일 이내면 건너뛰기"가 가능해짐(뉴스레터 잡의
+// 알려진 트레이드오프 §6.4를 피하는 패턴).
+export async function findLatestBoardPostByTitlePrefix(prefix: string): Promise<BoardPost | null> {
+  const res = await notion.dataSources.query({
+    data_source_id: postsDataSourceId(),
+    filter: { property: BOARD_POST_PROPS.title, title: { contains: prefix } },
+    sorts: [{ property: BOARD_POST_PROPS.postedAt, direction: "descending" }],
+    page_size: 1,
+  });
+  const page = res.results.filter(isFullPage)[0];
+  return page ? parseBoardPost(page) : null;
 }
 
 // /mypage의 "게시판 내 게시물" — 작성자ID는 원래 §18.2에서 "나중에 '내 글만

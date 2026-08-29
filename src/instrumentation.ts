@@ -4,6 +4,7 @@ import {
   BILLING_JOB_INTERVAL_MS,
   POLICY_BOARD_JOB_INTERVAL_MS,
   KEYWORD_WATCH_JOB_INTERVAL_MS,
+  WEEKLY_REPORT_JOB_INTERVAL_MS,
 } from "./lib/constants";
 
 // Next.js가 서버 프로세스 시작 시 정확히 1회 호출하는 공식 훅. 이 프로젝트
@@ -70,6 +71,19 @@ export async function register() {
       console.error("[instrumentation] scheduled keyword watch job failed:", err);
     });
   }, KEYWORD_WATCH_JOB_INTERVAL_MS);
+
+  // 주간 키워드 리포트 게시판 자동 발행(2026-08 유입 전략) — 게시판에서
+  // 마지막 리포트 날짜를 직접 확인하는 자체 중복 가드가 있어(뉴스레터 잡과
+  // 달리) 부팅 시 즉시 실행해도 안전함 — 7일 안 지났으면 그냥 건너뜀.
+  const { runWeeklyReportJob } = await import("./lib/scheduler/weeklyReportJob");
+  runWeeklyReportJob().catch((err) => {
+    console.error("[instrumentation] initial weekly report job failed:", err);
+  });
+  setInterval(() => {
+    runWeeklyReportJob().catch((err) => {
+      console.error("[instrumentation] scheduled weekly report job failed:", err);
+    });
+  }, WEEKLY_REPORT_JOB_INTERVAL_MS);
 
   // 2026-08 중단(사용자 요청) — 루리웹 RSS 자동수집 잡을 배포 환경(Railway)에서
   // 돌리면 매시간 `ConnectTimeoutError: bbs.ruliweb.com:443`로 100% 실패하는

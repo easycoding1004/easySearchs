@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Reveal from "@/components/Reveal";
 import { CATEGORIES, getCategoryTopKeywords } from "@/lib/naver/categoryTrends";
 import { getCategoryShoppingDirection } from "@/lib/naver/categoryShoppingTrend";
+import { getKeywordDirectorySet } from "@/lib/notion/keywordSnapshots";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const SITE_URL = "https://ezzsearch.com";
@@ -50,7 +51,7 @@ export default async function KeywordsCategoryPage({
   // are — without this, a Naver outage would crash the whole page into the
   // generic error boundary instead of degrading gracefully like every
   // other Naver-backed page in this app. Both still run concurrently.
-  const [topKeywords, shoppingDirection] = await Promise.all([
+  const [topKeywords, shoppingDirection, dictionarySet] = await Promise.all([
     getCategoryTopKeywords(categoryId).catch((err) => {
       console.error(`[KeywordsCategoryPage] failed for "${categoryId}":`, err);
       return null;
@@ -59,6 +60,8 @@ export default async function KeywordsCategoryPage({
       console.error(`[KeywordsCategoryPage] shopping direction failed for "${categoryId}":`, err);
       return undefined;
     }),
+    // 키워드 사전 내부 링크용(2026-08 유입 전략) — 실패해도 링크만 안 걸릴 뿐.
+    getKeywordDirectorySet().catch(() => new Set<string>()),
   ]);
   const rows = topKeywords?.rows ?? [];
   const fetchedAt = topKeywords?.fetchedAt ?? null;
@@ -129,7 +132,18 @@ export default async function KeywordsCategoryPage({
                   {rows.map((row, i) => (
                     <tr key={row.relKeyword} className="border-b border-hairline last:border-0">
                       <td className="px-4 py-2.5 text-ink-muted">{i + 1}</td>
-                      <td className="px-4 py-2.5 font-medium text-ink">{row.relKeyword}</td>
+                      <td className="px-4 py-2.5 font-medium text-ink">
+                        {dictionarySet.has(row.relKeyword) ? (
+                          <Link
+                            href={`/keyword/${encodeURIComponent(row.relKeyword)}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {row.relKeyword}
+                          </Link>
+                        ) : (
+                          row.relKeyword
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-right text-ink">
                         {(row.monthlyPcQcCnt + row.monthlyMobileQcCnt).toLocaleString()}
                       </td>
@@ -151,7 +165,17 @@ export default async function KeywordsCategoryPage({
                 <div key={row.relKeyword} className="rounded-md border border-hairline p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-ink">
-                      {i + 1}. {row.relKeyword}
+                      {i + 1}.{" "}
+                      {dictionarySet.has(row.relKeyword) ? (
+                        <Link
+                          href={`/keyword/${encodeURIComponent(row.relKeyword)}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {row.relKeyword}
+                        </Link>
+                      ) : (
+                        row.relKeyword
+                      )}
                     </span>
                     <span
                       className={`shrink-0 text-xs font-medium ${

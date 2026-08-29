@@ -8,9 +8,12 @@ import PersonaTabs from "@/components/search/PersonaTabs";
 import StatCounters from "@/components/search/StatCounters";
 import MobileStickyCta from "@/components/MobileStickyCta";
 import TrendingKeywordsCards from "@/components/trending/TrendingKeywordsCards";
+import RecentKeywordTicker from "@/components/search/RecentKeywordTicker";
 import { getSiteStats } from "@/lib/notion/stats";
 import { fetchTrendingKeywordsWithNaverVolume } from "@/lib/googleTrends/client";
 import { getPolicyPosts } from "@/lib/notion/policyBoard";
+import { getRecentSearchKeywords } from "@/lib/notion/sessions";
+import { getKeywordDirectorySet } from "@/lib/notion/keywordSnapshots";
 import { formatKstDateTime } from "@/lib/utils/formatDate";
 
 const TRENDING_PREVIEW_COUNT = 4;
@@ -76,13 +79,19 @@ function StepArrow() {
 }
 
 export default async function Home() {
-  const [siteStats, trending, policyPreview] = await Promise.all([
+  const [siteStats, trending, policyPreview, recentKeywords, dictionarySet] = await Promise.all([
     getSiteStats().catch(() => null),
     fetchTrendingKeywordsWithNaverVolume().catch(() => null),
     getPolicyPosts()
       .then((r) => r.posts.slice(0, POLICY_PREVIEW_COUNT))
       .catch(() => []),
+    // 활성 신호(티커)·사전 링크용 — 실패해도 페이지는 그대로 렌더링.
+    getRecentSearchKeywords(14).catch(() => []),
+    getKeywordDirectorySet().catch(() => new Set<string>()),
   ]);
+
+  // 사전 페이지가 실제로 존재하는 키워드만 티커에 노출 — 404 링크 방지.
+  const tickerKeywords = recentKeywords.filter((k) => dictionarySet.has(k)).slice(0, 12);
 
   return (
     <div className="flex flex-1 flex-col font-sans">
@@ -140,6 +149,8 @@ export default async function Home() {
               </Link>
             </p>
           </div>
+
+          <RecentKeywordTicker keywords={tickerKeywords} />
         </section>
 
         {/* ② 성장 루프 4단계 */}
@@ -197,7 +208,10 @@ export default async function Home() {
                       더보기 →
                     </Link>
                   </div>
-                  <TrendingKeywordsCards items={trending.slice(0, TRENDING_PREVIEW_COUNT)} />
+                  <TrendingKeywordsCards
+                    items={trending.slice(0, TRENDING_PREVIEW_COUNT)}
+                    dictionaryKeywords={dictionarySet}
+                  />
                 </div>
               )}
 
