@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import ScrollProgressBar from "./ScrollProgressBar";
+import BrandLogo from "./BrandLogo";
 import MobileNavMenu from "./MobileNavMenu";
 import AuthNavLink from "./AuthNavLink";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
@@ -77,8 +77,8 @@ export default function SiteHeader() {
     <header className="sticky top-0 z-20 w-full border-b border-hairline bg-surface/85 backdrop-blur">
       <ScrollProgressBar />
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center">
-          <Image src="/ezzsearch_logo.png" alt="이지서치" width={94} height={32} priority />
+        <Link href="/" aria-label="이지서치 홈" className="flex items-center">
+          <BrandLogo />
         </Link>
         <nav className="hidden items-center gap-1 whitespace-nowrap text-sm font-medium text-ink-muted lg:flex">
           {NAV_GROUPS.map((group) => (
