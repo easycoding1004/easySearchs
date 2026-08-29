@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { BlogGroup } from "@/lib/write/blogCategories";
-import { QUIZ_QUESTIONS, GROUP_RESULTS, computeResultGroup, getCategoriesForGroup } from "@/lib/blogType/quizData";
+import { QUIZ_QUESTIONS, GROUP_RESULTS, GROUP_SLUGS, computeResultGroup, getCategoriesForGroup } from "@/lib/blogType/quizData";
 import { AI_WRITE_ENABLED } from "@/lib/constants";
 import ShareResultButton from "@/components/ShareResultButton";
 
@@ -75,7 +75,14 @@ function ResultScreen({ group, onRestart }: { group: BlogGroup; onRestart: () =>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <ShareResultButton title={`나는 ${result.headline}! - 이지서치 블로그 유형 진단`} text={result.description} />
+        {/* 현재 페이지(퀴즈 화면) 대신 결과 전용 URL을 공유 — 받은 사람이
+            열면 결과별 OG 카드가 뜨고, 그 페이지의 "나도 진단받기" CTA로
+            이어지는 바이럴 루프(2026-08 유입 전략). */}
+        <ShareResultButton
+          title={`나는 ${result.headline}! - 이지서치 블로그 유형 진단`}
+          text={result.description}
+          url={`/blog-type/result/${GROUP_SLUGS[group]}`}
+        />
         <button
           type="button"
           onClick={onRestart}

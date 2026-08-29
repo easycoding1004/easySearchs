@@ -87,6 +87,23 @@ export const GROUP_RESULTS: Record<BlogGroup, GroupResultMeta> = {
   },
 };
 
+// 2026-08 유입 전략(바이럴 장치) — 결과별 공유 전용 URL(/blog-type/result/
+// [slug])용 ASCII 슬러그. 한글 그룹명을 URL에 그대로 쓰면 공유 시 퍼센트
+// 인코딩된 긴 주소가 돼서 지저분함.
+export const GROUP_SLUGS: Record<BlogGroup, string> = {
+  정보노하우형: "info",
+  리뷰후기형: "review",
+  일상에세이형: "essay",
+  홍보광고형: "promo",
+};
+
+export function groupFromSlug(slug: string): BlogGroup | null {
+  const found = (Object.entries(GROUP_SLUGS) as [BlogGroup, string][]).find(
+    ([, s]) => s === slug
+  );
+  return found ? found[0] : null;
+}
+
 // 같은 그룹이 여러 번 나오면 그 그룹이 결과 — 동점이면 먼저 나온(=먼저
 // 답한) 그룹을 우선함(Map 순회 순서가 삽입 순서라 자연히 그렇게 됨).
 export function computeResultGroup(answers: BlogGroup[]): BlogGroup {

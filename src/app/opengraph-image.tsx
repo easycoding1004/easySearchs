@@ -1,4 +1,7 @@
 import { ImageResponse } from "next/og";
+// 한글 폰트 로더는 유형진단 결과 OG 이미지와 공유 — src/lib/utils/ogFont.ts
+// (원래 이 파일 안에 있었음, 2026-08 추출).
+import { loadNotoSansKR } from "@/lib/utils/ogFont";
 
 export const alt = "이지서치 — 네이버 키워드 검색량 조회 & 블로그지수";
 export const size = { width: 1200, height: 630 };
@@ -7,30 +10,6 @@ export const contentType = "image/png";
 const BRAND_NAME = "이지서치";
 const HEADLINE = "네이버 키워드 검색량 & 블로그지수";
 const SUBTEXT = "회원가입 없이 무료로 바로 확인하세요";
-
-// next/og's built-in font has no Korean glyphs — without a Korean font,
-// HEADLINE/SUBTEXT would render as blank boxes. Google Fonts' css2 endpoint
-// serves a Satori-compatible TTF (instead of woff2) when asked with an old
-// Chrome user agent — a well-known workaround for CJK og-images, since
-// Satori can't parse woff2.
-async function loadNotoSansKR(text: string): Promise<ArrayBuffer | null> {
-  try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700&text=${encodeURIComponent(text)}`;
-    const css = await fetch(cssUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
-      },
-    }).then((res) => res.text());
-
-    const fontUrl = css.match(/src: url\(([^)]+)\)/)?.[1];
-    if (!fontUrl) return null;
-
-    return await fetch(fontUrl).then((res) => res.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
 
 export default async function OpengraphImage() {
   // BRAND_NAME's own characters must be in the requested subset too —

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { GUIDE_ARTICLES } from "@/lib/guide/articles";
 import { CATEGORIES } from "@/lib/naver/categoryTrends";
 import { getKeywordDirectory } from "@/lib/notion/keywordSnapshots";
+import { GROUP_SLUGS } from "@/lib/blogType/quizData";
 
 const BASE_URL = "https://ezzsearch.com";
 
@@ -46,6 +47,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/keywords`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${BASE_URL}/keyword`, lastModified: now, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE_URL}/blog-type`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    // 유형진단 결과 공유 페이지 4종(2026-08 바이럴 장치) — 공유 링크로
+    // 유입된 크롤러도 색인할 수 있게 등재.
+    ...Object.values(GROUP_SLUGS).map((slug) => ({
+      url: `${BASE_URL}/blog-type/result/${slug}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.4,
+    })),
     ...CATEGORIES.map((category) => ({
       url: `${BASE_URL}/keywords/${category.id}`,
       lastModified: now,

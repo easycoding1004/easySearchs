@@ -14,10 +14,15 @@ import { useState } from "react";
 export default function ShareResultButton({
   title,
   text,
+  url: urlProp,
   compact = false,
 }: {
   title: string;
   text?: string;
+  // 2026-08 — 유형진단처럼 "지금 보고 있는 페이지"가 아니라 전용 결과
+  // URL(/blog-type/result/[slug], 결과별 OG 카드가 붙는 페이지)을 공유해야
+  // 하는 경우를 위한 선택 prop. 상대 경로면 현재 origin 기준으로 절대화됨.
+  url?: string;
   // 블로그지수 결과의 "이미지로 저장" 버튼 옆(§ExportableImage.tsx)처럼
   // 좁고 조용한 버튼 줄에 나란히 놓일 땐 아이콘 없는 작은 버전을 씀.
   compact?: boolean;
@@ -25,7 +30,9 @@ export default function ShareResultButton({
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
-    const url = window.location.href;
+    const url = urlProp
+      ? new URL(urlProp, window.location.origin).toString()
+      : window.location.href;
 
     if (navigator.share) {
       try {
