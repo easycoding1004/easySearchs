@@ -51,6 +51,40 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     return NextResponse.next();
   }
 
+  // 2026-08 수정(사용자 신고 — "실 방문자 수와 통계가 일치하지 않는다") —
+  // 지금까지 봇 필터가 전혀 없어서 검색엔진 크롤러(구글봇·네이버 예티·빙봇
+  // 등)와 각종 스크래퍼·모니터링 도구의 요청이 전부 방문으로 집계되고
+  // 있었음. 크롤러는 쿠키를 저장하지 않으므로 크롤링된 페이지 하나하나가
+  // 각각 "새 방문자"로 잡힘 — 통계가 실제보다 부풀려진 주원인으로 추정.
+  // 유료화 판단 기준(일 신규방문자)이 이 숫자에 걸려 있고, 키워드 SEO
+  // 페이지 확장으로 크롤러 트래픽이 크게 늘어날 예정이라 필터가 필수임.
+  const userAgent = request.headers.get("user-agent") ?? "";
+  // "bot"이 대부분의 크롤러(googlebot/bingbot/twitterbot/linkedinbot 등)를
+  // 잡고, 나머지는 bot 토큰이 없는 알려진 크롤러·스크래퍼·HTTP 클라이언트만
+  // 추가함. 인앱 브라우저(카카오톡/인스타그램 등)가 오탐으로 걸리는 토큰은
+  // 넣지 말 것 — 한국 트래픽은 인앱 브라우저 비중이 높음.
+  const BOT_UA_PATTERN =
+    /bot|crawl|spider|slurp|yeti|bingpreview|daumoa|kakaotalk-scrap|facebookexternalhit|whatsapp|semrush|ahrefs|bytespider|claude-web|amazonbot|applebot|headlesschrome|lighthouse|pagespeed|uptime|curl|wget|python|axios|node-fetch|go-http-client|okhttp|scrapy|java\/|libwww/i;
+  if (!userAgent || BOT_UA_PATTERN.test(userAgent)) {
+    return NextResponse.next();
+  }
+
+  // 실제 사용자의 "페이지 진입"만 방문으로 인정 —
+  // - GET이 아닌 요청(POST 등)은 페이지 진입이 아님.
+  // - sec-fetch-mode가 있는데 navigate가 아니면(클라이언트 라우팅 RSC fetch,
+  //   임베드 배지 <img> 요청 등) 문서 네비게이션이 아님. 헤더가 아예 없는
+  //   구형 브라우저는 오탐으로 제외하지 않도록 "있으면서 다를 때"만 거름.
+  // - RSC 헤더가 붙은 요청은 클라이언트 사이드 전환이라 별도 방문이 아님
+  //   (쿠키가 차단된 브라우저에서 페이지 전환마다 방문이 중복 집계되는 것 방지).
+  const secFetchMode = request.headers.get("sec-fetch-mode");
+  const isDocumentNavigation =
+    request.method === "GET" &&
+    (secFetchMode === null || secFetchMode === "navigate") &&
+    request.headers.get("rsc") === null;
+  if (!isDocumentNavigation) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
   if (!request.cookies.get(VISITOR_COOKIE)) {
     const visitorId = crypto.randomUUID();
